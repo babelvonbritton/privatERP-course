@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+/* Olaseena design tokens: warm ivory ground, deep plum ink, brand plum actions, oxblood danger, brass accents. Solid colors only. Each token reads a plain variable so the dark theme below can swap every value without renaming a single utility. */
+@theme {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-plum-50: var(--plum-50);
+  --color-plum-100: var(--plum-100);
+  --color-plum-200: var(--plum-200);
+  --color-plum-600: var(--plum-600);
+  --color-plum-700: var(--plum-700);
+  --color-plum-900: var(--plum-900);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-oxblood: var(--oxblood);
+  --color-brass: var(--brass);
+  --color-brass-700: var(--brass-700);
+  --color-danger: var(--danger);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Light theme values (the default). */
+:root {
+  color-scheme: light;
+  --canvas: #f8f5f0;
+  --surface: #ffffff;
+  --plum-50: #f6eff5;
+  --plum-100: #ecdfeb;
+  --plum-200: #d6c2d3;
+  --plum-600: #5b2a52;
+  --plum-700: #47203f;
+  --plum-900: #2b1e2b;
+  --ink: #2b1e2b;
+  --muted: #6b556b;
+  --line: #e6dee4;
+  --oxblood: #7a2436;
+  --brass: #8a6d1b;
+  --brass-700: #6b5313;
+  --danger: #7a2436;
+}
+
+/* Dark theme values: a dark plum world, not grey. Text tokens turn pale so they stay readable on the dark ground; plum-700 stays a deep plum because it is only ever a button hover fill behind white text. */
+html.dark {
+  color-scheme: dark;
+  --canvas: #1e151f;
+  --surface: #2b1e2b;
+  --plum-50: #3a2b3b;
+  --plum-100: #4d364e;
+  --plum-200: #6f4f74;
+  --plum-600: #d8b2d4;
+  --plum-700: #5f3659;
+  --plum-900: #f2e7f1;
+  --ink: #f2e7f1;
+  --muted: #c9b3c6;
+  --line: #4a3550;
+  --oxblood: #e89aa8;
+  --brass: #d9b45c;
+  --brass-700: #e6cb85;
+  --danger: #e89aa8;
+}
+
+/*
+ * Solid fills behind white text need a mid-tone in dark mode: the pale text
+ * tokens above would wash white out, and one token cannot be both pale
+ * enough for text and dark enough for a white label. These unlayered rules
+ * win over the utilities and cover every solid fill, including the invoice
+ * status badges in screens this feature may not edit.
+ */
+html.dark .bg-plum-600 { background-color: #7a4a72; }
+html.dark .bg-plum-900 { background-color: #4a3550; }
+html.dark .bg-danger { background-color: #a63a4f; }
+html.dark .bg-brass { background-color: #8a6d1b; }
+
+/* Dialog veils stay dark: the plum-900 token turns pale in dark mode, so the translucent overlays need a dark scrim instead. */
+html.dark .bg-plum-900\/35,
+html.dark .bg-plum-900\/40 { background-color: rgb(15 10 16 / 0.6); }
+
+/* Progress fills stay visible: a mid-tone bar would blend into its track, so the bar and the step connector use the pale plum fill on their darker tracks. */
+html.dark .bg-plum-100 > .bg-plum-600,
+html.dark .bg-line > .bg-plum-600 { background-color: #d8b2d4; }
+
+@media (min-width: 768px) {
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Space taken by fixed chrome, so floating elements never sit on top of it. */
+@media (max-width: 767px) {
+  :root { --bottom-nav: 5.5rem; }
+  /* The fixed bottom bar covers the page footer at max scroll, so the footer
+     carries its own clearance below it (margin, not padding: the footer's own
+     vertical padding utility would win over a plain element rule). */
+  footer { margin-bottom: calc(var(--bottom-nav) + 0.75rem); }
+  /* A focused element must scroll clear of the fixed bottom bar. */
+  html { scroll-padding-bottom: calc(var(--bottom-nav) + 1rem); }
+}
+@media (min-width: 768px) {
+  :root { --footer-h: 3.25rem; }
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keyboard focus stays visible everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-plum-600);
+  outline-offset: 2px;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Motion primitives for Radix layers (data-state drives enter and exit). */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px) scale(0.96); } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes dialog-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes sheet-right-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes sheet-right-out { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes sheet-up-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheet-up-out { from { transform: none; } to { transform: translateY(100%); } }
+
+.anim-overlay[data-state="open"] { animation: fade-in 200ms var(--ease-soft); }
+.anim-overlay[data-state="closed"] { animation: fade-out 160ms ease-in forwards; }
+.anim-pop { transform-origin: var(--radix-select-content-transform-origin, var(--radix-popover-content-transform-origin, top center)); }
+.anim-pop[data-state="open"] { animation: pop-in 160ms var(--ease-soft); }
+.anim-pop[data-state="closed"] { animation: pop-out 110ms ease-in forwards; }
+.anim-dialog[data-state="open"] { animation: dialog-in 240ms var(--ease-soft); }
+.anim-dialog[data-state="closed"] { animation: dialog-out 160ms ease-in forwards; }
+.anim-sheet[data-state="open"] { animation: sheet-right-in 320ms var(--ease-soft); }
+.anim-sheet[data-state="closed"] { animation: sheet-right-out 220ms ease-in forwards; }
+
+/* On phones, dialogs rise from the bottom as sheets. */
+@media (max-width: 767px) {
+  .anim-dialog[data-state="open"], .anim-sheet[data-state="open"] { animation-name: sheet-up-in; }
+  .anim-dialog[data-state="closed"], .anim-sheet[data-state="closed"] { animation-name: sheet-up-out; }
+}
+
+/* Thin, themed scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: var(--color-plum-200) transparent; }

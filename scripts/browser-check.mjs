@@ -1,0 +1,1561 @@
+/**
+ * Browser verification for Olaseena v0.2.0.
+ * Serves the static export separately (python3 -m http.server 8901 --directory out)
+ * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
+ * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
+ * The bundled Chromium is used through its cached executable when the
+ * playwright package revision does not match the cache.
+ */
+import { chromium } from "playwright";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
+import { strFromU8, unzipSync } from "fflate";
+
+mkdirSync(`${process.env.HOME}/workspace/olaseena-check-shots`, { recursive: true });
+let currentPage = null;
+
+const BASE = process.env.BASE_URL ?? "http://localhost:8901";
+const EXE = `${process.env.HOME}/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome`;
+
+const results = [];
+let failures = 0;
+
+async function check(name, fn) {
+  const started = Date.now();
+  try {
+    await fn();
+    const line = `PASS  ${name} (${Date.now() - started}ms)`;
+    results.push(line);
+    console.log(line);
+  } catch (e) {
+    failures += 1;
+    const detail = String(e?.message ?? e)
+      .split("\n")
+      .slice(0, 6)
+      .join(" | ");
+    const line = `FAIL  ${name} :: ${detail}`;
+    results.push(line);
+    console.log(line);
+    if (currentPage) {
+      const shot = `${process.env.HOME}/workspace/olaseena-check-shots/${name.replace(/[^a-z0-9]+/gi, "-")}.png`;
+      await currentPage.screenshot({ path: shot }).catch(() => {});
+      console.log(`  screenshot: ${shot}`);
+    }
+  }
+}
+
+function launchOptions() {
+  return { executablePath: EXE, args: ["--no-sandbox"] };
+}
+
+async function noOverflow(page, label, expectedWidth) {
+  const v = await page.evaluate(() => ({
+    sw: document.documentElement.scrollWidth,
+    iw: window.innerWidth,
+  }));
+  // Compare against the intended viewport width, not innerWidth: on mobile
+  // Chromium expands innerWidth to fit overflowing content, which would
+  // make the check pass spuriously while the page is actually too wide.
+  const vw = expectedWidth ?? v.iw;
+  if (v.sw > vw) throw new Error(`horizontal overflow on ${label}: scrollWidth ${v.sw} > viewport ${vw}`);
+  if (v.iw !== vw) throw new Error(`viewport expanded on ${label}: innerWidth ${v.iw} != ${vw}`);
+}
+
+/** Feature 4: at max scroll the page footer must sit fully above the fixed bottom bar. */
+async function footerClearOfNav(page) {
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(400);
+  const v = await page.evaluate(() => {
+    const nav = document.querySelector("nav.fixed");
+    const footer = document.querySelector("footer");
+    const nr = nav?.getBoundingClientRect();
+    const fr = footer?.getBoundingClientRect();
+    return { navTop: nr ? Math.round(nr.top) : null, footerBottom: fr ? Math.round(fr.bottom) : null };
+  });
+  if (v.footerBottom === null || v.navTop === null) throw new Error("footer or bottom nav not found");
+  if (v.footerBottom > v.navTop) {
+    throw new Error(`footer bottom ${v.footerBottom} sits behind the bottom nav (top ${v.navTop})`);
+  }
+}
+
+/** Feature 4: every control enlarged for touch must actually render at least 44px tall. */
+async function fixedTargetsAtLeast44(page, label) {
+  const small = await page.evaluate(() => {
+    const bad = [];
+    for (const el of document.querySelectorAll("button")) {
+      const cls = typeof el.className === "string" ? el.className : "";
+      if (!cls.includes("max-sm:min-h-11") && !cls.includes("max-sm:size-11") && !cls.includes("max-sm:h-11")) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      if (r.bottom < 0 || r.top > window.innerHeight) continue;
+      if (r.height < 44) bad.push(`${(el.getAttribute("aria-label") || el.textContent.trim()).slice(0, 30)} ${Math.round(r.height)}px`);
+    }
+    return bad;
+  });
+  if (small.length) throw new Error(`${label}: enlarged controls still below 44px: ${small.join("; ")}`);
+}
+
+/** Radix Select: open the combobox by its accessible name, then pick the option. */
+async function pickSelect(page, label, option) {
+  const trigger = page.getByRole("combobox", { name: label, exact: true });
+  await trigger.click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
+async function nav(page, name) {
+  await page.getByRole("button", { name, exact: true }).first().click();
+}
+
+async function toast(page, text, role = "status") {
+  // Match by DOM attribute, not by ARIA role: while a Radix dialog is open,
+  // Radix hides the rest of the page (including the toaster) from the
+  // accessibility tree, so getByRole("status") sees zero toasts even though
+  // they are rendered and visible on screen.
+  await page.locator(`[role="${role}"]`, { hasText: text }).first().waitFor({ timeout: 8000 });
+}
+
+/** Records every error toast (role=alert) into window.__alerts for the final check. */
+async function trackAlerts(page) {
+  await page.evaluate(() => {
+    window.__alerts = [];
+    const mo = new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (n.nodeType === 1 && n.getAttribute && n.getAttribute("role") === "alert") {
+            window.__alerts.push((n.textContent || "").trim().slice(0, 120));
+          }
+        }
+      }
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  });
+}
+
+async function desktop(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("desktop: dashboard loads", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByRole("button", { name: "Dashboard", exact: true }).first().waitFor();
+    await noOverflow(page, "dashboard", 1280);
+  });
+
+  await check("desktop: first-run tour shows and Skip ends it", async () => {
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+  });
+
+  await check("desktop: add member, search, edit", async () => {
+    await nav(page, "Members");
+    await page.getByText("No members yet").waitFor();
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Ayu Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("ayu@example.com");
+    await page.getByLabel("Phone", { exact: true }).fill("081234567890");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.getByText("Ayu Lestari").waitFor();
+    await page.getByPlaceholder("Search by name, email, or phone").fill("Ayu");
+    await page.getByText("Ayu Lestari").waitFor();
+    await page.getByPlaceholder("Search by name, email, or phone").fill("zzz-no-match");
+    await page.getByText("No members yet").waitFor();
+    await page.getByPlaceholder("Search by name, email, or phone").fill("");
+    await page.getByText("Ayu Lestari").waitFor();
+    await noOverflow(page, "members", 1280);
+  });
+
+  await check("desktop: delete member with confirm", async () => {
+    try {
+      await page.getByRole("button", { name: "Add member" }).click();
+      await page.getByLabel("Name", { exact: true }).fill("Temp Delete");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.locator("tr", { hasText: "Temp Delete" }).getByRole("button", { name: "Delete member" }).click();
+      await page.getByRole("button", { name: "Delete", exact: true }).click();
+      await toast(page, "Deleted");
+      if (await page.getByText("Temp Delete").count()) throw new Error("deleted member still listed");
+    } finally {
+      const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+      if (await cancel.count()) await cancel.first().click().catch(() => {});
+    }
+  });
+
+  await check("desktop: add trainer", async () => {
+    await nav(page, "Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
+    await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
+    await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.getByText("Budi Santoso").waitFor();
+    await noOverflow(page, "trainers", 1280);
+  });
+
+  await check("desktop: add course and enroll member", async () => {
+    try {
+      await nav(page, "Courses");
+      await page.getByRole("button", { name: "Add course" }).click();
+      await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
+      await page.getByLabel("Level", { exact: true }).fill("Beginner");
+      await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+      await page.getByLabel("Capacity", { exact: true }).fill("10");
+      await pickSelect(page, "Trainer", "Budi Santoso");
+      await pickSelect(page, "Weekday", "Monday");
+      await page.getByLabel("Time", { exact: true }).fill("10:00");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.locator("tr", { hasText: "Piano Basics" }).click();
+      await page.getByText("Enrollments").first().waitFor();
+      await page.getByRole("button", { name: "Enroll member" }).click();
+      await pickSelect(page, "Member", "Ayu Lestari");
+      await page.getByRole("button", { name: "Add", exact: true }).last().click();
+      await toast(page, "Saved");
+      await page.getByText("Ayu Lestari").waitFor();
+    } finally {
+      // Close the course detail modal even when an assertion above failed,
+      // so a stuck modal cannot block every later nav click.
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+    await noOverflow(page, "courses", 1280);
+  });
+
+  await check("desktop: create session and mark attendance", async () => {
+    await nav(page, "Attendance");
+    await pickSelect(page, "Course", "Piano Basics");
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("Scales");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.locator("p", { hasText: "Scales" }).waitFor();
+    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
+    await page.getByRole("switch", { name: "Trainer present" }).click();
+    await page.getByRole("button", { name: "Mark attendance" }).click();
+    await toast(page, "Attendance saved");
+    await noOverflow(page, "attendance", 1280);
+  });
+
+  await check("desktop: create invoice, partial then full payment", async () => {
+    try {
+      await nav(page, "Invoices");
+      await page.getByRole("button", { name: "New invoice" }).click();
+      await pickSelect(page, "Member", "Ayu Lestari");
+      await pickSelect(page, "Status", "Sent");
+      // The create form already ships with one empty line-item row; filling
+      // it is enough. Adding another row would leave an empty row behind,
+      // and the form rejects empty line descriptions.
+      await page.getByLabel("Description", { exact: true }).fill("Piano Basics Nov");
+      await page.getByLabel("Amount", { exact: true }).fill("500000");
+      await page.getByRole("button", { name: "Create invoice" }).click();
+      await toast(page, "Saved");
+      await page.getByText("Piano Basics Nov").waitFor({ timeout: 5000 }).catch(() => {});
+      await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+      await page.getByRole("button", { name: "Record payment", exact: true }).waitFor();
+      await page.getByLabel("Payment amount", { exact: true }).fill("200000");
+      await page.getByRole("button", { name: "Record payment", exact: true }).click();
+      await toast(page, "Payment recorded");
+      await page.getByText("Partially paid").first().waitFor();
+      await page.getByLabel("Payment amount", { exact: true }).fill("300000");
+      await page.getByRole("button", { name: "Record payment", exact: true }).click();
+      await toast(page, "Payment recorded");
+      await page.getByText("Paid").first().waitFor();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+    await noOverflow(page, "invoices", 1280);
+  });
+
+  await check("desktop: payroll generate from attendance and mark paid", async () => {
+    try {
+      await nav(page, "Payroll");
+      await pickSelect(page, "Trainer", "Budi Santoso");
+      await page.getByRole("button", { name: "Generate pay run" }).click();
+      await toast(page, "Saved");
+      // Generate only adds the run to the list; the review opens from its row.
+      await page.locator("tr", { hasText: "Budi Santoso" }).click();
+      await page.getByText("Review pay run").waitFor();
+      await page.getByText("IDR 150,000").first().waitFor();
+      await page.getByRole("button", { name: "Mark as paid" }).click();
+      await toast(page, "Saved");
+      await page.getByText("Budi Santoso").first().waitFor();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+    await noOverflow(page, "payroll", 1280);
+  });
+
+  await check("desktop: dashboard reflects the day's work", async () => {
+    await nav(page, "Dashboard");
+    await page.getByText("IDR 500,000").first().waitFor();
+    await page.getByText("100%").waitFor();
+    await noOverflow(page, "dashboard", 1280);
+  });
+
+  await check("desktop: language switch to Indonesian and back", async () => {
+    await nav(page, "Settings");
+    await page.locator('a[href="/id/"]').first().click();
+    await page.waitForURL("**/id/**");
+    await page.getByRole("button", { name: "Dasbor", exact: true }).first().waitFor();
+    await page.locator('a[href="/en/"]').first().click();
+    await page.waitForURL("**/en/**");
+    await page.getByRole("button", { name: "Dashboard", exact: true }).first().waitFor();
+  });
+
+  await check("desktop: backup downloads a zip", async () => {
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: "Backup and restore" }).click();
+    const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+    await page.getByRole("button", { name: "Create backup" }).click();
+    const download = await downloadPromise;
+    await page.getByText("Backup saved").waitFor({ timeout: 15000 });
+    const path = await download.path();
+    if (!path) throw new Error("download has no path");
+    const size = statSync(path).size;
+    if (size < 100) throw new Error(`backup zip too small: ${size} bytes`);
+    if (!download.suggestedFilename().startsWith("olaseena-")) {
+      throw new Error(`unexpected backup name: ${download.suggestedFilename()}`);
+    }
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+
+  await check("desktop: tour replay advances and skips", async () => {
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: "Get to know the features" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByText("Get to know Olaseena").waitFor();
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+  });
+
+  await check("desktop: privacy page loads", async () => {
+    await page.goto(`${BASE}/en/privacy`, { waitUntil: "networkidle" });
+    await page.getByText("Privacy & Policy").first().waitFor();
+    await noOverflow(page, "privacy", 1280);
+  });
+
+  await check("desktop: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+
+  await context.close();
+  return consoleErrors;
+}
+
+async function mobile(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("mobile: loads and tour skips", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await noOverflow(page, "mobile dashboard", 390);
+  });
+
+  await check("mobile: add a member through the bottom nav", async () => {
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Mobile User");
+    await page.getByLabel("Email", { exact: true }).fill("mobile@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.getByText("Mobile User").waitFor();
+    await noOverflow(page, "mobile members", 390);
+  });
+
+  for (const [navName, overflowLabel] of [
+    ["Courses", "mobile courses"],
+    ["Invoices", "mobile invoices"],
+  ]) {
+    await check(`mobile: ${navName} screen, no overflow`, async () => {
+      await nav(page, navName);
+      await noOverflow(page, overflowLabel, 390);
+    });
+  }
+
+  for (const [moreName, overflowLabel] of [
+    ["Trainers", "mobile trainers"],
+    ["Attendance", "mobile attendance"],
+    ["Payroll", "mobile payroll"],
+    ["Settings", "mobile settings"],
+  ]) {
+    await check(`mobile: ${moreName} via More sheet, no overflow`, async () => {
+      await page.getByRole("button", { name: "More", exact: true }).click();
+      await page.getByRole("button", { name: moreName, exact: true }).click();
+      await noOverflow(page, overflowLabel, 390);
+    });
+  }
+
+  await check("mobile: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+
+  await context.close();
+  return consoleErrors;
+}
+
+/** Feature 4: the mobile tour is a bottom sheet docked above the bottom bar. */
+async function mobileTourSheet(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+
+  await check("mobile tour: sheet docks above the bottom nav on all 8 steps", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.waitForTimeout(500);
+    for (let i = 0; i < 8; i++) {
+      const state = await page.evaluate(() => {
+        const dlg = document.querySelector('[role="dialog"]');
+        const dr = dlg?.getBoundingClientRect();
+        const nav = document.querySelector("nav.fixed");
+        const nr = nav?.getBoundingClientRect();
+        const h1 = document.querySelector("main h1");
+        const hr = h1?.getBoundingClientRect();
+        const grabber = dlg?.querySelector("div[aria-hidden='true'].rounded-full");
+        const dim = [...document.querySelectorAll("div")].find(
+          (d) => getComputedStyle(d).backgroundColor === "rgba(43, 30, 43, 0.35)",
+        );
+        const skip = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Skip tour");
+        const sr = skip?.getBoundingClientRect();
+        const next = [...document.querySelectorAll("button")].find((b) => ["Next", "Finish"].includes(b.textContent.trim()));
+        const nrect = next?.getBoundingClientRect();
+        return {
+          left: dr ? Math.round(dr.left) : null,
+          right: dr ? Math.round(dr.right) : null,
+          top: dr ? Math.round(dr.top) : null,
+          bottom: dr ? Math.round(dr.bottom) : null,
+          height: dr ? Math.round(dr.height) : null,
+          vh: window.innerHeight,
+          vw: window.innerWidth,
+          navTop: nr ? Math.round(nr.top) : null,
+          titleBottom: hr ? Math.round(hr.bottom) : null,
+          hasGrabber: !!grabber,
+          hasLightDim: !!dim,
+          hasRing: !!dlg?.parentElement?.querySelector(".border-white"),
+          skipH: sr ? Math.round(sr.height) : null,
+          nextH: nrect ? Math.round(nrect.height) : null,
+          nextBottom: nrect ? Math.round(nrect.bottom) : null,
+        };
+      });
+      if (state.left !== 0 || state.right !== state.vw) {
+        throw new Error(`step ${i + 1}: sheet not full width (left ${state.left} right ${state.right} vw ${state.vw})`);
+      }
+      if (state.height > Math.round(state.vh * 0.45) + 2) {
+        throw new Error(`step ${i + 1}: sheet taller than 45dvh (${state.height} > ${Math.round(state.vh * 0.45)})`);
+      }
+      if (state.bottom !== state.navTop) {
+        throw new Error(`step ${i + 1}: sheet bottom ${state.bottom} != bottom nav top ${state.navTop}`);
+      }
+      if (!state.hasGrabber) throw new Error(`step ${i + 1}: grabber handle missing`);
+      if (!state.hasLightDim) throw new Error(`step ${i + 1}: light dim missing`);
+      if (state.hasRing) throw new Error(`step ${i + 1}: highlight ring still rendered`);
+      if (state.titleBottom === null || state.titleBottom >= state.top) {
+        throw new Error(`step ${i + 1}: screen title not visible above the sheet (title bottom ${state.titleBottom}, sheet top ${state.top})`);
+      }
+      if (state.skipH === null || state.skipH < 44) throw new Error(`step ${i + 1}: Skip button ${state.skipH}px tall`);
+      if (state.nextH === null || state.nextH < 44 || state.nextBottom > state.navTop) {
+        throw new Error(`step ${i + 1}: Next/Finish button not reachable (height ${state.nextH}, bottom ${state.nextBottom}, navTop ${state.navTop})`);
+      }
+      if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-1.png` });
+      if (i === 4) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-5.png` });
+      if (i < 7) {
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await page.waitForTimeout(600);
+      }
+    }
+    await page.getByRole("button", { name: "Finish", exact: true }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+  });
+
+  await check("mobile tour: backdrop tap ends the tour", async () => {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Get to know the features" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
+    await page.waitForTimeout(500);
+    // Tap the dimmed screen above the sheet: the backdrop ends the tour.
+    await page.mouse.click(195, 100);
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+  });
+
+  await context.close();
+}
+
+/** Feature 4: the sheet buttons stay reachable on a shorter phone (360x740). */
+async function mobileTourShortPhone(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 360, height: 740 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  await check("mobile tour: sheet buttons stay reachable at 360x740", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.waitForTimeout(500);
+    for (let i = 0; i < 8; i++) {
+      const state = await page.evaluate(() => {
+        const dlg = document.querySelector('[role="dialog"]');
+        // Scroll the sheet to its end first: on a short phone the longest
+        // step text can push the buttons below the 45dvh fold until scrolled.
+        if (dlg) dlg.scrollTop = dlg.scrollHeight;
+        const dr = dlg?.getBoundingClientRect();
+        const nav = document.querySelector("nav.fixed");
+        const nr = nav?.getBoundingClientRect();
+        const btns = [...document.querySelectorAll('[role="dialog"] button')].map((b) => {
+          const r = b.getBoundingClientRect();
+          return { label: b.textContent.trim(), h: Math.round(r.height), bottom: Math.round(r.bottom), top: Math.round(r.top) };
+        });
+        return { sheetBottom: dr ? Math.round(dr.bottom) : null, navTop: nr ? Math.round(nr.top) : null, btns };
+      });
+      if (state.sheetBottom !== state.navTop) {
+        throw new Error(`step ${i + 1}: sheet bottom ${state.sheetBottom} != nav top ${state.navTop}`);
+      }
+      for (const b of state.btns) {
+        if (b.bottom > state.navTop || b.top < 0) {
+          throw new Error(`step ${i + 1}: ${b.label} button outside the reachable area (top ${b.top} bottom ${b.bottom} navTop ${state.navTop})`);
+        }
+        if (b.h < 44) throw new Error(`step ${i + 1}: ${b.label} button ${b.h}px tall`);
+      }
+      if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-360x740-step-1.png` });
+      if (i < 7) {
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await page.waitForTimeout(600);
+      }
+    }
+    await page.getByRole("button", { name: "Finish", exact: true }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+  });
+  await context.close();
+}
+
+/** Feature 4: every screen with seeded data on a phone, after the mobile polish. */
+async function mobileScreensWithData(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  async function moreNav(name) {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("button", { name, exact: true }).click();
+  }
+
+  /** Lets stacked toasts clear so screenshots show the screen, not the toasts. */
+  async function toastsGone() {
+    await page.locator('[role="status"]').first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+  }
+
+  await check("mobile data: seed member, trainer, course, session, invoice, pay run", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Ayu Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("ayu@example.com");
+    await page.getByLabel("Phone", { exact: true }).fill("081234567890");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await moreNav("Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
+    await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
+    await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await nav(page, "Courses");
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await page.getByLabel("Capacity", { exact: true }).fill("10");
+    await pickSelect(page, "Trainer", "Budi Santoso");
+    await pickSelect(page, "Weekday", "Monday");
+    await page.getByLabel("Time", { exact: true }).fill("10:00");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Piano Basics" }).click();
+    await page.getByText("Enrollments").first().waitFor();
+    await page.getByRole("button", { name: "Enroll member" }).click();
+    await pickSelect(page, "Member", "Ayu Lestari");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    await moreNav("Attendance");
+    await pickSelect(page, "Course", "Piano Basics");
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("Scales");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.locator("p", { hasText: "Scales" }).waitFor();
+    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
+    await page.getByRole("switch", { name: "Trainer present" }).click();
+    await page.getByRole("button", { name: "Mark attendance" }).click();
+    await toast(page, "Attendance saved");
+    await nav(page, "Invoices");
+    await page.getByRole("button", { name: "New invoice" }).click();
+    await pickSelect(page, "Member", "Ayu Lestari");
+    await pickSelect(page, "Status", "Sent");
+    await page.getByLabel("Description", { exact: true }).fill("Piano Basics Nov");
+    await page.getByLabel("Amount", { exact: true }).fill("500000");
+    await page.getByRole("button", { name: "Create invoice" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+    await page.getByRole("button", { name: "Record payment", exact: true }).waitFor();
+    await page.getByLabel("Payment amount", { exact: true }).fill("200000");
+    await page.getByRole("button", { name: "Record payment", exact: true }).click();
+    await toast(page, "Payment recorded");
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    await moreNav("Payroll");
+    await pickSelect(page, "Trainer", "Budi Santoso");
+    await page.getByRole("button", { name: "Generate pay run" }).click();
+    await toast(page, "Saved");
+    await toastsGone();
+  });
+
+  await check("mobile data: dashboard with data, no overflow, footer clear", async () => {
+    await nav(page, "Dashboard");
+    await page.getByText("IDR 200,000").first().waitFor();
+    await page.getByText("100%").waitFor();
+    await noOverflow(page, "mobile data dashboard", 390);
+    await footerClearOfNav(page);
+    await toastsGone();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-dashboard-390.png` });
+  });
+
+  await check("mobile data: members table, row actions are 44px", async () => {
+    await nav(page, "Members");
+    await page.getByText("Ayu Lestari").waitFor();
+    await noOverflow(page, "mobile data members", 390);
+    await fixedTargetsAtLeast44(page, "members");
+    await footerClearOfNav(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-members-390.png` });
+  });
+
+  await check("mobile data: trainers table, row actions are 44px", async () => {
+    await moreNav("Trainers");
+    await page.getByText("Budi Santoso").waitFor();
+    await noOverflow(page, "mobile data trainers", 390);
+    await fixedTargetsAtLeast44(page, "trainers");
+    await footerClearOfNav(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-trainers-390.png` });
+  });
+
+  await check("mobile data: course detail modal, no overflow", async () => {
+    await nav(page, "Courses");
+    await page.locator("tr", { hasText: "Piano Basics" }).click();
+    await page.getByText("Enrollments").first().waitFor();
+    await page.getByText("Ayu Lestari").waitFor();
+    await noOverflow(page, "mobile data course detail", 390);
+    await fixedTargetsAtLeast44(page, "course detail");
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-course-detail-390.png` });
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("mobile data: attendance with a session, radio targets are 44px", async () => {
+    await moreNav("Attendance");
+    await pickSelect(page, "Course", "Piano Basics");
+    // The session option is labeled with its date and topic, so match the topic part.
+    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+    await page.getByRole("option", { name: /Scales/ }).click();
+    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
+    await noOverflow(page, "mobile data attendance", 390);
+    const radioH = await page.evaluate(() => {
+      const radios = [...document.querySelectorAll('[role="radio"]')];
+      return radios.length ? Math.min(...radios.map((r) => Math.round(r.getBoundingClientRect().height))) : null;
+    });
+    if (radioH === null || radioH < 44) throw new Error(`attendance radio buttons ${radioH}px tall`);
+    await fixedTargetsAtLeast44(page, "attendance");
+    await footerClearOfNav(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-attendance-390.png` });
+  });
+
+  await check("mobile data: invoice detail modal, no overflow", async () => {
+    await nav(page, "Invoices");
+    await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+    await page.getByRole("button", { name: "Record payment", exact: true }).waitFor();
+    await page.getByText("Partially paid").first().waitFor();
+    await noOverflow(page, "mobile data invoice detail", 390);
+    await fixedTargetsAtLeast44(page, "invoice detail");
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-invoice-detail-390.png` });
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("mobile data: payroll review, no overflow", async () => {
+    await moreNav("Payroll");
+    await page.locator("tr", { hasText: "Budi Santoso" }).click();
+    await page.getByText("Review pay run").waitFor();
+    await page.getByText("IDR 150,000").first().waitFor();
+    await noOverflow(page, "mobile data payroll review", 390);
+    await fixedTargetsAtLeast44(page, "payroll review");
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-payroll-390.png` });
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("mobile data: settings, footer clears the bottom nav", async () => {
+    await moreNav("Settings");
+    await noOverflow(page, "mobile data settings", 390);
+    await footerClearOfNav(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-settings-390.png` });
+  });
+
+  await check("mobile data: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+
+  await context.close();
+  return consoleErrors;
+}
+
+/** Feature 4: dark theme on a phone, switched from Settings. */
+async function mobileDarkMode(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  await check("mobile dark: switch to dark in Settings, dashboard stays readable", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("radio", { name: "Dark" }).click();
+    await page.waitForFunction(() => document.documentElement.classList.contains("dark"), null, { timeout: 5000 });
+    await nav(page, "Dashboard");
+    await noOverflow(page, "mobile dark dashboard", 390);
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-dark-dashboard-390.png` });
+  });
+  await context.close();
+}
+
+/** v0.2.0 print: transfer invoice shows the payment block and both downloads are non-empty files; a cash invoice shows no payment block. */
+async function printChecks(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  async function createInvoice(paymentMethod, details, amount = 500000) {
+    await nav(page, "Invoices");
+    await page.getByRole("button", { name: "New invoice" }).click();
+    await pickSelect(page, "Member", "Ayu Lestari");
+    await pickSelect(page, "Status", "Sent");
+    if (paymentMethod) await pickSelect(page, "Payment method", paymentMethod);
+    if (details) await page.getByLabel("Payment details", { exact: true }).fill(details);
+    await page.getByLabel("Description", { exact: true }).fill("Piano Basics Nov");
+    await page.getByLabel("Amount", { exact: true }).fill(String(amount));
+    await page.getByRole("button", { name: "Create invoice" }).click();
+    await toast(page, "Saved");
+  }
+
+  function previewDialog() {
+    return page.locator('[role="dialog"]:has-text("Invoice preview")').last();
+  }
+
+  await check("print: seed member for invoices", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Ayu Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("ayu@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+  });
+
+  await check("print: transfer invoice preview shows payment details and PNG downloads", async () => {
+    try {
+      await createInvoice("Bank transfer", "BCA 1234567890 a.n. Olaseena");
+      await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+      await page.getByRole("button", { name: "Print invoice", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Print invoice", exact: true }).click();
+      await previewDialog().getByText("BCA 1234567890 a.n. Olaseena").waitFor({ timeout: 8000 });
+      await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/v020-print-preview.png` });
+      const downloadPromise = page.waitForEvent("download", { timeout: 30000 });
+      await previewDialog().getByRole("button", { name: "Download PNG", exact: true }).click();
+      const download = await downloadPromise;
+      const path = await download.path();
+      if (!path) throw new Error("PNG download has no path");
+      const size = statSync(path).size;
+      if (size < 1000) throw new Error(`PNG too small: ${size} bytes`);
+      if (!download.suggestedFilename().endsWith(".png")) {
+        throw new Error(`unexpected PNG name: ${download.suggestedFilename()}`);
+      }
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+  });
+
+  await check("print: same transfer invoice downloads a valid PDF", async () => {
+    try {
+      await nav(page, "Invoices");
+      await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+      await page.getByRole("button", { name: "Print invoice", exact: true }).click();
+      await previewDialog().getByText("BCA 1234567890 a.n. Olaseena").waitFor({ timeout: 8000 });
+      const downloadPromise = page.waitForEvent("download", { timeout: 30000 });
+      await previewDialog().getByRole("button", { name: "Download PDF", exact: true }).click();
+      const download = await downloadPromise;
+      const path = await download.path();
+      if (!path) throw new Error("PDF download has no path");
+      const size = statSync(path).size;
+      if (size < 1000) throw new Error(`PDF too small: ${size} bytes`);
+      if (!download.suggestedFilename().endsWith(".pdf")) {
+        throw new Error(`unexpected PDF name: ${download.suggestedFilename()}`);
+      }
+      if (readFileSync(path).subarray(0, 5).toString() !== "%PDF-") {
+        throw new Error("downloaded file is not a PDF");
+      }
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+  });
+
+  await check("print: cash invoice preview shows no payment block", async () => {
+    try {
+      // Distinct amount so its row is unambiguous regardless of list order.
+      await createInvoice(null, null, 250000);
+      await page.locator("tr", { hasText: "IDR 250,000" }).first().click();
+      await page.getByRole("button", { name: "Print invoice", exact: true }).click();
+      const dialog = previewDialog();
+      await dialog.getByText("Invoice preview").waitFor({ timeout: 8000 });
+      if (await dialog.getByText("Payment details", { exact: true }).count()) {
+        throw new Error("cash invoice preview shows a payment details block");
+      }
+      if (await dialog.getByText("BCA 1234567890").count()) {
+        throw new Error("cash invoice preview leaks the transfer details");
+      }
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+  });
+
+  await check("print: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+
+  await context.close();
+}
+
+/** v0.2.0 dark theme on desktop: switch in Settings, dashboard + invoice form render without overflow, then back to light. */
+async function darkDesktop(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("dark desktop: switch to dark in Settings", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Settings");
+    await page.getByRole("radio", { name: "Dark", exact: true }).click();
+    const isDark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+    if (!isDark) throw new Error("html.dark class not applied after choosing Dark");
+    await page.waitForTimeout(300);
+  });
+
+  await check("dark desktop: dashboard renders without overflow", async () => {
+    await nav(page, "Dashboard");
+    await noOverflow(page, "dark dashboard", 1280);
+    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/v020-dark-dashboard.png` });
+  });
+
+  await check("dark desktop: invoice form renders without overflow", async () => {
+    await nav(page, "Invoices");
+    await page.getByRole("button", { name: "New invoice" }).click();
+    await noOverflow(page, "dark invoice form", 1280);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click().catch(() => {});
+  });
+
+  await check("dark desktop: back to light removes the class and survives reload", async () => {
+    await nav(page, "Settings");
+    await page.getByRole("radio", { name: "Light", exact: true }).click();
+    const isDark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+    if (isDark) throw new Error("html.dark class still present after choosing Light");
+    await page.reload({ waitUntil: "networkidle" });
+    const stillLight = await page.evaluate(() => !document.documentElement.classList.contains("dark"));
+    if (!stillLight) throw new Error("theme did not persist as Light after reload");
+  });
+
+  await check("dark desktop: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+
+  await context.close();
+}
+
+/** v0.2.0 currency: stubbed Frankfurter rates drive the switch, the 10/day limit blocks the 11th, and a failed fetch changes nothing. */
+async function currencyChecks(browser) {
+  const RATES = {
+    "IDR->EUR": 0.00005,
+    "EUR->IDR": 20000,
+    "EUR->USD": 1.08,
+    "USD->EUR": 0.92,
+    "IDR->USD": 0.00006,
+    "USD->IDR": 16666.67,
+  };
+  async function stubRates(page) {
+    await page.route("**/api.frankfurter.dev/**", (route) => {
+      const url = new URL(route.request().url());
+      const base = url.searchParams.get("base");
+      const symbols = (url.searchParams.get("symbols") ?? "").split(",").filter(Boolean);
+      const rates = {};
+      for (const sym of symbols) rates[sym] = RATES[`${base}->${sym}`];
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ amount: 1.0, base, date: "2026-11-19", rates }),
+      });
+    });
+  }
+
+  async function seedInvoice(page, amount) {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Ayu Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("ayu@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await nav(page, "Invoices");
+    await page.getByRole("button", { name: "New invoice" }).click();
+    await pickSelect(page, "Member", "Ayu Lestari");
+    await pickSelect(page, "Status", "Sent");
+    await page.getByLabel("Description", { exact: true }).fill("Piano Basics Nov");
+    await page.getByLabel("Amount", { exact: true }).fill(String(amount));
+    await page.getByRole("button", { name: "Create invoice" }).click();
+    await toast(page, "Saved");
+  }
+
+  async function switchTo(page, code) {
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: code, exact: true }).click();
+    await page.getByRole("button", { name: "Switch and convert", exact: true }).click();
+    await toast(page, `Currency switched to ${code}`);
+  }
+
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+  await stubRates(page);
+
+  await check("currency: switch IDR to EUR converts the invoice total", async () => {
+    await seedInvoice(page, 1000000);
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: "EUR", exact: true }).click();
+    await page.getByText("You have 10 of 10 switches left today").waitFor({ timeout: 5000 });
+    await page.getByRole("button", { name: "Switch and convert", exact: true }).click();
+    await toast(page, "Currency switched to EUR");
+    await nav(page, "Invoices");
+    await page.getByText("€50.00").first().waitFor({ timeout: 5000 });
+  });
+
+  await check("currency: 10 switches allowed, 11th shows the limit and changes nothing", async () => {
+    // Switch 1 (IDR to EUR) is done; 9 more alternating switches reach 10.
+    const sequence = ["USD", "EUR", "USD", "EUR", "USD", "EUR", "USD", "EUR", "USD"];
+    for (const code of sequence) await switchTo(page, code);
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: "EUR", exact: true }).click();
+    await page.getByText("Daily limit reached. You have used all 10 currency switches for today. Try again tomorrow.").waitFor({ timeout: 5000 });
+    if (await page.getByRole("button", { name: "Switch and convert", exact: true }).count()) {
+      throw new Error("limit dialog still offers a Switch button");
+    }
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    // Currency is still USD after 10 switches (last one was to USD).
+    await nav(page, "Invoices");
+    await page.getByText("$").first().waitFor({ timeout: 5000 });
+  });
+
+  await check("currency: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+
+  const failContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const failPage = await failContext.newPage();
+  failPage.setDefaultTimeout(10000);
+  currentPage = failPage;
+  const failErrors = [];
+  failPage.on("pageerror", (e) => failErrors.push(`pageerror: ${e.message}`));
+  failPage.on("console", (m) => {
+    if (m.type() === "error") failErrors.push(`console: ${m.text()}`);
+  });
+  await failPage.route("**/api.frankfurter.dev/**", (route) => route.abort());
+  await failPage.route("**/api.exchangerate-api.com/**", (route) => route.abort());
+
+  await check("currency: failed rate fetch shows an error toast and leaves IDR untouched", async () => {
+    await seedInvoice(failPage, 1000000);
+    await nav(failPage, "Settings");
+    await failPage.getByRole("button", { name: "EUR", exact: true }).click();
+    await failPage.getByRole("button", { name: "Switch and convert", exact: true }).click();
+    await toast(failPage, "Rate unavailable", "alert");
+    await nav(failPage, "Invoices");
+    await failPage.getByText("IDR 1,000,000").first().waitFor({ timeout: 5000 });
+  });
+
+  await check("currency failure: no console errors or page errors", async () => {
+    // The aborted rate fetch logs a resource error and errorCenter logs the
+    // reported error by design; both are the expected failure path, not bugs.
+    const expected = (e) => e.includes("ERR_FAILED") || e.includes("CURRENCY_FETCH_FAILED");
+    const unexpected = failErrors.filter((e) => !expected(e));
+    if (unexpected.length) throw new Error(unexpected.slice(0, 3).join(" | "));
+    const alerts = await failPage.evaluate(() => window.__alerts ?? []);
+    const other = alerts.filter((a) => !a.includes("Rate unavailable"));
+    if (other.length) throw new Error(`unexpected error toasts: ${other.slice(0, 3).join(" | ")}`);
+  });
+  await failContext.close();
+}
+
+/** Regression for the tour overflowing a short viewport: at 1280x600 the tooltip must stay fully on screen on every step, with Skip and Next clickable. */
+async function shortViewportTour(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 600 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  await check("short viewport: tour tooltip stays inside the viewport on all 8 steps", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.waitForTimeout(500);
+    for (let i = 0; i < 8; i++) {
+      const box = await page.evaluate(() => {
+        const dlg = document.querySelector('[role="dialog"]');
+        const r = dlg?.getBoundingClientRect();
+        const skip = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Skip tour");
+        const s = skip?.getBoundingClientRect();
+        return {
+          top: r ? Math.round(r.top) : null,
+          bottom: r ? Math.round(r.bottom) : null,
+          vh: window.innerHeight,
+          skipVisible: s ? s.bottom <= window.innerHeight && s.top >= 0 : false,
+        };
+      });
+      if (box.top === null || box.top < 0 || box.bottom > box.vh || !box.skipVisible) {
+        throw new Error(`step ${i + 1}: tooltip top ${box.top} bottom ${box.bottom} vs viewport ${box.vh}, Skip visible ${box.skipVisible}`);
+      }
+      if (i < 7) {
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await page.waitForTimeout(600);
+      }
+    }
+    await page.getByRole("button", { name: "Finish", exact: true }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+  });
+  await context.close();
+}
+
+/** v0.3.0 backup format 2: create a backup, check its ZIP layout in Node, restore it, then restore a v1 fixture. */
+async function backupV2Checks(browser) {
+  const V2_PATH = `${process.env.HOME}/workspace/olaseena-check-shots/backup-v2.zip`;
+  const V1_FIXTURE = `${process.cwd()}/tests/fixtures/olaseena-backup-v1.zip`;
+
+  async function openBackupDialog(page) {
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: "Backup and restore" }).click();
+  }
+
+  async function applyRestore(page) {
+    await page.getByText("File verified").waitFor({ timeout: 15000 });
+    await page.getByRole("checkbox", { name: "Download a safety backup of my current data first" }).click();
+    await page.getByRole("button", { name: "Apply changes", exact: true }).first().click();
+    await page.getByRole("button", { name: "Apply changes", exact: true }).last().click();
+    // The done panel has a Done button; "Backup restored" alone is ambiguous
+    // because the toast and the panel title share the text.
+    await page.getByRole("button", { name: "Done", exact: true }).waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: "Close" }).click();
+  }
+
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("backup v2: seed a member and create a backup", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Backup V2");
+    await page.getByLabel("Email", { exact: true }).fill("backupv2@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await openBackupDialog(page);
+    const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+    await page.getByRole("button", { name: "Create backup" }).click();
+    const download = await downloadPromise;
+    await page.getByText("Backup saved").waitFor({ timeout: 15000 });
+    await download.saveAs(V2_PATH);
+    if (!download.suggestedFilename().startsWith("olaseena-")) {
+      throw new Error(`unexpected backup name: ${download.suggestedFilename()}`);
+    }
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+
+  await check("backup v2: ZIP holds NDJSON files and a format 2 manifest", async () => {
+    const files = unzipSync(readFileSync(V2_PATH));
+    const names = Object.keys(files).sort();
+    for (const needed of ["manifest.json", "database/members.ndjson", "database/attachments.ndjson", "settings/configuration.json"]) {
+      if (!names.includes(needed)) throw new Error(`backup ZIP is missing ${needed}`);
+    }
+    if (names.includes("data.json")) throw new Error("backup ZIP still contains data.json");
+    const manifest = JSON.parse(strFromU8(files["manifest.json"]));
+    if (manifest.formatVersion !== 2) throw new Error(`manifest formatVersion is ${manifest.formatVersion}, expected 2`);
+    if (manifest.schemaVersion !== 2) throw new Error(`manifest schemaVersion is ${manifest.schemaVersion}, expected 2`);
+    if (manifest.stores.members.count < 1) throw new Error("manifest says no members were backed up");
+    if (manifest.stores.attachments.count !== 0) throw new Error("manifest says attachments were backed up");
+    for (const entry of manifest.files) {
+      if (typeof entry.bytes !== "number" || !/^[0-9a-f]{64}$/.test(entry.sha256)) {
+        throw new Error(`manifest file entry for ${entry.name} is missing bytes or sha256`);
+      }
+      if (entry.iv !== undefined) throw new Error(`unencrypted backup lists an IV for ${entry.name}`);
+    }
+    const config = JSON.parse(strFromU8(files["settings/configuration.json"]));
+    if (!Array.isArray(config.settings)) throw new Error("settings/configuration.json does not hold a settings list");
+    const memberLines = strFromU8(files["database/members.ndjson"]).split("\n").filter(Boolean);
+    if (!memberLines.some((line) => line.includes("Backup V2"))) throw new Error("members.ndjson does not hold the seeded member");
+  });
+
+  await check("backup v2: delete the member, restore the backup, member returns", async () => {
+    await nav(page, "Members");
+    await page.locator("tr", { hasText: "Backup V2" }).getByRole("button", { name: "Delete member" }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await toast(page, "Deleted");
+    if (await page.getByText("Backup V2").count()) throw new Error("deleted member still listed");
+    await openBackupDialog(page);
+    await page.getByRole("tab", { name: "Restore" }).click();
+    await page.locator('input[type="file"]').setInputFiles(V2_PATH);
+    await applyRestore(page);
+    await nav(page, "Members");
+    await page.getByText("Backup V2", { exact: true }).waitFor({ timeout: 8000 });
+  });
+
+  await check("backup v2: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+
+  const oldContext = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    acceptDownloads: true,
+  });
+  const oldPage = await oldContext.newPage();
+  oldPage.setDefaultTimeout(10000);
+  currentPage = oldPage;
+  const oldErrors = [];
+  oldPage.on("pageerror", (e) => oldErrors.push(`pageerror: ${e.message}`));
+  oldPage.on("console", (m) => {
+    if (m.type() === "error") oldErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("backup v1: old-format fixture still restores", async () => {
+    await oldPage.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(oldPage);
+    await oldPage.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await oldPage.getByRole("button", { name: "Skip tour" }).click();
+    await oldPage.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await openBackupDialog(oldPage);
+    await oldPage.getByRole("tab", { name: "Restore" }).click();
+    await oldPage.locator('input[type="file"]').setInputFiles(V1_FIXTURE);
+    await applyRestore(oldPage);
+    await nav(oldPage, "Members");
+    await oldPage.getByText("Ana", { exact: true }).waitFor({ timeout: 8000 });
+    await nav(oldPage, "Courses");
+    await oldPage.getByText("Piano Basics").waitFor({ timeout: 8000 });
+  });
+
+  await check("backup v1: no console errors or page errors", async () => {
+    if (oldErrors.length) throw new Error(oldErrors.slice(0, 3).join(" | "));
+    const alerts = await oldPage.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await oldContext.close();
+}
+
+async function attachmentChecks(browser) {
+  const ATT_BACKUP = `${process.env.HOME}/workspace/olaseena-check-shots/attachment-backup.zip`;
+  const ATT_DOWNLOAD = `${process.env.HOME}/workspace/olaseena-check-shots/receipt-download.png`;
+
+  async function openBackupDialog(page) {
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: "Backup and restore" }).click();
+  }
+
+  async function applyRestore(page) {
+    await page.getByText("File verified").waitFor({ timeout: 15000 });
+    await page.getByRole("checkbox", { name: "Download a safety backup of my current data first" }).click();
+    await page.getByRole("button", { name: "Apply changes", exact: true }).first().click();
+    await page.getByRole("button", { name: "Apply changes", exact: true }).last().click();
+    await page.getByRole("button", { name: "Done", exact: true }).waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: "Close" }).click();
+  }
+
+  /** Generates an image in the page and picks it in the attachment file input, returning the picked file size. */
+  async function pickImage(page, width, height, name) {
+    return await page.evaluate(
+      ({ width, height, name }) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#5B2A52";
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = "#F8F5F0";
+        ctx.font = "48px sans-serif";
+        ctx.fillText("Receipt", 40, 80);
+        return new Promise((resolve) => {
+          canvas.toBlob((blob) => {
+            const file = new File([blob], name, { type: "image/png" });
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            const input = document.querySelector('input[aria-label="Add image"]');
+            input.files = dt.files;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            resolve(file.size);
+          }, "image/png");
+        });
+      },
+      { width, height, name },
+    );
+  }
+
+  /** Picks a non-image file in the attachment file input. */
+  async function pickTextFile(page) {
+    await page.evaluate(() => {
+      const file = new File(["not an image"], "notes.txt", { type: "text/plain" });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const input = document.querySelector('input[aria-label="Add image"]');
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  /** Scale of the image in the open lightbox, parsed from its transform. */
+  async function lightboxScale(page) {
+    return await page.evaluate(() => {
+      const img = document.querySelector('[role="region"][aria-label$=".png"] img');
+      const match = /scale\(([0-9.]+)\)/.exec(img?.style.transform ?? "");
+      return match ? Number(match[1]) : 0;
+    });
+  }
+
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("attachments: seed member and create invoice with a pending image", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Attachment Ana");
+    await page.getByLabel("Email", { exact: true }).fill("attachment@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await nav(page, "Invoices");
+    await page.getByRole("button", { name: "New invoice" }).click();
+    await pickSelect(page, "Member", "Attachment Ana");
+    await page.getByLabel("Description", { exact: true }).fill("Course fee");
+    await page.getByLabel("Amount", { exact: true }).fill("100000");
+    const size = await pickImage(page, 800, 600, "receipt.png");
+    if (size <= 0) throw new Error("generated test image is empty");
+    await page.getByRole("img", { name: "receipt.png" }).first().waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Create invoice" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Attachment Ana" }).first().click();
+    await page.getByRole("button", { name: "View attachment: receipt.png" }).waitFor({ timeout: 8000 });
+  });
+
+  await check("attachments: non-image file is rejected with a plain message", async () => {
+    await pickTextFile(page);
+    await page.getByText("Only images can be attached").waitFor({ timeout: 8000 });
+    if ((await page.getByRole("button", { name: /View attachment/ }).count()) !== 1) {
+      throw new Error("rejected file still produced a thumbnail");
+    }
+  });
+
+  await check("attachments: oversized image is rejected after shrinking", async () => {
+    // No real photo stays over 4 MB after the 1920px JPEG shrink, so the
+    // shrink step is stubbed to return a 5 MB blob for this check only; the
+    // unit tests cover the real size math. Only the JPEG re-encode is
+    // stubbed: the test image itself is still generated as a real PNG.
+    await page.evaluate(() => {
+      window.__origToBlob = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function (cb, type, quality) {
+        if (type === "image/jpeg") {
+          cb(new Blob([new Uint8Array(5 * 1024 * 1024)], { type: "image/jpeg" }));
+        } else {
+          window.__origToBlob.call(this, cb, type, quality);
+        }
+      };
+    });
+    try {
+      await pickImage(page, 3000, 2000, "big.png");
+      await page.getByText("is still larger than 4 MB after shrinking.").waitFor({ timeout: 8000 });
+    } finally {
+      await page.evaluate(() => {
+        HTMLCanvasElement.prototype.toBlob = window.__origToBlob;
+      });
+    }
+    if ((await page.getByRole("button", { name: /View attachment/ }).count()) !== 1) {
+      throw new Error("rejected file still produced a thumbnail");
+    }
+    // The two rejections above raised expected error toasts and console
+    // lines; drop exactly those two expected entries so the final no-errors
+    // check only sees unexpected ones.
+    await page.evaluate(() => {
+      window.__alerts = [];
+    });
+    for (let i = consoleErrors.length - 1; i >= 0; i--) {
+      if (
+        consoleErrors[i].includes("during attachment.add") &&
+        (consoleErrors[i].includes("Only images can be attached") || consoleErrors[i].includes("larger than 4 MB after shrinking"))
+      ) {
+        consoleErrors.splice(i, 1);
+      }
+    }
+  });
+
+  await check("attachments: viewer opens, zooms with button and wheel, closes with Escape", async () => {
+    await page.getByRole("button", { name: "View attachment: receipt.png" }).click();
+    await page.getByRole("dialog", { name: "receipt.png" }).waitFor({ timeout: 8000 });
+    if ((await lightboxScale(page)) !== 1) throw new Error("lightbox did not start at scale 1");
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    const afterButton = await lightboxScale(page);
+    if (Math.abs(afterButton - 1.33) > 0.01) throw new Error(`zoom-in button left scale at ${afterButton}, expected 1.33`);
+    await page.mouse.move(640, 400);
+    await page.mouse.wheel(0, -600);
+    await page.waitForTimeout(300);
+    const afterWheel = await lightboxScale(page);
+    if (afterWheel <= afterButton) throw new Error(`wheel zoom did not grow the scale (${afterWheel} <= ${afterButton})`);
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "receipt.png" }).waitFor({ state: "detached", timeout: 5000 });
+  });
+
+  await check("attachments: viewer download saves the file, delete removes it", async () => {
+    await page.getByRole("button", { name: "View attachment: receipt.png" }).click();
+    await page.getByRole("dialog", { name: "receipt.png" }).waitFor({ timeout: 8000 });
+    const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+    await page.getByRole("button", { name: "Download" }).click();
+    const download = await downloadPromise;
+    await download.saveAs(ATT_DOWNLOAD);
+    if (download.suggestedFilename() !== "receipt.png") throw new Error(`unexpected download name: ${download.suggestedFilename()}`);
+    if (statSync(ATT_DOWNLOAD).size <= 0) throw new Error("downloaded attachment is empty");
+    await page.getByRole("button", { name: "Delete attachment" }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    // The lightbox closes on delete; wait for it to leave the DOM before
+    // touching the detail modal behind it, whose Close button shares the
+    // same accessible name as the lightbox close button.
+    await page.getByRole("dialog", { name: "receipt.png" }).waitFor({ state: "detached", timeout: 8000 });
+    await page.getByText("No attachments yet").waitFor({ timeout: 8000 });
+    await toast(page, "Deleted");
+    // The detail modal has two Close buttons (icon + footer text); the
+    // suite's established pattern picks the footer one.
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("attachments: backup ZIP holds the file as a real asset", async () => {
+    await page.locator("tr", { hasText: "Attachment Ana" }).first().click();
+    const size = await pickImage(page, 800, 600, "receipt-2.png");
+    if (size <= 0) throw new Error("generated test image is empty");
+    await page.getByRole("button", { name: "View attachment: receipt-2.png" }).waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    await openBackupDialog(page);
+    const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+    await page.getByRole("button", { name: "Create backup" }).click();
+    const download = await downloadPromise;
+    await page.getByText("Backup saved").waitFor({ timeout: 15000 });
+    await download.saveAs(ATT_BACKUP);
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    const files = unzipSync(readFileSync(ATT_BACKUP));
+    const manifest = JSON.parse(strFromU8(files["manifest.json"]));
+    if (manifest.schemaVersion !== 2) throw new Error(`manifest schemaVersion is ${manifest.schemaVersion}, expected 2`);
+    if (manifest.stores.attachments.count !== 1) throw new Error(`manifest says ${manifest.stores.attachments.count} attachments, expected 1`);
+    const lines = strFromU8(files["database/attachments.ndjson"]).split("\n").filter(Boolean);
+    if (lines.length !== 1) throw new Error(`attachments.ndjson holds ${lines.length} rows, expected 1`);
+    const row = JSON.parse(lines[0]);
+    if (row.fileName !== "receipt-2.png") throw new Error(`attachments.ndjson holds ${row.fileName}, expected receipt-2.png`);
+    const assetName = `assets/images/${row.id}.png`;
+    if (!files[assetName] || files[assetName].length === 0) throw new Error(`backup ZIP is missing a real file at ${assetName}`);
+  });
+
+  await check("attachments: restore brings the invoice and its file back", async () => {
+    await nav(page, "Invoices");
+    await page.locator("tr", { hasText: "Attachment Ana" }).first().click();
+    await page.getByRole("button", { name: "Delete invoice" }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await toast(page, "Deleted");
+    if (await page.getByText("Attachment Ana").count()) throw new Error("deleted invoice still listed");
+    await openBackupDialog(page);
+    await page.getByRole("tab", { name: "Restore" }).click();
+    await page.locator('input[type="file"]').setInputFiles(ATT_BACKUP);
+    await applyRestore(page);
+    await nav(page, "Invoices");
+    await page.getByText("Attachment Ana", { exact: true }).waitFor({ timeout: 8000 });
+    await page.locator("tr", { hasText: "Attachment Ana" }).first().click();
+    await page.getByRole("button", { name: "View attachment: receipt-2.png" }).waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "View attachment: receipt-2.png" }).click();
+    await page.getByRole("dialog", { name: "receipt-2.png" }).waitFor({ timeout: 8000 });
+    if ((await lightboxScale(page)) !== 1) throw new Error("restored attachment did not open in the viewer");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "receipt-2.png" }).waitFor({ state: "detached", timeout: 5000 });
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("attachments: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+}
+
+const browser = await chromium.launch(launchOptions());
+try {
+  await desktop(browser);
+  await printChecks(browser);
+  await darkDesktop(browser);
+  await currencyChecks(browser);
+  await mobile(browser);
+  await shortViewportTour(browser);
+  await mobileTourSheet(browser);
+  await mobileTourShortPhone(browser);
+  await mobileScreensWithData(browser);
+  await mobileDarkMode(browser);
+  await backupV2Checks(browser);
+  await attachmentChecks(browser);
+} finally {
+  await browser.close();
+}
+
+console.log(results.join("\n"));
+console.log(`\n${results.length - failures}/${results.length} checks passed`);
+if (failures) process.exit(1);

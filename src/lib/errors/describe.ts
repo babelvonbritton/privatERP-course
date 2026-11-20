@@ -1,0 +1,48 @@
+import type { Translate } from "@/i18n";
+import type { MessageKey } from "@/i18n/types";
+import { ValidationError } from "@/lib/storage/Guard";
+import type { AppError } from "./AppError";
+import { getCurrency } from "@/lib/currency";
+
+/** Technical field names used by validation, mapped to their translated labels. */
+const FIELD_KEYS: Record<string, MessageKey> = {
+  name: "field.name",
+  email: "field.email",
+  phone: "field.phone",
+  notes: "field.notes",
+  status: "field.status",
+  subjects: "field.subjects",
+  ratePerSession: "field.ratePerSession",
+  title: "field.title",
+  description: "field.description",
+  level: "field.level",
+  price: "field.price",
+  capacity: "field.capacity",
+  trainerId: "field.trainer",
+  scheduleWeekday: "field.scheduleWeekday",
+  scheduleTime: "field.scheduleTime",
+  memberId: "field.member",
+  courseId: "field.course",
+  startDate: "field.startDate",
+  endDate: "field.endDate",
+  date: "field.date",
+  topic: "field.topic",
+  trainerPresent: "field.trainerPresent",
+  lineItems: "invoice.charges",
+  dueDate: "field.dueDate",
+  amount: "field.amount",
+  method: "field.method",
+  periodStart: "field.periodStart",
+  periodEnd: "field.periodEnd",
+};
+
+/** User-facing title and hint for an error, in the active language. */
+export function describeError(error: AppError, t: Translate): { title: string; hint: string } {
+  const title = t(`err.${error.code}.title` as MessageKey);
+  const cause = error.cause;
+  if (error.code === "VALIDATION" && cause instanceof ValidationError) {
+    const key = FIELD_KEYS[cause.field];
+    return { title, hint: t(`validation.${cause.kind}`, { field: key ? t(key, { currency: getCurrency() }) : cause.field, limit: cause.limit ?? 0 }) };
+  }
+  return { title, hint: t(`err.${error.code}.hint` as MessageKey, error.context) };
+}
