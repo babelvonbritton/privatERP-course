@@ -101,15 +101,15 @@ export function InvoiceDocument({
     <div
       data-testid="invoice-document"
       data-attachments-ready={attachmentStatus}
-      style={{ width: 640, backgroundColor: "#FFFFFF", color: ink, fontFamily: "system-ui, -apple-system, sans-serif", padding: 32, boxSizing: "border-box" }}
+      style={{ width: "min(640px, 100%)", maxWidth: 640, minWidth: 0, backgroundColor: "#FFFFFF", color: ink, fontFamily: "system-ui, -apple-system, sans-serif", padding: "clamp(16px, 5vw, 32px)", boxSizing: "border-box" }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, color: accent }}>
           <LambdaMark size={28} />
           <span style={{ fontSize: 26, fontWeight: 700, color: ink }}>Olaseena</span>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{invoice.number}</div>
+        <div style={{ maxWidth: "100%", textAlign: "right" }}>
+          <div style={{ fontSize: 20, fontWeight: 700, overflowWrap: "anywhere" }}>{invoice.number}</div>
           <div style={{ fontSize: 13, color: muted }}>
             {t("invoice.issueDate")}: {formatDate(issueDate, locale)}
           </div>
@@ -144,7 +144,7 @@ export function InvoiceDocument({
         </tbody>
       </table>
 
-      <div style={{ marginTop: 16, marginLeft: "auto", width: 260, fontSize: 14 }}>
+      <div style={{ marginTop: 16, marginLeft: "auto", width: "min(260px, 100%)", maxWidth: 260, fontSize: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
           <span>{t("invoice.total")}</span>
           <strong>{formatMoney(invoice.total, locale)}</strong>

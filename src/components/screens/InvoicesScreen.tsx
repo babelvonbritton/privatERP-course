@@ -907,7 +907,7 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       >
         {detail && (
           <div className="flex flex-col gap-4">
-            <div ref={docRef} className="overflow-x-auto">
+            <div ref={docRef} className="w-full min-w-0">
               <InvoiceDocument
                 invoice={detail}
                 memberName={memberById.get(detail.memberId)?.name ?? ""}

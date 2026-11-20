@@ -132,6 +132,18 @@ describe("InvoiceDocument", () => {
     expect(screen.queryByTestId("invoice-payment-block")).toBeNull();
   });
 
+  it("uses a viewport-friendly width for the preview", () => {
+    const { container } = render(
+      <Providers>
+        <InvoiceDocument invoice={invoice()} memberName="Ana" />
+      </Providers>,
+    );
+
+    const document = container.querySelector<HTMLElement>('[data-testid="invoice-document"]');
+    expect(document?.style.width).toBe("min(640px, 100%)");
+    expect(document?.style.maxWidth).toBe("640px");
+  });
+
   it("includes attached images in the printable document", async () => {
     render(
       <Providers>

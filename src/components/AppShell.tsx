@@ -93,7 +93,7 @@ export function AppShell() {
         </header>
 
         <div className="md:pl-60">
-          <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-[calc(3.25rem+env(safe-area-inset-top,0px))] md:px-8 md:pb-10 md:pt-6">
+          <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-[calc(4.25rem+env(safe-area-inset-top,0px))] md:px-8 md:pb-10 md:pt-6">
             {nav === "dashboard" && <DashboardScreen navigate={navigate} />}
             {nav === "members" && <MembersScreen navigate={navigate} />}
             {nav === "trainers" && <TrainersScreen navigate={navigate} />}
