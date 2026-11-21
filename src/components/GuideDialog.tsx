@@ -15,6 +15,7 @@ const GUIDE_ITEMS: Record<string, string[]> = {
   attendance: ["sessions", "mark", "trainer"],
   invoices: ["pay", "status"],
   payroll: ["generate", "paid"],
+  trash: ["restore", "empty"],
   settings: ["language", "backup", "tour"],
 };
 

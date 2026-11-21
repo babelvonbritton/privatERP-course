@@ -159,11 +159,12 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   async function confirmDelete(): Promise<void> {
     if (!deleteTarget) return;
+    const label = deleteTarget.name;
     try {
       await services.trainers.remove(deleteTarget.id);
       setDeleteTarget(null);
       reload();
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
     } catch (e) {
       errorCenter.report(e, { action: "trainer.delete" });
     }

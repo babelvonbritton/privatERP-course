@@ -1,6 +1,6 @@
 import type { IconName } from "./ui/Icon";
 
-export type NavId = "dashboard" | "members" | "trainers" | "courses" | "attendance" | "invoices" | "payroll" | "settings";
+export type NavId = "dashboard" | "members" | "trainers" | "courses" | "attendance" | "invoices" | "payroll" | "trash" | "settings";
 
 export interface NavItem {
   id: NavId;
@@ -17,9 +17,10 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "attendance", icon: "clipboardCheck", labelKey: "nav.attendance" },
   { id: "invoices", icon: "receipt", labelKey: "nav.invoices" },
   { id: "payroll", icon: "wallet", labelKey: "nav.payroll" },
+  { id: "trash", icon: "trash", labelKey: "nav.trash" },
   { id: "settings", icon: "gear", labelKey: "nav.settings" },
 ];
 
 /** The five bottom-bar items on a phone; the rest live behind More. */
 export const MOBILE_NAV_IDS: NavId[] = ["dashboard", "members", "courses", "invoices"];
-export const MORE_NAV_IDS: NavId[] = ["trainers", "attendance", "payroll", "settings"];
+export const MORE_NAV_IDS: NavId[] = ["trainers", "attendance", "payroll", "trash", "settings"];

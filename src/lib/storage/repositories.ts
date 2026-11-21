@@ -1,5 +1,6 @@
 import type { Table } from "dexie";
 import { BaseRepository } from "./BaseRepository";
+import type { TrashEntry } from "@/lib/domain/trash";
 import type {
   Attendance,
   AuditLogEntry,
@@ -133,6 +134,13 @@ export interface SettingsStore {
   read(key: string): Promise<SettingRecord["value"] | undefined>;
   write(key: string, value: SettingRecord["value"]): Promise<void>;
   all(): Promise<SettingRecord[]>;
+}
+
+export interface TrashStore {
+  get(id: string): Promise<TrashEntry | undefined>;
+  all(): Promise<TrashEntry[]>;
+  put(record: TrashEntry): Promise<string>;
+  remove(id: string): Promise<void>;
 }
 
 /** Merges prefix matches from several indexes, de-duplicated by id. */
@@ -278,3 +286,5 @@ export class DexieSettingsStore extends BaseRepository<SettingRecord, string> im
     await this.table.put({ key, value });
   }
 }
+
+export class DexieTrashStore extends BaseRepository<TrashEntry, string> implements TrashStore {}

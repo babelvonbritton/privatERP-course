@@ -11,7 +11,7 @@ interface Props {
   title: string;
   children: ReactNode;
   width?: string;
-  /** Renders the overlay above every other layer (the section guide, which can open on top of the trash panel). */
+  /** Renders the overlay above every other layer (the section guide, which can open on top of another dialog). */
   topLayer?: boolean;
   /** Shows a "?" button next to the close button that explains this dialog's section. */
   onHelp?: () => void;

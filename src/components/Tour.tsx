@@ -24,6 +24,7 @@ export const TOUR_STEPS: TourStep[] = [
   { nav: "attendance", target: "attendance", step: "attendance" },
   { nav: "invoices", target: "invoices", step: "invoices" },
   { nav: "payroll", target: "payroll", step: "payroll" },
+  { nav: "trash", target: "trash", step: "trash" },
   { nav: "settings", target: "settings", step: "settings" },
 ];
 

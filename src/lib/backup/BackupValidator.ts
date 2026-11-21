@@ -29,6 +29,7 @@ import {
   type WriteKey,
 } from "@/lib/domain/types";
 import { ATTACHMENT_ENTITY_TYPES, MAX_ATTACHMENT_BYTES, type Attachment } from "@/lib/domain/attachments";
+import { TRASH_KINDS, type TrashEntry } from "@/lib/domain/trash";
 import { hasCurrencyPrecision } from "@/lib/currency";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, BACKUP_STORE_NAMES, CONFIGURATION_NAME, DATA_NAME, DB_SCHEMA_VERSION, MAX_RECORDS_PER_STORE, STORE_NAMES, STORE_TO_FILE, type BackupStoreName, type StoreName } from "./constants";
 import { BACKUP_KDF_ITERATIONS } from "./BackupCrypto";
@@ -172,6 +173,7 @@ const FIELDS = {
   writeKey: ["key", "entity", "entityId", "createdAt"],
   setting: ["key", "value"],
   attachment: ["id", "entityType", "entityId", "fileName", "mimeType", "sizeBytes", "width", "height", "createdAt"],
+  trash: ["id", "kind", "originalId", "label", "snapshot", "related", "deletedAt"],
 } as const;
 
 /** Validates the contents of data.json: types, limits and references. Builds clean objects field by field. */
@@ -199,6 +201,9 @@ class DataValidation {
     // Format 1 backups carry no attachments; they restore with an empty list.
     const rawAttachments = raw.attachments;
     const attachmentList: unknown[] = rawAttachments === undefined ? [] : Array.isArray(rawAttachments) ? rawAttachments : (this.log.add("attachments", "must be a list"), []);
+    // Backups written before the trash bin carry no trash list either.
+    const rawTrash = raw.trash;
+    const trashList: unknown[] = rawTrash === undefined ? [] : Array.isArray(rawTrash) ? rawTrash : (this.log.add("trash", "must be a list"), []);
     const currencySetting = lists.settings.find((entry) => isRecord(entry) && entry.key === "pref.currency");
     if (isRecord(currencySetting) && isCurrencyCode(currencySetting.value)) this.currency = currencySetting.value;
 
@@ -215,6 +220,7 @@ class DataValidation {
     const writeKeys = this.each(lists.writeKeys, "writeKeys", FIELDS.writeKey, this.writeKey);
     const settings = this.each(lists.settings, "settings", FIELDS.setting, this.setting);
     const attachments = this.each(attachmentList, "attachments", FIELDS.attachment, this.attachment);
+    const trash = this.each(trashList, "trash", FIELDS.trash, this.trashEntry);
 
     this.unique(members, "members", (m) => m.id);
     this.unique(trainers, "trainers", (t) => t.id);
@@ -229,6 +235,7 @@ class DataValidation {
     this.unique(writeKeys, "writeKeys", (w) => w.key);
     this.unique(settings, "settings", (s) => s.key);
     this.unique(attachments, "attachments", (a) => a.id);
+    this.unique(trash, "trash", (t) => t.id);
 
     const memberIds = new Set(members.map((m) => m.id));
     const trainerIds = new Set(trainers.map((t) => t.id));
@@ -273,17 +280,22 @@ class DataValidation {
     invoices.forEach((i, idx) => {
       if ((paidByInvoice.get(i.id) ?? 0) !== i.paidAmount) this.log.add(`invoices[${idx}].paidAmount`, "does not match its payments");
     });
+    // An attachment may point at a live invoice or at one held in the
+    // trash: trashed invoices keep their attachments until permanently
+    // deleted, so the reference is still valid.
+    const trashedInvoiceIds = new Set(trash.filter((t) => t.kind === "invoice").map((t) => t.originalId));
     attachments.forEach((a, idx) => {
-      const known = a.entityType === "invoice" ? invoiceIds : a.entityType === "member" ? memberIds : sessionIds;
-      if (!known.has(a.entityId)) this.log.add(`attachments[${idx}].entityId`, "points to a missing record");
+      const pointsAtInvoice = a.entityType === "invoice" && (invoiceIds.has(a.entityId) || trashedInvoiceIds.has(a.entityId));
+      const known = a.entityType === "invoice" ? pointsAtInvoice : a.entityType === "member" ? memberIds.has(a.entityId) : sessionIds.has(a.entityId);
+      if (!known) this.log.add(`attachments[${idx}].entityId`, "points to a missing record");
     });
     if (this.log.total > 0) throw this.fail();
 
     const warnings: Msg[] = [];
     if (this.unknownFieldRecords > 0) warnings.push({ key: "warn.unknownFields", vars: { count: this.unknownFieldRecords } });
 
-    const total = members.length + trainers.length + courses.length + enrollments.length + sessions.length + attendance.length + invoices.length + payments.length + payrollRuns.length + auditLog.length + writeKeys.length + settings.length + attachments.length;
-    return { data: { members, trainers, courses, enrollments, sessions, attendance, invoices, payments, payrollRuns, auditLog, writeKeys, settings, attachments }, warnings, total };
+    const total = members.length + trainers.length + courses.length + enrollments.length + sessions.length + attendance.length + invoices.length + payments.length + payrollRuns.length + auditLog.length + writeKeys.length + settings.length + attachments.length + trash.length;
+    return { data: { members, trainers, courses, enrollments, sessions, attendance, invoices, payments, payrollRuns, auditLog, writeKeys, settings, attachments, trash }, warnings, total };
   }
 
   private fail(summary?: string): AppError {
@@ -477,6 +489,24 @@ class DataValidation {
     return { key, value };
   };
 
+  private trashEntry = (o: Raw, p: string): TrashEntry => {
+    let snapshot: unknown = {};
+    if (isRecord(o.snapshot)) snapshot = o.snapshot;
+    else this.log.add(`${p}.snapshot`, "must be an object");
+    let related: unknown[] = [];
+    if (Array.isArray(o.related)) related = o.related;
+    else this.log.add(`${p}.related`, "must be a list");
+    return {
+      id: this.read.id(o, "id", p),
+      kind: this.read.oneOf(o, "kind", p, TRASH_KINDS),
+      originalId: this.read.id(o, "originalId", p),
+      label: this.read.text(o, "label", p, 200, { required: true, trim: true }),
+      snapshot,
+      related,
+      deletedAt: this.read.int(o, "deletedAt", p, 0, MAX_TIMESTAMP),
+    };
+  };
+
   private attachment = (o: Raw, p: string): Attachment => {
     const mimeType = this.read.text(o, "mimeType", p, 127, { required: true, trim: true });
     if (mimeType !== "" && !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(mimeType)) this.log.add(`${p}.mimeType`, "is not a media type");
@@ -523,11 +553,14 @@ export class BackupValidator {
 
     const stores = {} as BackupManifest["stores"];
     const rawStores = isRecord(raw.stores) ? raw.stores : (log.add("manifest.stores", "must be an object"), {} as Raw);
+    // Backups written before the trash bin carry no trash entry.
+    const trashStoreMissing = !isRecord(rawStores.trash);
     for (const name of BACKUP_STORE_NAMES) {
       const s = rawStores[name];
       if (!isRecord(s)) {
-        // Format 1 backups carry no attachments entry.
-        if (formatVersion === 1 && name === "attachments") {
+        // Format 1 backups carry no attachments entry, and backups written
+        // before the trash bin carry no trash entry.
+        if ((formatVersion === 1 && name === "attachments") || name === "trash") {
           stores[name] = { count: 0, sha256: "" };
           continue;
         }
@@ -572,8 +605,11 @@ export class BackupValidator {
       for (const name of BACKUP_STORE_NAMES) {
         const path = STORE_TO_FILE[name];
         const entry = files.find((f) => f.name === path);
-        if (!entry) log.add("manifest.files", `is missing ${path}`);
-        else if (entry.sha256 !== stores[name].sha256) log.add(`manifest.files`, `checksum for ${path} does not match its store record`);
+        if (!entry) {
+          // Backups written before the trash bin carry no trash file.
+          if (name === "trash" && trashStoreMissing) continue;
+          log.add("manifest.files", `is missing ${path}`);
+        } else if (entry.sha256 !== stores[name].sha256) log.add(`manifest.files`, `checksum for ${path} does not match its store record`);
       }
       for (const entry of files) {
         const isStoreFile = (Object.values(STORE_TO_FILE) as string[]).includes(entry.name);

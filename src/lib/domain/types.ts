@@ -1,9 +1,10 @@
 /** Domain types for Olaseena. Every record carries orgId, ownerId, timestamps and a revision so a future multi-user server can adopt the same rows without a migration. */
 
 import type { Attachment } from "./attachments";
+import type { TrashEntry } from "./trash";
 
 /** The one organization this single-user install serves. A later server keeps the same field and adds more orgs. */
-export const ORG_ID = "org-owner";
+export const ORG_ID = "Olaseena";
 /** The built-in owner account. A later server replaces this with real logged-in users. */
 export const OWNER_ID = "owner";
 
@@ -221,6 +222,8 @@ export interface BackupData {
   auditLog: AuditLogEntry[];
   writeKeys: WriteKey[];
   settings: SettingRecord[];
+  /** Deleted records held in the trash, with their snapshots and related rows. */
+  trash: TrashEntry[];
   /** Attachment metadata. The file bytes travel separately as ZIP entries; the IndexedDB store for these rows arrives later, so snapshots carry an empty list for now. */
   attachments: Attachment[];
 }

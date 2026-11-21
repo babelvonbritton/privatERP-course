@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.4.1
+
+Trash details: open any item in the trash bin to inspect its saved record and
+related data, such as invoice payments or session attendance.
+
+## 0.4.0
+
+Trash bin: deleting a record now moves it to the trash instead of erasing it, with restore, permanent delete, and automatic expiry.
+
+- Every deletable record can be trashed: members, trainers, courses,
+  enrollments, sessions, invoices, payments, and pay runs. Deleting one
+  removes it from its screen and puts a copy in the trash, with the rows
+  deleted alongside it: a session keeps its attendance rows, an invoice
+  keeps its payments. A trashed invoice keeps its attachments in place, so
+  restoring it leaves them working; they are only deleted with a permanent
+  delete.
+- Trash keeps a record for 7 days by default, changeable to 30 days in
+  Settings. Expiry is computed from the current setting, so changing it
+  applies to records already in the trash. Expired records are purged
+  automatically, and the trash can also be emptied by hand.
+- Restore puts the record and its related rows back in one step. It fails
+  loudly instead of overwriting or duplicating: a live record with the same
+  id, a duplicate active enrollment, a session on the same course and date,
+  a duplicate invoice number, a payment that would overpay its invoice, a
+  duplicate pay run, or a missing member, course, trainer, enrollment,
+  invoice, or session it depends on all block the restore and leave
+  everything untouched. Every trash, restore, and permanent delete is
+  written to the audit log.
+- Backups now include the trash (database/trash.ndjson, schema version 3),
+  so a restore brings trashed records back too, merged live-wins like the
+  other stores. Backups written before the trash bin still restore exactly
+  as before, with an empty trash.
+- Messages files are pretty-printed (2-space indent) instead of one line,
+  so they are easier to read and edit. Content is unchanged.
+
 ## 0.3.0
 
 NDJSON backups, invoice attachments, a currency-switch refinement, a print

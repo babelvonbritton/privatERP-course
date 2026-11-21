@@ -1,1 +1,906 @@
-{"action":{"add":"Add","back":"Back","cancel":"Cancel","close":"Close","confirm":"Confirm","delete":"Delete","done":"Done","edit":"Edit","save":"Save changes","search":"Search"},"app":{"name":"Olaseena","tagline":"All your courses in one place."},"attachment":{"add":"Add image","delete":"Delete attachment","deleteBody":"Delete {fileName}? This cannot be undone.","download":"Download","empty":"No attachments yet","emptyHint":"Add a photo of a receipt or document.","missing":"File missing","missingHint":"This file was not in the backup it was restored from.","notImage":"Only images can be attached (JPG, PNG, WebP, GIF).","pendingHint":"It will be added when the invoice is created.","reset":"Reset view","title":"Attachments","tooLarge":"{fileName} is still larger than 4 MB after shrinking.","unreadable":"{fileName} could not be read as an image.","view":"View attachment","zoomIn":"Zoom in","zoomOut":"Zoom out"},"attendance":{"empty":"No sessions yet","emptyHint":"Create a session for a course, then mark who showed up.","mark":"Mark attendance","newSession":"New session","noEnrollments":"No members are enrolled in this course yet.","pickCourse":"Choose a course","pickSession":"Choose a session","saved":"Attendance saved","title":"Attendance","trainerPresent":"Trainer present"},"backup":{"another":"Create another backup","confirmPassphrase":"Confirm passphrase","doneBody":"{name} ({size}). Checksum {hash}.","doneTitle":"Backup saved","downloadAgain":"Download again","encrypt":"Encrypt this backup with a passphrase","encryptionHint":"Use at least 8 characters. You will need this passphrase to restore the backup; it cannot be recovered.","intro":"Create a ZIP file with all members, trainers, courses, enrollments, sessions, attendance, invoices and payroll runs. It stays on your device. Keep it somewhere safe.","keepOpen":"Keep this window open until the process finishes.","passphrase":"Passphrase","passphraseMismatch":"The passphrases do not match.","start":"Create backup","tabBackup":"Back up","tabRestore":"Restore","title":"Backup and restore"},"course":{"add":"Add course","delete":"Delete course","deleteBody":"Delete {name}? Enrollments, sessions and invoices linked to it stay, but the course itself is removed. This cannot be undone.","detail":{"enrollments":"Enrollments","sessions":"Sessions"},"edit":"Edit course","empty":"No courses yet","emptyHint":"Add your first course, pick a trainer, and set a schedule and price.","search":"Search by title or trainer","title":"Courses"},"currency":{"confirm":"Switch and convert","confirmBody":"Switching needs the internet to fetch the latest rate. All amounts will be converted from {from} to {to} at today's rate. You have {remaining} of 10 switches left today.","confirmTitle":"Switch currency?","limitReached":"Daily limit reached. You have used all 10 currency switches for today. Try again tomorrow.","rateNote":"Converting back and forth can drift a little because of rounding.","restoreAdopted":"Backup currency {currency} adopted."},"dashboard":{"activeMembers":"Active members","attendanceRate":"Attendance rate","lowAttendance":"Low attendance","noInvoices":"No invoices yet.","noOverdue":"Nothing overdue. Good.","noUpcoming":"No upcoming sessions.","outstanding":"Outstanding invoices","overdue":"Overdue invoices","recentInvoices":"Recent invoices","revenueMonth":"Revenue collected this month","title":"Dashboard","upcoming":"Upcoming sessions","viewAll":"View all"},"date":{"clear":"Clear","next":"Next month","pick":"Pick a date","prev":"Previous month","today":"Today"},"detail":{"applied":"{total} records written in one atomic transaction","archiveVerified":"Re-read the archive: checksums and {total} records match","checksum":"SHA-256 {hash}... matches, {stores} stores confirmed","collected":"{total, plural, one {# record} other {# records}} collected","compared":"{added} new, {same} identical, {differs} different","compressed":"{size} compressed from {original}","decrypted":"Backup data decrypted","decryptionSkipped":"This backup is not encrypted","encrypted":"Backup data encrypted with your passphrase","encryptionSkipped":"No passphrase encryption","metadata":"Format {format}, created {date} by Olaseena {version}","packaged":"{files} files, {size} in total, SHA-256 {hash}...","read":"{name}, {size}","refreshed":"Data reloaded","restoreVerified":"Integrity check passed","safetySkipped":"Skipped by your choice","saved":"{name}","snapshot":"{total} current records held in memory","unpacked":"Found manifest.json and the backup files","valid":"All {total} records passed validation","validNotices":"{total} records passed, {count} notices"},"diff":{"amount":"Amount","capacity":"Capacity","chars":"{count} characters","course":"Course","date":"Date","description":"Description","dueDate":"Due date","email":"Email","endDate":"End date","level":"Level","member":"Member","method":"Method","name":"Name","none":"Empty","notes":"Notes","number":"Number","paid":"Paid","period":"Period","phone":"Phone","price":"Price","rate":"Rate","schedule":"Schedule","sessions":"Sessions","startDate":"Start date","status":"Status","subjects":"Subjects","title":"Title","topic":"Topic","total":"Total","trainer":"Trainer","value":"Value"},"enrollment":{"add":"Enroll member","delete":"Remove enrollment","deleteBody":"Remove {name} from this course? Past attendance and invoices stay, but the enrollment ends. This cannot be undone.","empty":"No enrollments yet","title":"Enrollments"},"err":{"BACKUP_APPLY_FAILED":{"hint":"Nothing was changed. Your previous data is untouched.","title":"Restore failed"},"BACKUP_ARCHIVE_INVALID":{"hint":"The file was not saved because it could not be restored. Try again.","title":"The new backup failed verification"},"BACKUP_CHECKSUM_MISMATCH":{"hint":"The checksum does not match. The file changed after it was created or was damaged in transfer.","title":"The backup is corrupted"},"BACKUP_COLLECT_FAILED":{"hint":"Reload the page and try again.","title":"Your data could not be read"},"BACKUP_CRYPTO_UNAVAILABLE":{"hint":"Open Olaseena over HTTPS or localhost. Browsers disable secure hashing elsewhere.","title":"Checksums are not available"},"BACKUP_DECRYPT_FAILED":{"hint":"Check the passphrase and make sure the backup file has not been changed or damaged.","title":"The backup could not be decrypted"},"BACKUP_DOWNLOAD_FAILED":{"hint":"Your browser blocked the download. Use Download again, or allow downloads for this site.","title":"The file could not be saved"},"BACKUP_FILE_READ_FAILED":{"hint":"Choose the file again, or copy it to this device first.","title":"The file could not be read"},"BACKUP_FILE_TOO_LARGE":{"hint":"Backups larger than 100 MB are rejected to protect your device.","title":"This file is too large"},"BACKUP_MANIFEST_INVALID":{"hint":"The manifest is missing, unreadable or from another app.","title":"This is not a readable Olaseena backup"},"BACKUP_MERGE_INVALID":{"hint":"Merging would leave inconsistent data, so nothing was changed. See the technical details.","title":"The chosen combination cannot be applied"},"BACKUP_NOT_ZIP":{"hint":"Pick a .zip created by Olaseena. The file may be damaged or incomplete.","title":"This is not a valid ZIP archive"},"BACKUP_PACKAGE_FAILED":{"hint":"Try again. If it keeps failing, reload the page.","title":"The backup file could not be built"},"BACKUP_PASSWORD_REQUIRED":{"hint":"Enter the passphrase that was used when this backup was created.","title":"A passphrase is required"},"BACKUP_PASSWORD_TOO_SHORT":{"hint":"Choose a passphrase with at least 8 characters.","title":"The passphrase is too short"},"BACKUP_ROLLBACK_FAILED":{"hint":"Restore the safety backup file that was downloaded before this step.","title":"Restore could not be completed or undone"},"BACKUP_SELFCHECK_FAILED":{"hint":"The stored data has inconsistencies, so no backup was written. See the technical details.","title":"Your data failed the pre-backup check"},"BACKUP_SIZE_MISMATCH":{"hint":"The data file size does not match its manifest. Download the backup again.","title":"The backup is incomplete"},"BACKUP_STALE":{"hint":"Nothing was restored. Start the restore again so the comparison is up to date.","title":"Your data changed during the review"},"BACKUP_STRUCTURE_INVALID":{"hint":"Some records break Olaseena's rules, so nothing was restored. See the technical details.","title":"The backup data is not valid"},"BACKUP_UNEXPECTED_CONTENT":{"hint":"An Olaseena backup holds manifest.json, database files, settings, and attachment files. This file was changed or is not an Olaseena backup.","title":"The archive has unexpected contents"},"BACKUP_UNSUPPORTED_VERSION":{"hint":"Update Olaseena, then try again.","title":"This backup comes from a newer version"},"BACKUP_VERIFY_FAILED":{"hint":"The restored data did not pass verification, so your previous data was put back.","title":"Restore was rolled back"},"CURRENCY_FETCH_FAILED":{"hint":"The latest rate could not be fetched. Check your connection and try again. Nothing was changed.","title":"Rate unavailable"},"CURRENCY_LIMIT_REACHED":{"hint":"You have used all 10 currency switches for today. Try again tomorrow.","title":"Daily limit reached"},"DATA_INTEGRITY":{"hint":"Create a backup now, then copy the diagnostics for details.","title":"Some stored data looks inconsistent"},"DELETE_BLOCKED":{"hint":"Remove or reassign the linked records first, then delete this one.","title":"This record is still in use"},"EXPORT_FAILED":{"hint":"The file could not be created. Try again.","title":"Export failed"},"FORBIDDEN":{"hint":"This action is not allowed for the current user.","title":"Not allowed"},"LIMIT_REACHED":{"hint":"Remove something you no longer need and try again.","title":"Limit reached"},"NOT_FOUND":{"hint":"It may have been deleted. Reload the page and try again.","title":"That record was not found"},"PREFS_UNAVAILABLE":{"hint":"Your browser blocks small settings storage. Olaseena still works but forgets your language and tour choice.","title":"Preferences cannot be saved"},"RENDER_CRASH":{"hint":"Your data is safe. Reload the page to continue.","title":"This screen crashed"},"STORAGE_CLOSED":{"hint":"Olaseena may be open in another tab that was updated. Reload this page.","title":"Storage was closed"},"STORAGE_FAILED":{"hint":"Nothing was lost. Try again.","title":"Saving to local storage failed"},"STORAGE_QUOTA":{"hint":"Free up space or remove old records, then try again.","title":"This device is out of storage"},"STORAGE_UNAVAILABLE":{"hint":"Olaseena keeps your data in this browser. Allow site data, leave private browsing, then reload.","title":"Local storage is unavailable"},"UNEXPECTED":{"hint":"Your data is safe on this device. Try again, or reload the page if it keeps happening.","title":"Something unexpected happened"},"VALIDATION":{"hint":"Some values are not allowed.","title":"Check your input"}},"error":{"copied":"Copied","copy":"Copy diagnostics","copyFailed":"Copy failed","generic":"Something went wrong. Try again.","reload":"Reload page","retry":"Try again","technical":"Technical details"},"field":{"amount":"Amount","capacity":"Capacity","course":"Course","date":"Date","description":"Description","dueDate":"Due date","email":"Email","endDate":"End date","level":"Level","member":"Member","method":"Payment method","name":"Name","notes":"Notes","periodEnd":"Period end","periodStart":"Period start","phone":"Phone","price":"Price ({currency})","ratePerSession":"Rate per session (IDR)","scheduleTime":"Time","scheduleWeekday":"Weekday","startDate":"Start date","status":"Status","subjects":"Subjects","title":"Title","topic":"Topic","trainer":"Trainer","trainerPresent":"Trainer present"},"guide":{"attendance":{"intro":"Attendance is the record of who showed up. It feeds the payroll, so mark it carefully.","mark":"Mark who came","markDesc":"For each enrolled member, choose Present, Absent, or Late. Also mark whether the trainer was there.","sessions":"Pick or create a session","sessionsDesc":"Choose a course, then a session date. If the session does not exist yet, create it first.","title":"What you can do with attendance","trainer":"Trainer check-in","trainerDesc":"A session only counts toward a trainer's pay when the trainer is marked present."},"courses":{"add":"Add a course","addDesc":"Give it a title, a trainer, a weekly schedule, a price, and a capacity.","detail":"Open a course","detailDesc":"See who is enrolled and which sessions already happened.","enroll":"Enroll members","enrollDesc":"From a course, enroll members who signed up. A member can only be enrolled once per course at a time.","intro":"Courses are what you teach. Each one has a trainer, a schedule, a price, and a capacity.","title":"What you can do with courses"},"dashboard":{"intro":"The dashboard is your overview. It shows money, attendance, and what is coming next, all computed from your data.","money":"Money at a glance","moneyDesc":"Revenue collected this month and the total of unpaid invoices. Overdue invoices are called out separately.","next":"What is next","nextDesc":"Upcoming sessions and the most recent invoices, so you always know what needs attention.","title":"What you can do on the dashboard"},"invoices":{"intro":"Invoices are bills for members. Each one has a number, charges, a due date, and a status.","pay":"Record a payment","payDesc":"A payment can cover the full amount or part of it. The invoice becomes Paid only when nothing is left.","status":"Statuses","statusDesc":"Draft and Sent are set by you. Paid and Partially paid come from payments. Overdue is shown automatically when the due date has passed.","title":"What you can do with invoices"},"members":{"add":"Add a member","addDesc":"A name is required. Email and phone are optional, but they make search and contact easier.","detail":"Open a member","detailDesc":"See their enrollments and invoices in one place.","find":"Find members","findDesc":"Search matches name, email, and phone.","intro":"Members are your students. Each one can enroll in courses and receive invoices.","title":"What you can do with members"},"open":"How to use this section","payroll":{"generate":"Generate a pay run","generateDesc":"Pick a trainer and a period. The pay run counts the sessions where the trainer was present and multiplies by their rate.","intro":"Payroll turns attended sessions into pay. A pay run is created per trainer, per period.","paid":"Mark as paid","paidDesc":"Once a pay run is marked paid it cannot be changed or deleted. Check the sessions first.","title":"What you can do with payroll"},"settings":{"backup":"Back up and restore","backupDesc":"Download a backup ZIP of everything, or restore one. You can protect a backup with a passphrase.","intro":"Settings change how the app looks and behaves. Everything is stored on this device.","language":"Change the language","languageDesc":"The whole app switches language, including dates. Names and notes keep the text you typed.","title":"What you can do in settings","tour":"Replay the tour","tourDesc":"Walk through the main screens again with short explanations."},"trainers":{"add":"Add a trainer","addDesc":"A name is required. Add the subjects they teach and their rate per session, which payroll uses.","detail":"Open a trainer","detailDesc":"See their assigned courses and their pay runs.","find":"Find trainers","findDesc":"Search matches name, email, and phone.","intro":"Trainers are your teachers. Each one has a rate per session and a list of subjects.","title":"What you can do with trainers"}},"hint":{"courseCapacity":"How many members can enroll at once.","coursePrice":"The price of the course. Used on invoices.","courseSchedule":"The regular weekly slot for this course.","invoiceDueDate":"When the member should pay by. Overdue is shown automatically after this date.","invoiceCharges":"One charge per row. The total is the sum of the charges.","memberEmail":"Optional. Used for search and for contacting the member.","memberName":"Required. This is the name shown everywhere.","memberNotes":"Anything worth remembering about this member, up to 2000 characters.","memberPhone":"Optional. Used for search and for contacting the member.","moreAbout":"More about {field}","paymentAmount":"Never more than the amount still owed on this invoice.","paymentDetails":"Where the customer should pay, for example a bank account or e-wallet number.","payrollPeriod":"A pay run covers one trainer for one period. Generating twice returns the same run.","trainerRate":"What this trainer is paid per session. Payroll multiplies it by the sessions attended.","trainerSubjects":"What this trainer teaches, one per line or separated by commas."},"invoice":{"add":"New invoice","addCharge":"Add charge","balance":"Balance due","create":"Create invoice","delete":"Delete invoice","deleteBody":"Delete invoice {number}? Its payments are removed too. This cannot be undone.","dueDate":"Due date","downloadPdf":"Download PDF","downloadPng":"Download PNG","edit":"Edit invoice","empty":"No invoices yet","emptyHint":"Create your first invoice from a member or an enrollment.","filter":{"all":"All statuses","draft":"Draft","overdue":"Overdue","paid":"Paid","partial":"Partially paid","sent":"Sent"},"issueDate":"Issue date","charges":"Charges","markPaid":"Mark as paid","member":"Member","number":"Invoice number","paid":"Paid","pay":"Record payment","payTo":"Pay to","paymentAmount":"Payment amount","paymentDetails":"Payment details","print":"Print invoice","printTitle":"Invoice preview","search":"Search by number or member","title":"Invoices","total":"Total"},"kind":{"attendance":"Attendance","auditLog":"Audit log","course":"Course","enrollment":"Enrollment","invoice":"Invoice","member":"Member","payment":"Payment","payrollRun":"Payroll run","session":"Session","setting":"Setting","trainer":"Trainer","writeKey":"Sync key"},"legal":{"backToApp":"Back to Olaseena","license":"MIT License","privacy":"Privacy & Policy","version":"Version {version}"},"member":{"add":"Add member","count":"{count, plural, one {# member} other {# members}}","delete":"Delete member","deleteBody":"Delete {name}? This cannot be undone.","detail":{"enrollments":"Enrollments","invoices":"Invoices"},"edit":"Edit member","empty":"No members yet","emptyHint":"Add your first member to start enrolling them in courses.","search":"Search by name, email, or phone","title":"Members"},"merge":{"andMore":"and {count} more","backup":"Backup","current":"Current","differs":"Differs","differsTitle":"{count, plural, one {# record differs from your current data} other {# records differ from your current data}}","intro":"Records that already exist here are compared with the backup. Nothing is replaced unless you choose to.","keep":"Keep current","keepAll":"Keep all current","new":"New","newTitle":"{count, plural, one {# new record will be added} other {# new records will be added}}","nothing":"Everything in this backup is already here and identical. There is nothing to restore.","outcome":"After restoring: {added} added, {replaced} replaced, {kept} kept as they are.","replace":"Replace","replaceAll":"Replace all","same":"Identical","sameInfo":"{count, plural, one {# record is identical and stays as it is.} other {# records are identical and stay as they are.}}","showAll":"Show all","showLess":"Show less"},"method":{"cash":"Cash","other":"Other","transfer":"Bank transfer"},"nav":{"attendance":"Attendance","backup":"Backup","courses":"Courses","dashboard":"Dashboard","invoices":"Invoices","language":"Language","members":"Members","more":"More","payroll":"Payroll","settings":"Settings","trainers":"Trainers"},"payment":{"delete":"Delete payment","deleteBody":"Delete this payment of {amount}? The invoice total paid is updated. This cannot be undone.","empty":"No payments yet","title":"Payments"},"payroll":{"alreadyExists":"A pay run already exists for this trainer and period.","empty":"No pay runs yet","emptyHint":"Pick a trainer and a period, then generate a pay run from attended sessions.","generate":"Generate pay run","markPaid":"Mark as paid","paidAt":"Paid on","period":"Period","pickTrainer":"Choose a trainer","rate":"Rate per session","review":"Review pay run","sessionCount":"Sessions","title":"Payroll","total":"Total"},"privacy":{"backups":{"body":"A backup is a ZIP file saved to your device. It contains all of your records and is not encrypted unless you chose a passphrase, so store it as carefully as the records themselves. Checksums detect corruption but do not prove who made a file, so only restore backups you trust.","title":"Backups"},"card":{"read":"Read the full policy","summary":"Your data stays on this device. Olaseena has no account, no tracking and no third-party requests."},"changes":{"body":"If this policy changes, the new version and its date will appear on this page.","title":"Changes"},"control":{"body":"You can delete members, trainers, courses, invoices and pay runs, or clear this site's data in your browser settings at any time. Clearing site data permanently removes everything Olaseena stored, so create a backup first if you want to keep it.","title":"Your control"},"hosting":{"body":"The site is served as static files through GitHub Pages. Like any web host, GitHub may keep standard technical logs of requests, such as IP address and time, under its own privacy statement. Olaseena itself cannot see or control those logs.","title":"Hosting"},"intro":"Olaseena is a local-first app for running a private course business. It runs entirely in your browser. This page explains what that means for your data.","limits":{"body":"A browser may clear its storage when a device runs low on space, and storage is not shared between browsers or devices. Create backups regularly.","title":"Good to know"},"local":{"body":"Members, trainers, courses, enrollments, sessions, attendance, invoices, payments, pay runs and your settings are saved in this browser's storage (IndexedDB and localStorage). Olaseena has no server, no account and no cloud database, so nothing you enter is sent to us or to anyone else.","title":"Your data stays on your device"},"terms":{"body":"Olaseena is open source under the MIT License. It is provided as is, without warranty of any kind, and the authors are not liable for data loss or damage arising from its use.","title":"License and terms"},"title":"Privacy & Policy","tracking":{"body":"Olaseena does not use analytics, advertising, tracking cookies, or third-party scripts, fonts and images. The page only loads files from its own address.","title":"No tracking"},"updated":"Last updated: {date}"},"restore":{"apply":"Apply changes","checks":"Show checks","chooseOther":"Choose another file","confirmAction":"Apply changes","confirmBody":"From {name}: {added} added and {replaced} replaced. Everything else stays as it is.","confirmTitle":"Apply these changes?","created":"Created","createdBy":"Created by","doneBody":"The backup data you chose is now part of your data.","doneTitle":"Backup restored","drop":"Drop a backup here or choose a file","hideChecks":"Hide checks","hint":"ZIP file, up to 100 MB","intro":"Choose a backup ZIP created by Olaseena. It is fully checked and compared with your data before anything changes.","notices":"Notices","passphrase":"Backup passphrase","passphraseHint":"Leave blank for an unencrypted backup.","records":"Records","replaceNote":"Restoring never deletes existing data. New records are added, and records you choose to replace are overwritten. Everything is applied at once and undone automatically if verification fails.","review":"Review before restoring","safety":"Download a safety backup of my current data first","verified":"File verified"},"search":{"clear":"Clear search","noResults":"No results for \"{query}\".","placeholder":"Search..."},"session":{"add":"New session","delete":"Delete session","deleteBody":"Delete this session? Its attendance records are removed too. This cannot be undone.","edit":"Edit session","empty":"No sessions yet","title":"Sessions"},"settings":{"about":"About","appVersion":"App version","backup":"Backup and restore","backupFormat":"Backup format","backupHint":"Download a copy of everything, or restore one from a file.","currency":"Currency","currencyHint":"Amounts are stored in this currency. Switching converts every amount at today's rate.","language":"Language","languageHint":"The whole app switches language, including dates.","license":"License","licenseValue":"MIT","privacy":"Privacy policy","schemaVersion":"Data version","theme":"Theme","themeHint":"Choose how Olaseena looks. Follow system uses your device setting.","title":"Settings","tour":"Get to know the features","tourHint":"Walk through the main screens again with short explanations."},"status":{"absent":"Absent","active":"Active","archived":"Archived","cancelled":"Cancelled","completed":"Completed","draft":"Draft","inactive":"Inactive","late":"Late","overdue":"Overdue","paid":"Paid","partial":"Partially paid","present":"Present","sent":"Sent"},"step":{"apply":"Apply the changes","checksum":"Verify checksums","collect":"Read your data","compare":"Compare with your current data","compress":"Compress to ZIP","decrypt":"Decrypt backup","encrypt":"Encrypt backup","metadata":"Check metadata and version","package":"Build files and checksums","readFile":"Read the file","refresh":"Reload the data","safety":"Save a safety backup","save":"Save the file","selfcheck":"Check data consistency","snapshot":"Capture a rollback point","structure":"Validate structure and references","unpack":"Open the archive","verifyArchive":"Verify the new archive","verifyRestore":"Verify restored data"},"theme":{"dark":"Dark","light":"Light","system":"Follow system"},"toast":{"deleted":"Deleted","currencySwitched":"Currency switched to {to}","dismiss":"Dismiss","paid":"Payment recorded","restored":"Backup restored","saved":"Saved"},"tour":{"back":"Back","finish":"Finish","next":"Next","skip":"Skip tour","step":{"attendance":{"body":"This is where you record who showed up (attendance). Pick a session, mark each member Present, Absent, or Late, and mark whether the trainer was there. Sessions where the trainer was present count toward their pay.","title":"Attendance"},"courses":{"body":"This is where your classes live (courses). Each course has a trainer, a weekly schedule, a price, and a capacity. Open one to enroll members and see its sessions.","title":"Courses"},"dashboard":{"body":"This is your overview (the dashboard). It shows money collected this month, unpaid invoices, how often members show up, and what is coming next.","title":"Dashboard"},"invoices":{"body":"This is where you bill members (invoices). Create one from a member or an enrollment, add charges, and record payments. Overdue invoices are flagged automatically when the due date passes.","title":"Invoices"},"members":{"body":"This is your student list (members). Add members here, search them by name, email, or phone, and open one to see their enrollments and invoices.","title":"Members"},"payroll":{"body":"This is where trainers get paid (payroll). Pick a trainer and a period, and a pay run is generated from the sessions where the trainer was present, times their rate per session.","title":"Payroll"},"settings":{"body":"This is where you change the language, make backups, and replay this tour (settings). Backups are ZIP files you keep on your own device.","title":"Settings"},"trainers":{"body":"This is your teacher list (trainers). Each trainer has subjects they teach and a rate per session, which payroll uses to compute their pay.","title":"Trainers"}},"title":"Get to know Olaseena"},"trainer":{"add":"Add trainer","count":"{count, plural, one {# trainer} other {# trainers}}","delete":"Delete trainer","deleteBody":"Delete {name}? Their courses and pay runs stay, but the trainer record is removed. This cannot be undone.","detail":{"courses":"Courses","payRuns":"Pay runs"},"edit":"Edit trainer","empty":"No trainers yet","emptyHint":"Add your first trainer with the subjects they teach and a rate per session.","search":"Search by name, email, or phone","title":"Trainers"},"validation":{"email":"{field} must be a valid email address.","invalid":"{field} is not valid.","positive":"{field} must be more than zero.","required":"{field} is required.","time":"{field} must be a time like 09:00.","tooLong":"{field} can have at most {limit} characters."},"warn":{"unknownFields":"{count, plural, one {Unknown fields in # record were ignored} other {Unknown fields in # records were ignored}}","badLines":"{count, plural, one {# damaged line in {store} was skipped} other {# damaged lines in {store} were skipped}}","missingAssets":"{count, plural, one {# attachment file is missing from this backup. Its details were kept, but the file shows as missing.} other {# attachment files are missing from this backup. Their details were kept, but the files show as missing.}}","assetSizeMismatch":"{count, plural, one {# attachment file is a different size than its details say. It was kept, but the size shown may be wrong.} other {# attachment files are different sizes than their details say. They were kept, but the sizes shown may be wrong.}}"},"weekday":{"0":"Sunday","1":"Monday","2":"Tuesday","3":"Wednesday","4":"Thursday","5":"Friday","6":"Saturday","short":{"0":"Sun","1":"Mon","2":"Tue","3":"Wed","4":"Thu","5":"Fri","6":"Sat"}},"trash":{"title":"Trash bin","hint":"Deleted records are kept for {days} days, then automatically removed.","retention":"Auto-delete after","days":"{count} days","empty":"Trash is empty.","item":"{type}: {label}","restore":"Restore","deletePermanently":"Delete permanently","deleteTitle":"Permanently delete?","deleteBody":"Permanently delete these {count} trashed items? This cannot be undone.","types":{"member":"Member","trainer":"Trainer","course":"Course","enrollment":"Enrollment","session":"Session","attendance":"Attendance","invoice":"Invoice","payment":"Payment","payroll":"Payroll","attachment":"Attachment"}}}
+{
+  "action": {
+    "add": "Add",
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "done": "Done",
+    "edit": "Edit",
+    "save": "Save changes",
+    "search": "Search"
+  },
+  "app": {
+    "name": "Olaseena",
+    "tagline": "All your courses in one place."
+  },
+  "attachment": {
+    "add": "Add image",
+    "delete": "Delete attachment",
+    "deleteBody": "Delete {fileName}? This cannot be undone.",
+    "download": "Download",
+    "empty": "No attachments yet",
+    "emptyHint": "Add a photo of a receipt or document.",
+    "missing": "File missing",
+    "missingHint": "This file was not in the backup it was restored from.",
+    "notImage": "Only images can be attached (JPG, PNG, WebP, GIF).",
+    "pendingHint": "It will be added when the invoice is created.",
+    "reset": "Reset view",
+    "title": "Attachments",
+    "tooLarge": "{fileName} is still larger than 4 MB after shrinking.",
+    "unreadable": "{fileName} could not be read as an image.",
+    "view": "View attachment",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  },
+  "attendance": {
+    "empty": "No sessions yet",
+    "emptyHint": "Create a session for a course, then mark who showed up.",
+    "mark": "Mark attendance",
+    "newSession": "New session",
+    "noEnrollments": "No members are enrolled in this course yet.",
+    "pickCourse": "Choose a course",
+    "pickSession": "Choose a session",
+    "saved": "Attendance saved",
+    "title": "Attendance",
+    "trainerPresent": "Trainer present"
+  },
+  "backup": {
+    "another": "Create another backup",
+    "confirmPassphrase": "Confirm passphrase",
+    "doneBody": "{name} ({size}). Checksum {hash}.",
+    "doneTitle": "Backup saved",
+    "downloadAgain": "Download again",
+    "encrypt": "Encrypt this backup with a passphrase",
+    "encryptionHint": "Use at least 8 characters. You will need this passphrase to restore the backup; it cannot be recovered.",
+    "intro": "Create a ZIP file with all members, trainers, courses, enrollments, sessions, attendance, invoices and payroll runs. It stays on your device. Keep it somewhere safe.",
+    "keepOpen": "Keep this window open until the process finishes.",
+    "passphrase": "Passphrase",
+    "passphraseMismatch": "The passphrases do not match.",
+    "start": "Create backup",
+    "tabBackup": "Back up",
+    "tabRestore": "Restore",
+    "title": "Backup and restore"
+  },
+  "course": {
+    "add": "Add course",
+    "delete": "Delete course",
+    "deleteBody": "Delete {name}? Enrollments, sessions and invoices linked to it stay. The course will move to the trash bin, and you can restore it from there.",
+    "detail": {
+      "enrollments": "Enrollments",
+      "sessions": "Sessions"
+    },
+    "edit": "Edit course",
+    "empty": "No courses yet",
+    "emptyHint": "Add your first course, pick a trainer, and set a schedule and price.",
+    "search": "Search by title or trainer",
+    "title": "Courses"
+  },
+  "currency": {
+    "confirm": "Switch and convert",
+    "confirmBody": "Switching needs the internet to fetch the latest rate. All amounts will be converted from {from} to {to} at today's rate. You have {remaining} of 10 switches left today.",
+    "confirmTitle": "Switch currency?",
+    "limitReached": "Daily limit reached. You have used all 10 currency switches for today. Try again tomorrow.",
+    "rateNote": "Converting back and forth can drift a little because of rounding.",
+    "restoreAdopted": "Backup currency {currency} adopted."
+  },
+  "dashboard": {
+    "activeMembers": "Active members",
+    "attendanceRate": "Attendance rate",
+    "lowAttendance": "Low attendance",
+    "noInvoices": "No invoices yet.",
+    "noOverdue": "Nothing overdue. Good.",
+    "noUpcoming": "No upcoming sessions.",
+    "outstanding": "Outstanding invoices",
+    "overdue": "Overdue invoices",
+    "recentInvoices": "Recent invoices",
+    "revenueMonth": "Revenue collected this month",
+    "title": "Dashboard",
+    "upcoming": "Upcoming sessions",
+    "viewAll": "View all"
+  },
+  "date": {
+    "clear": "Clear",
+    "next": "Next month",
+    "pick": "Pick a date",
+    "prev": "Previous month",
+    "today": "Today"
+  },
+  "detail": {
+    "applied": "{total} records written in one atomic transaction",
+    "archiveVerified": "Re-read the archive: checksums and {total} records match",
+    "checksum": "SHA-256 {hash}... matches, {stores} stores confirmed",
+    "collected": "{total, plural, one {# record} other {# records}} collected",
+    "compared": "{added} new, {same} identical, {differs} different",
+    "compressed": "{size} compressed from {original}",
+    "decrypted": "Backup data decrypted",
+    "decryptionSkipped": "This backup is not encrypted",
+    "encrypted": "Backup data encrypted with your passphrase",
+    "encryptionSkipped": "No passphrase encryption",
+    "metadata": "Format {format}, created {date} by Olaseena {version}",
+    "packaged": "{files} files, {size} in total, SHA-256 {hash}...",
+    "read": "{name}, {size}",
+    "refreshed": "Data reloaded",
+    "restoreVerified": "Integrity check passed",
+    "safetySkipped": "Skipped by your choice",
+    "saved": "{name}",
+    "snapshot": "{total} current records held in memory",
+    "unpacked": "Found manifest.json and the backup files",
+    "valid": "All {total} records passed validation",
+    "validNotices": "{total} records passed, {count} notices"
+  },
+  "diff": {
+    "amount": "Amount",
+    "capacity": "Capacity",
+    "chars": "{count} characters",
+    "course": "Course",
+    "date": "Date",
+    "description": "Description",
+    "dueDate": "Due date",
+    "email": "Email",
+    "endDate": "End date",
+    "level": "Level",
+    "member": "Member",
+    "method": "Method",
+    "name": "Name",
+    "none": "Empty",
+    "notes": "Notes",
+    "number": "Number",
+    "paid": "Paid",
+    "period": "Period",
+    "phone": "Phone",
+    "price": "Price",
+    "rate": "Rate",
+    "schedule": "Schedule",
+    "sessions": "Sessions",
+    "startDate": "Start date",
+    "status": "Status",
+    "subjects": "Subjects",
+    "title": "Title",
+    "topic": "Topic",
+    "total": "Total",
+    "trainer": "Trainer",
+    "value": "Value"
+  },
+  "enrollment": {
+    "add": "Enroll member",
+    "delete": "Remove enrollment",
+    "deleteBody": "Remove {name} from this course? Past attendance and invoices stay. The enrollment will move to the trash bin, and you can restore it from there.",
+    "empty": "No enrollments yet",
+    "title": "Enrollments"
+  },
+  "err": {
+    "BACKUP_APPLY_FAILED": {
+      "hint": "Nothing was changed. Your previous data is untouched.",
+      "title": "Restore failed"
+    },
+    "BACKUP_ARCHIVE_INVALID": {
+      "hint": "The file was not saved because it could not be restored. Try again.",
+      "title": "The new backup failed verification"
+    },
+    "BACKUP_CHECKSUM_MISMATCH": {
+      "hint": "The checksum does not match. The file changed after it was created or was damaged in transfer.",
+      "title": "The backup is corrupted"
+    },
+    "BACKUP_COLLECT_FAILED": {
+      "hint": "Reload the page and try again.",
+      "title": "Your data could not be read"
+    },
+    "BACKUP_CRYPTO_UNAVAILABLE": {
+      "hint": "Open Olaseena over HTTPS or localhost. Browsers disable secure hashing elsewhere.",
+      "title": "Checksums are not available"
+    },
+    "BACKUP_DECRYPT_FAILED": {
+      "hint": "Check the passphrase and make sure the backup file has not been changed or damaged.",
+      "title": "The backup could not be decrypted"
+    },
+    "BACKUP_DOWNLOAD_FAILED": {
+      "hint": "Your browser blocked the download. Use Download again, or allow downloads for this site.",
+      "title": "The file could not be saved"
+    },
+    "BACKUP_FILE_READ_FAILED": {
+      "hint": "Choose the file again, or copy it to this device first.",
+      "title": "The file could not be read"
+    },
+    "BACKUP_FILE_TOO_LARGE": {
+      "hint": "Backups larger than 100 MB are rejected to protect your device.",
+      "title": "This file is too large"
+    },
+    "BACKUP_MANIFEST_INVALID": {
+      "hint": "The manifest is missing, unreadable or from another app.",
+      "title": "This is not a readable Olaseena backup"
+    },
+    "BACKUP_MERGE_INVALID": {
+      "hint": "Merging would leave inconsistent data, so nothing was changed. See the technical details.",
+      "title": "The chosen combination cannot be applied"
+    },
+    "BACKUP_NOT_ZIP": {
+      "hint": "Pick a .zip created by Olaseena. The file may be damaged or incomplete.",
+      "title": "This is not a valid ZIP archive"
+    },
+    "BACKUP_PACKAGE_FAILED": {
+      "hint": "Try again. If it keeps failing, reload the page.",
+      "title": "The backup file could not be built"
+    },
+    "BACKUP_PASSWORD_REQUIRED": {
+      "hint": "Enter the passphrase that was used when this backup was created.",
+      "title": "A passphrase is required"
+    },
+    "BACKUP_PASSWORD_TOO_SHORT": {
+      "hint": "Choose a passphrase with at least 8 characters.",
+      "title": "The passphrase is too short"
+    },
+    "BACKUP_ROLLBACK_FAILED": {
+      "hint": "Restore the safety backup file that was downloaded before this step.",
+      "title": "Restore could not be completed or undone"
+    },
+    "BACKUP_SELFCHECK_FAILED": {
+      "hint": "The stored data has inconsistencies, so no backup was written. See the technical details.",
+      "title": "Your data failed the pre-backup check"
+    },
+    "BACKUP_SIZE_MISMATCH": {
+      "hint": "The data file size does not match its manifest. Download the backup again.",
+      "title": "The backup is incomplete"
+    },
+    "BACKUP_STALE": {
+      "hint": "Nothing was restored. Start the restore again so the comparison is up to date.",
+      "title": "Your data changed during the review"
+    },
+    "BACKUP_STRUCTURE_INVALID": {
+      "hint": "Some records break Olaseena's rules, so nothing was restored. See the technical details.",
+      "title": "The backup data is not valid"
+    },
+    "BACKUP_UNEXPECTED_CONTENT": {
+      "hint": "An Olaseena backup holds manifest.json, database files, settings, and attachment files. This file was changed or is not an Olaseena backup.",
+      "title": "The archive has unexpected contents"
+    },
+    "BACKUP_UNSUPPORTED_VERSION": {
+      "hint": "Update Olaseena, then try again.",
+      "title": "This backup comes from a newer version"
+    },
+    "BACKUP_VERIFY_FAILED": {
+      "hint": "The restored data did not pass verification, so your previous data was put back.",
+      "title": "Restore was rolled back"
+    },
+    "CURRENCY_FETCH_FAILED": {
+      "hint": "The latest rate could not be fetched. Check your connection and try again. Nothing was changed.",
+      "title": "Rate unavailable"
+    },
+    "CURRENCY_LIMIT_REACHED": {
+      "hint": "You have used all 10 currency switches for today. Try again tomorrow.",
+      "title": "Daily limit reached"
+    },
+    "DATA_INTEGRITY": {
+      "hint": "Create a backup now, then copy the diagnostics for details.",
+      "title": "Some stored data looks inconsistent"
+    },
+    "DELETE_BLOCKED": {
+      "hint": "Remove or reassign the linked records first, then delete this one.",
+      "title": "This record is still in use"
+    },
+    "EXPORT_FAILED": {
+      "hint": "The file could not be created. Try again.",
+      "title": "Export failed"
+    },
+    "FORBIDDEN": {
+      "hint": "This action is not allowed for the current user.",
+      "title": "Not allowed"
+    },
+    "LIMIT_REACHED": {
+      "hint": "Remove something you no longer need and try again.",
+      "title": "Limit reached"
+    },
+    "NOT_FOUND": {
+      "hint": "It may have been deleted. Reload the page and try again.",
+      "title": "That record was not found"
+    },
+    "PREFS_UNAVAILABLE": {
+      "hint": "Your browser blocks small settings storage. Olaseena still works but forgets your language and tour choice.",
+      "title": "Preferences cannot be saved"
+    },
+    "RENDER_CRASH": {
+      "hint": "Your data is safe. Reload the page to continue.",
+      "title": "This screen crashed"
+    },
+    "STORAGE_CLOSED": {
+      "hint": "Olaseena may be open in another tab that was updated. Reload this page.",
+      "title": "Storage was closed"
+    },
+    "STORAGE_FAILED": {
+      "hint": "Nothing was lost. Try again.",
+      "title": "Saving to local storage failed"
+    },
+    "STORAGE_QUOTA": {
+      "hint": "Free up space or remove old records, then try again.",
+      "title": "This device is out of storage"
+    },
+    "STORAGE_UNAVAILABLE": {
+      "hint": "Olaseena keeps your data in this browser. Allow site data, leave private browsing, then reload.",
+      "title": "Local storage is unavailable"
+    },
+    "UNEXPECTED": {
+      "hint": "Your data is safe on this device. Try again, or reload the page if it keeps happening.",
+      "title": "Something unexpected happened"
+    },
+    "VALIDATION": {
+      "hint": "Some values are not allowed.",
+      "title": "Check your input"
+    },
+    "RESTORE_CONFLICT": {
+      "title": "Cannot restore this item",
+      "hint": "A newer record now uses the same number or booking. Delete the trashed copy permanently, or remove the newer record first, then try again."
+    }
+  },
+  "error": {
+    "copied": "Copied",
+    "copy": "Copy diagnostics",
+    "copyFailed": "Copy failed",
+    "generic": "Something went wrong. Try again.",
+    "reload": "Reload page",
+    "retry": "Try again",
+    "technical": "Technical details"
+  },
+  "field": {
+    "amount": "Amount",
+    "capacity": "Capacity",
+    "course": "Course",
+    "date": "Date",
+    "description": "Description",
+    "dueDate": "Due date",
+    "email": "Email",
+    "endDate": "End date",
+    "level": "Level",
+    "member": "Member",
+    "method": "Payment method",
+    "name": "Name",
+    "notes": "Notes",
+    "periodEnd": "Period end",
+    "periodStart": "Period start",
+    "phone": "Phone",
+    "price": "Price ({currency})",
+    "ratePerSession": "Rate per session (IDR)",
+    "scheduleTime": "Time",
+    "scheduleWeekday": "Weekday",
+    "startDate": "Start date",
+    "status": "Status",
+    "subjects": "Subjects",
+    "title": "Title",
+    "topic": "Topic",
+    "trainer": "Trainer",
+    "trainerPresent": "Trainer present"
+  },
+  "guide": {
+    "attendance": {
+      "intro": "Attendance is the record of who showed up. It feeds the payroll, so mark it carefully.",
+      "mark": "Mark who came",
+      "markDesc": "For each enrolled member, choose Present, Absent, or Late. Also mark whether the trainer was there.",
+      "sessions": "Pick or create a session",
+      "sessionsDesc": "Choose a course, then a session date. If the session does not exist yet, create it first.",
+      "title": "What you can do with attendance",
+      "trainer": "Trainer check-in",
+      "trainerDesc": "A session only counts toward a trainer's pay when the trainer is marked present."
+    },
+    "courses": {
+      "add": "Add a course",
+      "addDesc": "Give it a title, a trainer, a weekly schedule, a price, and a capacity.",
+      "detail": "Open a course",
+      "detailDesc": "See who is enrolled and which sessions already happened.",
+      "enroll": "Enroll members",
+      "enrollDesc": "From a course, enroll members who signed up. A member can only be enrolled once per course at a time.",
+      "intro": "Courses are what you teach. Each one has a trainer, a schedule, a price, and a capacity.",
+      "title": "What you can do with courses"
+    },
+    "dashboard": {
+      "intro": "The dashboard is your overview. It shows money, attendance, and what is coming next, all computed from your data.",
+      "money": "Money at a glance",
+      "moneyDesc": "Revenue collected this month and the total of unpaid invoices. Overdue invoices are called out separately.",
+      "next": "What is next",
+      "nextDesc": "Upcoming sessions and the most recent invoices, so you always know what needs attention.",
+      "title": "What you can do on the dashboard"
+    },
+    "invoices": {
+      "intro": "Invoices are bills for members. Each one has a number, charges, a due date, and a status.",
+      "pay": "Record a payment",
+      "payDesc": "A payment can cover the full amount or part of it. The invoice becomes Paid only when nothing is left.",
+      "status": "Statuses",
+      "statusDesc": "Draft and Sent are set by you. Paid and Partially paid come from payments. Overdue is shown automatically when the due date has passed.",
+      "title": "What you can do with invoices"
+    },
+    "members": {
+      "add": "Add a member",
+      "addDesc": "A name is required. Email and phone are optional, but they make search and contact easier.",
+      "detail": "Open a member",
+      "detailDesc": "See their enrollments and invoices in one place.",
+      "find": "Find members",
+      "findDesc": "Search matches name, email, and phone.",
+      "intro": "Members are your students. Each one can enroll in courses and receive invoices.",
+      "title": "What you can do with members"
+    },
+    "open": "How to use this section",
+    "payroll": {
+      "generate": "Generate a pay run",
+      "generateDesc": "Pick a trainer and a period. The pay run counts the sessions where the trainer was present and multiplies by their rate.",
+      "intro": "Payroll turns attended sessions into pay. A pay run is created per trainer, per period.",
+      "paid": "Mark as paid",
+      "paidDesc": "Once a pay run is marked paid it cannot be changed or deleted. Check the sessions first.",
+      "title": "What you can do with payroll"
+    },
+    "settings": {
+      "backup": "Back up and restore",
+      "backupDesc": "Download a backup ZIP of everything, or restore one. You can protect a backup with a passphrase.",
+      "intro": "Settings change how the app looks and behaves. Everything is stored on this device.",
+      "language": "Change the language",
+      "languageDesc": "The whole app switches language, including dates. Names and notes keep the text you typed.",
+      "title": "What you can do in settings",
+      "tour": "Replay the tour",
+      "tourDesc": "Walk through the main screens again with short explanations."
+    },
+    "trainers": {
+      "add": "Add a trainer",
+      "addDesc": "A name is required. Add the subjects they teach and their rate per session, which payroll uses.",
+      "detail": "Open a trainer",
+      "detailDesc": "See their assigned courses and their pay runs.",
+      "find": "Find trainers",
+      "findDesc": "Search matches name, email, and phone.",
+      "intro": "Trainers are your teachers. Each one has a rate per session and a list of subjects.",
+      "title": "What you can do with trainers"
+    },
+    "trash": {
+      "title": "What you can do with the trash bin",
+      "intro": "Deleted members, trainers, courses, enrollments, sessions, invoices, payments, and pay runs wait here before they are removed permanently.",
+      "restore": "Restore a deleted record",
+      "restoreDesc": "Put a record back where it was. If a newer record now uses the same number or booking, restoring is blocked until that conflict is resolved.",
+      "empty": "Delete permanently",
+      "emptyDesc": "Remove one item for good, or empty the whole bin at once. Permanently deleted items cannot be recovered."
+    }
+  },
+  "hint": {
+    "courseCapacity": "How many members can enroll at once.",
+    "coursePrice": "The price of the course. Used on invoices.",
+    "courseSchedule": "The regular weekly slot for this course.",
+    "invoiceDueDate": "When the member should pay by. Overdue is shown automatically after this date.",
+    "invoiceCharges": "One charge per row. The total is the sum of the charges.",
+    "memberEmail": "Optional. Used for search and for contacting the member.",
+    "memberName": "Required. This is the name shown everywhere.",
+    "memberNotes": "Anything worth remembering about this member, up to 2000 characters.",
+    "memberPhone": "Optional. Used for search and for contacting the member.",
+    "moreAbout": "More about {field}",
+    "paymentAmount": "Never more than the amount still owed on this invoice.",
+    "paymentDetails": "Where the customer should pay, for example a bank account or e-wallet number.",
+    "payrollPeriod": "A pay run covers one trainer for one period. Generating twice returns the same run.",
+    "trainerRate": "What this trainer is paid per session. Payroll multiplies it by the sessions attended.",
+    "trainerSubjects": "What this trainer teaches, one per line or separated by commas."
+  },
+  "invoice": {
+    "add": "New invoice",
+    "addCharge": "Add charge",
+    "balance": "Balance due",
+    "create": "Create invoice",
+    "delete": "Delete invoice",
+    "deleteBody": "Delete invoice {number}? It will move to the trash bin. You can restore it from there. Its payments are removed too.",
+    "dueDate": "Due date",
+    "downloadPdf": "Download PDF",
+    "downloadPng": "Download PNG",
+    "edit": "Edit invoice",
+    "empty": "No invoices yet",
+    "emptyHint": "Create your first invoice from a member or an enrollment.",
+    "filter": {
+      "all": "All statuses",
+      "draft": "Draft",
+      "overdue": "Overdue",
+      "paid": "Paid",
+      "partial": "Partially paid",
+      "sent": "Sent"
+    },
+    "issueDate": "Issue date",
+    "charges": "Charges",
+    "markPaid": "Mark as paid",
+    "member": "Member",
+    "number": "Invoice number",
+    "paid": "Paid",
+    "pay": "Record payment",
+    "payTo": "Pay to",
+    "paymentAmount": "Payment amount",
+    "paymentDetails": "Payment details",
+    "print": "Print invoice",
+    "printTitle": "Invoice preview",
+    "search": "Search by number or member",
+    "title": "Invoices",
+    "total": "Total"
+  },
+  "kind": {
+    "attendance": "Attendance",
+    "auditLog": "Audit log",
+    "course": "Course",
+    "enrollment": "Enrollment",
+    "invoice": "Invoice",
+    "member": "Member",
+    "payment": "Payment",
+    "payrollRun": "Payroll run",
+    "session": "Session",
+    "setting": "Setting",
+    "trainer": "Trainer",
+    "writeKey": "Sync key",
+    "trash": "Trash bin"
+  },
+  "legal": {
+    "backToApp": "Back to Olaseena",
+    "license": "MIT License",
+    "privacy": "Privacy & Policy",
+    "version": "Version {version}"
+  },
+  "member": {
+    "add": "Add member",
+    "count": "{count, plural, one {# member} other {# members}}",
+    "delete": "Delete member",
+    "deleteBody": "Delete {name}? It will move to the trash bin. You can restore it from there.",
+    "detail": {
+      "enrollments": "Enrollments",
+      "invoices": "Invoices"
+    },
+    "edit": "Edit member",
+    "empty": "No members yet",
+    "emptyHint": "Add your first member to start enrolling them in courses.",
+    "search": "Search by name, email, or phone",
+    "title": "Members"
+  },
+  "merge": {
+    "andMore": "and {count} more",
+    "backup": "Backup",
+    "current": "Current",
+    "differs": "Differs",
+    "differsTitle": "{count, plural, one {# record differs from your current data} other {# records differ from your current data}}",
+    "intro": "Records that already exist here are compared with the backup. Nothing is replaced unless you choose to.",
+    "keep": "Keep current",
+    "keepAll": "Keep all current",
+    "new": "New",
+    "newTitle": "{count, plural, one {# new record will be added} other {# new records will be added}}",
+    "nothing": "Everything in this backup is already here and identical. There is nothing to restore.",
+    "outcome": "After restoring: {added} added, {replaced} replaced, {kept} kept as they are.",
+    "replace": "Replace",
+    "replaceAll": "Replace all",
+    "same": "Identical",
+    "sameInfo": "{count, plural, one {# record is identical and stays as it is.} other {# records are identical and stay as they are.}}",
+    "showAll": "Show all",
+    "showLess": "Show less"
+  },
+  "method": {
+    "cash": "Cash",
+    "other": "Other",
+    "transfer": "Bank transfer"
+  },
+  "nav": {
+    "attendance": "Attendance",
+    "backup": "Backup",
+    "courses": "Courses",
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "language": "Language",
+    "members": "Members",
+    "more": "More",
+    "payroll": "Payroll",
+    "settings": "Settings",
+    "trainers": "Trainers",
+    "trash": "Trash"
+  },
+  "payment": {
+    "delete": "Delete payment",
+    "deleteBody": "Delete this payment of {amount}? It will move to the trash bin. You can restore it from there. The invoice total paid is updated.",
+    "empty": "No payments yet",
+    "title": "Payments"
+  },
+  "payroll": {
+    "alreadyExists": "A pay run already exists for this trainer and period.",
+    "empty": "No pay runs yet",
+    "emptyHint": "Pick a trainer and a period, then generate a pay run from attended sessions.",
+    "generate": "Generate pay run",
+    "markPaid": "Mark as paid",
+    "paidAt": "Paid on",
+    "period": "Period",
+    "pickTrainer": "Choose a trainer",
+    "rate": "Rate per session",
+    "review": "Review pay run",
+    "sessionCount": "Sessions",
+    "title": "Payroll",
+    "total": "Total"
+  },
+  "privacy": {
+    "backups": {
+      "body": "A backup is a ZIP file saved to your device. It contains all of your records and is not encrypted unless you chose a passphrase, so store it as carefully as the records themselves. Checksums detect corruption but do not prove who made a file, so only restore backups you trust.",
+      "title": "Backups"
+    },
+    "card": {
+      "read": "Read the full policy",
+      "summary": "Your data stays on this device. Olaseena has no account, no tracking and no third-party requests."
+    },
+    "changes": {
+      "body": "If this policy changes, the new version and its date will appear on this page.",
+      "title": "Changes"
+    },
+    "control": {
+      "body": "You can delete members, trainers, courses, invoices and pay runs, or clear this site's data in your browser settings at any time. Clearing site data permanently removes everything Olaseena stored, so create a backup first if you want to keep it.",
+      "title": "Your control"
+    },
+    "hosting": {
+      "body": "The site is served as static files through GitHub Pages. Like any web host, GitHub may keep standard technical logs of requests, such as IP address and time, under its own privacy statement. Olaseena itself cannot see or control those logs.",
+      "title": "Hosting"
+    },
+    "intro": "Olaseena is a local-first app for running a private course business. It runs entirely in your browser. This page explains what that means for your data.",
+    "limits": {
+      "body": "A browser may clear its storage when a device runs low on space, and storage is not shared between browsers or devices. Create backups regularly.",
+      "title": "Good to know"
+    },
+    "local": {
+      "body": "Members, trainers, courses, enrollments, sessions, attendance, invoices, payments, pay runs and your settings are saved in this browser's storage (IndexedDB and localStorage). Olaseena has no server, no account and no cloud database, so nothing you enter is sent to us or to anyone else.",
+      "title": "Your data stays on your device"
+    },
+    "terms": {
+      "body": "Olaseena is open source under the MIT License. It is provided as is, without warranty of any kind, and the authors are not liable for data loss or damage arising from its use.",
+      "title": "License and terms"
+    },
+    "title": "Privacy & Policy",
+    "tracking": {
+      "body": "Olaseena does not use analytics, advertising, tracking cookies, or third-party scripts, fonts and images. The page only loads files from its own address.",
+      "title": "No tracking"
+    },
+    "updated": "Last updated: {date}"
+  },
+  "restore": {
+    "apply": "Apply changes",
+    "checks": "Show checks",
+    "chooseOther": "Choose another file",
+    "confirmAction": "Apply changes",
+    "confirmBody": "From {name}: {added} added and {replaced} replaced. Everything else stays as it is.",
+    "confirmTitle": "Apply these changes?",
+    "created": "Created",
+    "createdBy": "Created by",
+    "doneBody": "The backup data you chose is now part of your data.",
+    "doneTitle": "Backup restored",
+    "drop": "Drop a backup here or choose a file",
+    "hideChecks": "Hide checks",
+    "hint": "ZIP file, up to 100 MB",
+    "intro": "Choose a backup ZIP created by Olaseena. It is fully checked and compared with your data before anything changes.",
+    "notices": "Notices",
+    "passphrase": "Backup passphrase",
+    "passphraseHint": "Leave blank for an unencrypted backup.",
+    "records": "Records",
+    "replaceNote": "Restoring never deletes existing data. New records are added, and records you choose to replace are overwritten. Everything is applied at once and undone automatically if verification fails.",
+    "review": "Review before restoring",
+    "safety": "Download a safety backup of my current data first",
+    "verified": "File verified"
+  },
+  "search": {
+    "clear": "Clear search",
+    "noResults": "No results for \"{query}\".",
+    "placeholder": "Search..."
+  },
+  "session": {
+    "add": "New session",
+    "delete": "Delete session",
+    "deleteBody": "Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.",
+    "edit": "Edit session",
+    "empty": "No sessions yet",
+    "title": "Sessions"
+  },
+  "settings": {
+    "about": "About",
+    "appVersion": "App version",
+    "backup": "Backup and restore",
+    "backupFormat": "Backup format",
+    "backupHint": "Download a copy of everything, or restore one from a file.",
+    "currency": "Currency",
+    "currencyHint": "Amounts are stored in this currency. Switching converts every amount at today's rate.",
+    "language": "Language",
+    "languageHint": "The whole app switches language, including dates.",
+    "license": "License",
+    "licenseValue": "MIT",
+    "privacy": "Privacy policy",
+    "schemaVersion": "Data version",
+    "theme": "Theme",
+    "themeHint": "Choose how Olaseena looks. Follow system uses your device setting.",
+    "title": "Settings",
+    "tour": "Get to know the features",
+    "tourHint": "Walk through the main screens again with short explanations."
+  },
+  "status": {
+    "absent": "Absent",
+    "active": "Active",
+    "archived": "Archived",
+    "cancelled": "Cancelled",
+    "completed": "Completed",
+    "draft": "Draft",
+    "inactive": "Inactive",
+    "late": "Late",
+    "overdue": "Overdue",
+    "paid": "Paid",
+    "partial": "Partially paid",
+    "present": "Present",
+    "sent": "Sent"
+  },
+  "step": {
+    "apply": "Apply the changes",
+    "checksum": "Verify checksums",
+    "collect": "Read your data",
+    "compare": "Compare with your current data",
+    "compress": "Compress to ZIP",
+    "decrypt": "Decrypt backup",
+    "encrypt": "Encrypt backup",
+    "metadata": "Check metadata and version",
+    "package": "Build files and checksums",
+    "readFile": "Read the file",
+    "refresh": "Reload the data",
+    "safety": "Save a safety backup",
+    "save": "Save the file",
+    "selfcheck": "Check data consistency",
+    "snapshot": "Capture a rollback point",
+    "structure": "Validate structure and references",
+    "unpack": "Open the archive",
+    "verifyArchive": "Verify the new archive",
+    "verifyRestore": "Verify restored data"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "system": "Follow system"
+  },
+  "toast": {
+    "deleted": "Deleted",
+    "currencySwitched": "Currency switched to {to}",
+    "dismiss": "Dismiss",
+    "paid": "Payment recorded",
+    "restored": "Backup restored",
+    "saved": "Saved"
+  },
+  "tour": {
+    "back": "Back",
+    "finish": "Finish",
+    "next": "Next",
+    "skip": "Skip tour",
+    "step": {
+      "attendance": {
+        "body": "This is where you record who showed up (attendance). Pick a session, mark each member Present, Absent, or Late, and mark whether the trainer was there. Sessions where the trainer was present count toward their pay.",
+        "title": "Attendance"
+      },
+      "courses": {
+        "body": "This is where your classes live (courses). Each course has a trainer, a weekly schedule, a price, and a capacity. Open one to enroll members and see its sessions.",
+        "title": "Courses"
+      },
+      "dashboard": {
+        "body": "This is your overview (the dashboard). It shows money collected this month, unpaid invoices, how often members show up, and what is coming next.",
+        "title": "Dashboard"
+      },
+      "invoices": {
+        "body": "This is where you bill members (invoices). Create one from a member or an enrollment, add charges, and record payments. Overdue invoices are flagged automatically when the due date passes.",
+        "title": "Invoices"
+      },
+      "members": {
+        "body": "This is your student list (members). Add members here, search them by name, email, or phone, and open one to see their enrollments and invoices.",
+        "title": "Members"
+      },
+      "payroll": {
+        "body": "This is where trainers get paid (payroll). Pick a trainer and a period, and a pay run is generated from the sessions where the trainer was present, times their rate per session.",
+        "title": "Payroll"
+      },
+      "settings": {
+        "body": "This is where you change the language, make backups, and replay this tour (settings). Backups are ZIP files you keep on your own device.",
+        "title": "Settings"
+      },
+      "trainers": {
+        "body": "This is your teacher list (trainers). Each trainer has subjects they teach and a rate per session, which payroll uses to compute their pay.",
+        "title": "Trainers"
+      },
+      "trash": {
+        "title": "Trash bin",
+        "body": "This is where deleted records wait (trash bin). They stay here until the auto-delete time runs out, so a mistake can be undone. Restore one, or delete it permanently."
+      }
+    },
+    "title": "Get to know Olaseena"
+  },
+  "trainer": {
+    "add": "Add trainer",
+    "count": "{count, plural, one {# trainer} other {# trainers}}",
+    "delete": "Delete trainer",
+    "deleteBody": "Delete {name}? Their courses and pay runs stay. The trainer record will move to the trash bin, and you can restore it from there.",
+    "detail": {
+      "courses": "Courses",
+      "payRuns": "Pay runs"
+    },
+    "edit": "Edit trainer",
+    "empty": "No trainers yet",
+    "emptyHint": "Add your first trainer with the subjects they teach and a rate per session.",
+    "search": "Search by name, email, or phone",
+    "title": "Trainers"
+  },
+  "validation": {
+    "email": "{field} must be a valid email address.",
+    "invalid": "{field} is not valid.",
+    "positive": "{field} must be more than zero.",
+    "required": "{field} is required.",
+    "time": "{field} must be a time like 09:00.",
+    "tooLong": "{field} can have at most {limit} characters."
+  },
+  "warn": {
+    "unknownFields": "{count, plural, one {Unknown fields in # record were ignored} other {Unknown fields in # records were ignored}}",
+    "badLines": "{count, plural, one {# damaged line in {store} was skipped} other {# damaged lines in {store} were skipped}}",
+    "missingAssets": "{count, plural, one {# attachment file is missing from this backup. Its details were kept, but the file shows as missing.} other {# attachment files are missing from this backup. Their details were kept, but the files show as missing.}}",
+    "assetSizeMismatch": "{count, plural, one {# attachment file is a different size than its details say. It was kept, but the size shown may be wrong.} other {# attachment files are different sizes than their details say. They were kept, but the sizes shown may be wrong.}}"
+  },
+  "weekday": {
+    "0": "Sunday",
+    "1": "Monday",
+    "2": "Tuesday",
+    "3": "Wednesday",
+    "4": "Thursday",
+    "5": "Friday",
+    "6": "Saturday",
+    "short": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
+  },
+  "trash": {
+    "title": "Trash bin",
+    "hint": "Deleted records are kept for {days} days, then automatically removed.",
+    "retention": "Auto-delete after",
+    "days": "{count} days",
+    "empty": "Trash is empty.",
+    "item": "{type}: {label}",
+    "viewDetails": "View details",
+    "detail": "Record details",
+    "relatedData": "Related data",
+    "yes": "Yes",
+    "no": "No",
+    "fields": {
+      "createdAt": "Created at",
+      "courseId": "Course ID",
+      "enrollmentId": "Enrollment ID",
+      "id": "ID",
+      "invoiceId": "Invoice ID",
+      "lineItems": "Line items",
+      "memberId": "Member ID",
+      "orgId": "Organization ID",
+      "ownerId": "Owner ID",
+      "paidAt": "Paid at",
+      "paidAmount": "Paid amount",
+      "paymentDetails": "Payment details",
+      "paymentMethod": "Payment method",
+      "rev": "Revision",
+      "sessionCount": "Session count",
+      "sessionId": "Session ID",
+      "sessionIds": "Session IDs",
+      "trainerId": "Trainer ID",
+      "trainerPresent": "Trainer present",
+      "updatedAt": "Updated at"
+    },
+    "restore": "Restore",
+    "deletePermanently": "Delete permanently",
+    "deleteTitle": "Permanently delete?",
+    "deleteBody": "Permanently delete these {count} trashed items? This cannot be undone.",
+    "types": {
+      "member": "Member",
+      "trainer": "Trainer",
+      "course": "Course",
+      "enrollment": "Enrollment",
+      "session": "Session",
+      "attendance": "Attendance",
+      "invoice": "Invoice",
+      "payment": "Payment",
+      "payroll": "Payroll",
+      "attachment": "Attachment"
+    },
+    "deletedOn": "Deleted {date}",
+    "daysLeft": "{count} days left",
+    "emptyTrash": "Empty trash",
+    "deleteOneTitle": "Permanently delete this item?",
+    "deleteOneBody": "Permanently delete {label}? This cannot be undone.",
+    "restored": "Restored {label}",
+    "movedToTrash": "{label} moved to the trash bin",
+    "retentionHint": "Applies to everything already in the trash bin too. Items are removed permanently once their time runs out."
+  }
+}

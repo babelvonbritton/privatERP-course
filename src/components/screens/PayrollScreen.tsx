@@ -137,12 +137,15 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   async function submitDelete() {
     if (!confirmDelete) return;
+    const period = periodLabel(confirmDelete, locale);
+    const trainerName = trainerById.get(confirmDelete.trainerId)?.name;
+    const label = trainerName ? `${trainerName} · ${period}` : period;
     try {
       await s.payroll.remove(confirmDelete.id);
       await reloadRuns();
       setConfirmDelete(null);
       setDetail(null);
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
     } catch (e) {
       setConfirmDelete(null);
       errorCenter.report(e, { action: "payroll.delete" });

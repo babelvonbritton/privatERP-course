@@ -15,7 +15,8 @@ export type EntityKind =
   | "payrollRun"
   | "auditLog"
   | "writeKey"
-  | "setting";
+  | "setting"
+  | "trash";
 
 export type EntryStatus = "new" | "same" | "differs";
 export type DiffField =
@@ -217,6 +218,15 @@ export class MergePlanner {
       { field: "value", kind: "text", get: (v) => String(v.value ?? "") },
     ], current.settings, incoming.settings);
 
+    // Trash entries compare on their kind, label and deletion day; the
+    // snapshot and related rows travel with the entry and are never diffed
+    // field by field. The field names reuse existing labels.
+    classify("trash", byId, (v) => v.label, [
+      { field: "status", kind: "status", get: (v) => v.kind },
+      { field: "name", kind: "text", get: (v) => v.label },
+      { field: "date", kind: "date", get: (v) => new Date(v.deletedAt).toISOString().slice(0, 10) },
+    ], current.trash ?? [], incoming.trash ?? []);
+
     return { entries, totals, byKind };
   }
 
@@ -224,7 +234,9 @@ export class MergePlanner {
   static resolve(current: BackupData, incoming: BackupData, decisions: Decisions, _now: number): MergeResult {
     const out = structuredClone(current);
     out.attachments = out.attachments ?? [];
+    out.trash = out.trash ?? [];
     const incomingAttachments = incoming.attachments ?? [];
+    const incomingTrash = incoming.trash ?? [];
     let added = 0;
     let replaced = 0;
     let kept = 0;
@@ -283,7 +295,22 @@ export class MergePlanner {
         added++;
       }
     }
-    const total = STORE_NAMES.reduce((sum, n) => sum + (out[n] as unknown[]).length, 0) + out.attachments.length;
+    // Trash entries merge like any other store: new ones are added, ones
+    // that differ are replaced only when the user chose "replace".
+    const existingTrash = new Set(out.trash.map((t) => t.id));
+    for (const v of incomingTrash) {
+      if (!existingTrash.has(v.id)) {
+        out.trash.push(v);
+        added++;
+        continue;
+      }
+      if (decisions.get(`trash:${v.id}`) === "replace") {
+        const idx = out.trash.findIndex((t) => t.id === v.id);
+        if (idx >= 0) out.trash[idx] = v;
+        replaced++;
+      } else kept++;
+    }
+    const total = STORE_NAMES.reduce((sum, n) => sum + (out[n] as unknown[]).length, 0) + out.attachments.length + out.trash.length;
     return { data: out, total, added, replaced, kept, warnings: [] };
   }
 }

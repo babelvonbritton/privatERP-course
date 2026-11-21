@@ -141,10 +141,10 @@ describe("schema upgrade", () => {
       rev: 1,
     });
     await legacy.close();
-    // Opening the real database runs the version 2 upgrade: new stores appear, old rows survive.
+    // Opening the real database runs the version 3 upgrade: new stores appear, old rows survive.
     const s = getServices();
     await getStorage().init();
-    expect(getStorage().schemaVersion).toBe(2);
+    expect(getStorage().schemaVersion).toBe(3);
     expect((await s.members.list()).map((m) => m.name)).toEqual(["Legacy Ana"]);
     expect(await s.attachments.list("invoice", "nothing")).toHaveLength(0);
     const report = await getStorage().snapshots.readAll();
@@ -197,10 +197,15 @@ describe("AttachmentService", () => {
     expect(recent.find((e) => e.action === "attachment.remove")).toMatchObject({ detail: "receipt.png" });
   });
 
-  it("removes every attachment when its invoice is deleted", async () => {
+  it("keeps every attachment when its invoice is trashed, and removes them on permanent delete", async () => {
     const { s, invoice } = await seedInvoice();
     const stored = await s.attachments.add({ entityType: "invoice", entityId: invoice.id, prepared: prepared() });
     await s.invoices.remove(invoice.id);
+    expect(await s.attachments.list("invoice", invoice.id)).toHaveLength(1);
+    expect(await s.attachments.hasBlob(stored.id)).toBe(true);
+    const entries = await s.trash.list();
+    expect(entries).toHaveLength(1);
+    await s.trash.deletePermanently(entries[0].id);
     expect(await s.attachments.list("invoice", invoice.id)).toHaveLength(0);
     expect(await s.attachments.hasBlob(stored.id)).toBe(false);
   });
@@ -246,7 +251,7 @@ describe("backup with attachments", () => {
     const created = await service.createBackup(noop);
     expect(created.ok).toBe(true);
     if (!created.ok) return;
-    expect(created.value.manifest.schemaVersion).toBe(2);
+    expect(created.value.manifest.schemaVersion).toBe(3);
     expect(created.value.manifest.stores.attachments.count).toBe(1);
     const files = unzipSync(created.value.zip);
     expect(files[`assets/images/${stored.id}.png`]).toEqual(new Uint8Array([1, 2, 3, 4]));

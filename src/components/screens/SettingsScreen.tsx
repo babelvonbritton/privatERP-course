@@ -9,6 +9,7 @@ import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DB_SCHEMA_VERSION } from "@/lib/b
 import { BackupDialog } from "../backup/BackupDialog";
 import { GuideDialog } from "../GuideDialog";
 import { CurrencySection } from "../settings/CurrencySection";
+import { RetentionSection } from "../settings/RetentionSection";
 import { ThemeSection } from "../settings/ThemeSection";
 import type { NavId } from "../nav";
 import { useTour } from "../Tour";
@@ -86,6 +87,8 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       <ThemeSection />
 
       <CurrencySection />
+
+      <RetentionSection />
 
       <SectionCard label={t("settings.backup")} hint={t("settings.backupHint")}>
         <Button className="max-sm:h-11" onClick={() => setBackupOpen(true)}>{t("backup.title")}</Button>

@@ -224,9 +224,10 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const confirmDeleteCourse = async () => {
     if (!selected) return;
+    const label = selected.title;
     try {
       await getServices().courses.remove(selected.id);
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
       setDeleteOpen(false);
       setSelected(null);
       await load(query);
@@ -263,9 +264,10 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const confirmDeleteEnrollment = async () => {
     if (!selected || !pendingEnrollment) return;
+    const label = memberName(pendingEnrollment.memberId);
     try {
       await getServices().courses.removeEnrollment(pendingEnrollment.id);
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
       setPendingEnrollment(null);
       await loadDetail(selected.id);
     } catch (e) {
@@ -296,9 +298,10 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const confirmDeleteSession = async () => {
     if (!selected || !pendingSession) return;
+    const label = pendingSession.topic;
     try {
       await getServices().attendance.removeSession(pendingSession.id);
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
       setPendingSession(null);
       await loadDetail(selected.id);
     } catch (e) {

@@ -13,6 +13,7 @@ import {
   DexieSessionStore,
   DexieSettingsStore,
   DexieTrainerStore,
+  DexieTrashStore,
   DexieWriteKeyStore,
 } from "./repositories";
 import { SnapshotService } from "./SnapshotService";
@@ -21,7 +22,7 @@ import type { Clock } from "./types";
 export interface StorageReport {
   /** Preference keys whose stored value was not allowed and was reset to the default. */
   repairedPreferences: string[];
-  counts: { members: number; trainers: number; courses: number; enrollments: number; sessions: number; attendance: number; invoices: number; payments: number; payrollRuns: number };
+  counts: { members: number; trainers: number; courses: number; enrollments: number; sessions: number; attendance: number; invoices: number; payments: number; payrollRuns: number; trash: number };
   integrity: IntegrityReport;
 }
 
@@ -39,6 +40,7 @@ export class StorageService {
   readonly audit: DexieAuditStore;
   readonly writeKeys: DexieWriteKeyStore;
   readonly settings: DexieSettingsStore;
+  readonly trash: DexieTrashStore;
   readonly preferences: PreferenceService;
   readonly snapshots: SnapshotService;
   readonly integrity: IntegrityChecker;
@@ -57,6 +59,7 @@ export class StorageService {
     this.audit = new DexieAuditStore(db.auditLog, clock);
     this.writeKeys = new DexieWriteKeyStore(db.writeKeys, clock);
     this.settings = new DexieSettingsStore(db.settings, clock);
+    this.trash = new DexieTrashStore(db.trash, clock);
     this.preferences = new PreferenceService(this.settings);
     this.snapshots = new SnapshotService(db);
     this.integrity = new IntegrityChecker(db, clock);
@@ -81,7 +84,7 @@ export class StorageService {
   private async runInit(): Promise<StorageReport> {
     await this.db.open();
     const { repaired } = await this.preferences.load();
-    const [members, trainers, courses, enrollments, sessions, attendance, invoices, payments, payrollRuns, integrity] = await Promise.all([
+    const [members, trainers, courses, enrollments, sessions, attendance, invoices, payments, payrollRuns, trash, integrity] = await Promise.all([
       this.members.count(),
       this.trainers.count(),
       this.courses.count(),
@@ -91,9 +94,10 @@ export class StorageService {
       this.invoices.count(),
       this.payments.count(),
       this.payrollRuns.count(),
+      this.trash.count(),
       this.integrity.run(),
     ]);
-    return { repairedPreferences: repaired, counts: { members, trainers, courses, enrollments, sessions, attendance, invoices, payments, payrollRuns }, integrity };
+    return { repairedPreferences: repaired, counts: { members, trainers, courses, enrollments, sessions, attendance, invoices, payments, payrollRuns, trash }, integrity };
   }
 }
 

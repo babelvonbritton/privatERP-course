@@ -10,7 +10,7 @@ export class SnapshotService {
     const d = this.db;
     return d.transaction(
       "r",
-      [d.members, d.trainers, d.courses, d.enrollments, d.sessions, d.attendance, d.invoices, d.payments, d.payrollRuns, d.auditLog, d.writeKeys, d.settings, d.attachments],
+      [d.members, d.trainers, d.courses, d.enrollments, d.sessions, d.attendance, d.invoices, d.payments, d.payrollRuns, d.auditLog, d.writeKeys, d.settings, d.attachments, d.trash],
       async () => ({
         members: await d.members.toArray(),
         trainers: await d.trainers.toArray(),
@@ -26,6 +26,7 @@ export class SnapshotService {
         settings: await d.settings.toArray(),
         // File bytes stay in the separate blob store and never enter a snapshot.
         attachments: await d.attachments.toArray(),
+        trash: await d.trash.toArray(),
       }),
     );
   }
@@ -35,7 +36,7 @@ export class SnapshotService {
     const d = this.db;
     return d.transaction(
       "rw",
-      [d.members, d.trainers, d.courses, d.enrollments, d.sessions, d.attendance, d.invoices, d.payments, d.payrollRuns, d.auditLog, d.writeKeys, d.settings, d.attachments],
+      [d.members, d.trainers, d.courses, d.enrollments, d.sessions, d.attendance, d.invoices, d.payments, d.payrollRuns, d.auditLog, d.writeKeys, d.settings, d.attachments, d.trash],
       async () => {
         await Promise.all([
           d.members.clear(),
@@ -51,6 +52,7 @@ export class SnapshotService {
           d.writeKeys.clear(),
           d.settings.clear(),
           d.attachments.clear(),
+          d.trash.clear(),
         ]);
         await d.members.bulkAdd(data.members);
         await d.trainers.bulkAdd(data.trainers);
@@ -65,6 +67,7 @@ export class SnapshotService {
         await d.writeKeys.bulkAdd(data.writeKeys);
         await d.settings.bulkAdd(data.settings);
         await d.attachments.bulkAdd(data.attachments ?? []);
+        await d.trash.bulkAdd(data.trash ?? []);
       },
     );
   }

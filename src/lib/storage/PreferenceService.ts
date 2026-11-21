@@ -1,5 +1,6 @@
 import { ValidationError } from "./Guard";
 import { isCurrencyCode, type CurrencyCode } from "@/lib/domain/types";
+import { DEFAULT_TRASH_RETENTION_DAYS, type TrashRetentionDays } from "@/lib/domain/trash";
 import type { SettingsStore } from "./repositories";
 
 export interface Preferences {
@@ -11,15 +12,18 @@ export interface Preferences {
   currencySwitchDate: string;
   /** Currency switches used on currencySwitchDate. */
   currencySwitchCount: number;
+  /** Days a deleted record stays in the trash before it is purged. */
+  trashRetentionDays: TrashRetentionDays;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { tourSeen: false, currency: "IDR", currencySwitchDate: "", currencySwitchCount: 0 };
+export const DEFAULT_PREFERENCES: Preferences = { tourSeen: false, currency: "IDR", currencySwitchDate: "", currencySwitchCount: 0, trashRetentionDays: DEFAULT_TRASH_RETENTION_DAYS };
 
 const KEYS: Record<keyof Preferences, string> = {
   tourSeen: "pref.tourSeen",
   currency: "pref.currency",
   currencySwitchDate: "pref.currencySwitchDate",
   currencySwitchCount: "pref.currencySwitchCount",
+  trashRetentionDays: "pref.trashRetentionDays",
 };
 
 /** Storage keys for each preference, for writers that update settings directly. */
@@ -34,6 +38,7 @@ const READERS: { [K in keyof Preferences]: (v: Stored) => Preferences[K] | null 
   currency: (v) => (isCurrencyCode(v) ? v : null),
   currencySwitchDate: (v) => (typeof v === "string" && (v === "" || DATE_RE.test(v)) ? v : null),
   currencySwitchCount: (v) => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 && v <= 10_000 ? v : null),
+  trashRetentionDays: (v) => (v === 7 || v === 30 ? v : null),
 };
 
 /**

@@ -224,7 +224,16 @@ export class BackupService {
       if (name === "settings") continue;
       const path = STORE_TO_FILE[name];
       const bytes = plain.get(path);
-      if (!bytes) throw new AppError("BACKUP_UNEXPECTED_CONTENT", { details: `${path} is listed in the manifest but missing from the archive` });
+      if (!bytes) {
+        // Backups written before the trash bin carry no trash file: they
+        // restore with an empty trash, and the count and checksum checks
+        // below are skipped for it.
+        if (name === "trash") {
+          raw.trash = [];
+          continue;
+        }
+        throw new AppError("BACKUP_UNEXPECTED_CONTENT", { details: `${path} is listed in the manifest but missing from the archive` });
+      }
       const decoded = decodeNdjson(bytes, path);
       if (decoded.badLines > 0) warnings.push({ key: "warn.badLines", vars: { count: decoded.badLines, store: name } });
       const expected = manifest.stores[name];

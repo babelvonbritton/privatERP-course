@@ -42,6 +42,8 @@ import {
   type TrainerPatch,
 } from "./schemas";
 import { requireCan } from "./permissions";
+import { createTrashEntry } from "./trash";
+import { TrashService } from "./trashService";
 import { AttachmentService } from "@/lib/attachments/service";
 import type {
   Actor,
@@ -196,9 +198,10 @@ export class MemberService extends ServiceBase {
     if (enrollments.length > 0 || invoices.length > 0) {
       throw new AppError("DELETE_BLOCKED", { details: "Member still has enrollments or invoices" });
     }
-    await this.db.transaction("rw", [this.db.members, this.db.auditLog], async () => {
+    await this.db.transaction("rw", [this.db.members, this.db.trash, this.db.auditLog], async () => {
       await this.storage.members.remove(id);
-      await this.audit("member.delete", "member", id, member.name);
+      await this.storage.trash.put(createTrashEntry("member", id, member.name, member, [], this.now()));
+      await this.audit("member.trash", "member", id, member.name);
     });
   }
 }
@@ -273,9 +276,10 @@ export class TrainerService extends ServiceBase {
     if (courses.length > 0 || runs.length > 0) {
       throw new AppError("DELETE_BLOCKED", { details: "Trainer still has courses or pay runs" });
     }
-    await this.db.transaction("rw", [this.db.trainers, this.db.auditLog], async () => {
+    await this.db.transaction("rw", [this.db.trainers, this.db.trash, this.db.auditLog], async () => {
       await this.storage.trainers.remove(id);
-      await this.audit("trainer.delete", "trainer", id, trainer.name);
+      await this.storage.trash.put(createTrashEntry("trainer", id, trainer.name, trainer, [], this.now()));
+      await this.audit("trainer.trash", "trainer", id, trainer.name);
     });
   }
 }
@@ -378,9 +382,10 @@ export class CourseService extends ServiceBase {
     if (enrollments.length > 0 || sessions.length > 0) {
       throw new AppError("DELETE_BLOCKED", { details: "Course still has enrollments or sessions" });
     }
-    await this.db.transaction("rw", [this.db.courses, this.db.auditLog], async () => {
+    await this.db.transaction("rw", [this.db.courses, this.db.trash, this.db.auditLog], async () => {
       await this.storage.courses.remove(id);
-      await this.audit("course.delete", "course", id, course.title);
+      await this.storage.trash.put(createTrashEntry("course", id, course.title, course, [], this.now()));
+      await this.audit("course.trash", "course", id, course.title);
     });
   }
 
@@ -445,9 +450,12 @@ export class CourseService extends ServiceBase {
     if (invoices.some((i) => i.enrollmentId === id)) {
       throw new AppError("DELETE_BLOCKED", { details: "Enrollment still has invoices" });
     }
-    await this.db.transaction("rw", [this.db.enrollments, this.db.auditLog], async () => {
+    const [member, course] = await Promise.all([this.storage.members.get(enrollment.memberId), this.storage.courses.get(enrollment.courseId)]);
+    const label = `${member?.name ?? enrollment.memberId} → ${course?.title ?? enrollment.courseId}`;
+    await this.db.transaction("rw", [this.db.enrollments, this.db.trash, this.db.auditLog], async () => {
       await this.storage.enrollments.remove(id);
-      await this.audit("enrollment.delete", "enrollment", id, enrollment.status);
+      await this.storage.trash.put(createTrashEntry("enrollment", id, label, enrollment, [], this.now()));
+      await this.audit("enrollment.trash", "enrollment", id, label);
     });
   }
 
@@ -517,11 +525,14 @@ export class AttendanceService extends ServiceBase {
     requireCan(this.actor, "session.delete");
     const session = await this.storage.sessions.get(id);
     if (!session) throw new AppError("NOT_FOUND", { details: `session ${id}` });
-    await this.db.transaction("rw", [this.db.sessions, this.db.attendance, this.db.auditLog], async () => {
+    const course = await this.storage.courses.get(session.courseId);
+    const label = `${course?.title ?? session.courseId} · ${session.date}`;
+    await this.db.transaction("rw", [this.db.sessions, this.db.attendance, this.db.trash, this.db.auditLog], async () => {
       const rows = await this.storage.attendance.listBySession(id);
       for (const r of rows) await this.storage.attendance.remove(r.id);
       await this.storage.sessions.remove(id);
-      await this.audit("session.delete", "session", id, session.date);
+      await this.storage.trash.put(createTrashEntry("session", id, label, session, rows, this.now()));
+      await this.audit("session.trash", "session", id, label);
     });
   }
 
@@ -670,18 +681,16 @@ export class InvoiceService extends ServiceBase {
 
   async remove(id: string): Promise<void> {
     requireCan(this.actor, "invoice.delete");
-    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.attachments, this.db.attachmentBlobs, this.db.auditLog], async () => {
+    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.trash, this.db.auditLog], async () => {
       const invoice = await this.storage.invoices.get(id);
       if (!invoice) throw new AppError("NOT_FOUND", { details: `invoice ${id}` });
       const payments = await this.storage.payments.listByInvoice(id);
       for (const payment of payments) await this.storage.payments.remove(payment.id);
       await this.storage.invoices.remove(id);
-      // Attachments of a deleted invoice go with it: backup validation
-      // rejects metadata that points at a missing invoice.
-      const attached = await this.db.attachments.where("[entityType+entityId]").equals(["invoice", id]).toArray();
-      await this.db.attachments.where("[entityType+entityId]").equals(["invoice", id]).delete();
-      await this.db.attachmentBlobs.bulkDelete(attached.map((a) => a.id));
-      await this.audit("invoice.delete", "invoice", id, `${invoice.number}; ${payments.length} payments deleted`);
+      // Attachments stay keyed by invoice id, so restoring the invoice
+      // leaves them working; they are only deleted with a permanent delete.
+      await this.storage.trash.put(createTrashEntry("invoice", id, invoice.number, invoice, payments, this.now()));
+      await this.audit("invoice.trash", "invoice", id, `${invoice.number}; ${payments.length} payments deleted`);
     });
   }
 
@@ -720,15 +729,18 @@ export class InvoiceService extends ServiceBase {
     requireCan(this.actor, "invoice.pay");
     const payment = await this.storage.payments.get(id);
     if (!payment) throw new AppError("NOT_FOUND", { details: `payment ${id}` });
-    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.auditLog], async () => {
-      const invoice = await this.storage.invoices.get(payment.invoiceId);
+    const invoice = await this.storage.invoices.get(payment.invoiceId);
+    const label = `${invoice?.number ?? payment.invoiceId} · ${payment.amount}`;
+    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.trash, this.db.auditLog], async () => {
+      const current = await this.storage.invoices.get(payment.invoiceId);
       await this.storage.payments.remove(id);
-      if (invoice) {
-        const paidAmount = Math.max(0, invoice.paidAmount - payment.amount);
-        const updated: Invoice = { ...touched(invoice, this.now()), paidAmount, status: statusAfterPayment(invoice.total, paidAmount) };
+      if (current) {
+        const paidAmount = Math.max(0, current.paidAmount - payment.amount);
+        const updated: Invoice = { ...touched(current, this.now()), paidAmount, status: statusAfterPayment(current.total, paidAmount) };
         await this.storage.invoices.put(updated);
       }
-      await this.audit("payment.delete", "payment", id, `-${payment.amount}`);
+      await this.storage.trash.put(createTrashEntry("payment", id, label, payment, [], this.now()));
+      await this.audit("payment.trash", "payment", id, `-${payment.amount}`);
     });
   }
 
@@ -822,9 +834,12 @@ export class PayrollService extends ServiceBase {
     const run = await this.storage.payrollRuns.get(id);
     if (!run) throw new AppError("NOT_FOUND", { details: `payroll run ${id}` });
     if (run.status === "paid") throw new AppError("DELETE_BLOCKED", { details: "A paid run is a permanent record" });
-    await this.db.transaction("rw", [this.db.payrollRuns, this.db.auditLog], async () => {
+    const trainer = await this.storage.trainers.get(run.trainerId);
+    const label = `${trainer?.name ?? run.trainerId} · ${run.periodStart}`;
+    await this.db.transaction("rw", [this.db.payrollRuns, this.db.trash, this.db.auditLog], async () => {
       await this.storage.payrollRuns.remove(id);
-      await this.audit("payroll.delete", "payrollRun", id, run.status);
+      await this.storage.trash.put(createTrashEntry("payrollRun", id, label, run, [], this.now()));
+      await this.audit("payrollRun.trash", "payrollRun", id, label);
     });
   }
 }
@@ -1041,6 +1056,7 @@ export class Services {
   readonly dashboard: DashboardService;
   readonly currency: CurrencyService;
   readonly attachments: AttachmentService;
+  readonly trash: TrashService;
 
   constructor(
     readonly storage: StorageService,
@@ -1055,6 +1071,7 @@ export class Services {
     this.payroll = new PayrollService(storage, actor, clock);
     this.dashboard = new DashboardService(storage, actor, clock);
     this.currency = new CurrencyService(storage, actor, clock);
+    this.trash = new TrashService(storage, actor, clock);
     // The attachment audit entries use the same shape as the other services.
     // The write runs inside the attachment transaction, so the audit row
     // joins that transaction and is never written without its attachment.

@@ -184,8 +184,8 @@ async function desktop(browser) {
       await toast(page, "Saved");
       await page.locator("tr", { hasText: "Temp Delete" }).getByRole("button", { name: "Delete member" }).click();
       await page.getByRole("button", { name: "Delete", exact: true }).click();
-      await toast(page, "Deleted");
-      if (await page.getByText("Temp Delete").count()) throw new Error("deleted member still listed");
+      await toast(page, "Temp Delete moved to the trash bin");
+      if (await page.locator("tr", { hasText: "Temp Delete" }).count()) throw new Error("deleted member still listed");
     } finally {
       const cancel = page.getByRole("button", { name: "Cancel", exact: true });
       if (await cancel.count()) await cancel.first().click().catch(() => {});
@@ -440,11 +440,11 @@ async function mobileTourSheet(browser) {
   page.setDefaultTimeout(10000);
   currentPage = page;
 
-  await check("mobile tour: sheet docks above the bottom nav on all 8 steps", async () => {
+  await check("mobile tour: sheet docks above the bottom nav on all 9 steps", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         const dr = dlg?.getBoundingClientRect();
@@ -499,7 +499,7 @@ async function mobileTourSheet(browser) {
       }
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-1.png` });
       if (i === 4) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-5.png` });
-      if (i < 7) {
+      if (i < 8) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -536,7 +536,7 @@ async function mobileTourShortPhone(browser) {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         // Scroll the sheet to its end first: on a short phone the longest
@@ -561,7 +561,7 @@ async function mobileTourShortPhone(browser) {
         if (b.h < 44) throw new Error(`step ${i + 1}: ${b.label} button ${b.h}px tall`);
       }
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-360x740-step-1.png` });
-      if (i < 7) {
+      if (i < 8) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -1116,11 +1116,11 @@ async function shortViewportTour(browser) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   currentPage = page;
-  await check("short viewport: tour tooltip stays inside the viewport on all 8 steps", async () => {
+  await check("short viewport: tour tooltip stays inside the viewport on all 9 steps", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const box = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         const r = dlg?.getBoundingClientRect();
@@ -1136,7 +1136,7 @@ async function shortViewportTour(browser) {
       if (box.top === null || box.top < 0 || box.bottom > box.vh || !box.skipVisible) {
         throw new Error(`step ${i + 1}: tooltip top ${box.top} bottom ${box.bottom} vs viewport ${box.vh}, Skip visible ${box.skipVisible}`);
       }
-      if (i < 7) {
+      if (i < 8) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -1214,7 +1214,7 @@ async function backupV2Checks(browser) {
     if (names.includes("data.json")) throw new Error("backup ZIP still contains data.json");
     const manifest = JSON.parse(strFromU8(files["manifest.json"]));
     if (manifest.formatVersion !== 2) throw new Error(`manifest formatVersion is ${manifest.formatVersion}, expected 2`);
-    if (manifest.schemaVersion !== 2) throw new Error(`manifest schemaVersion is ${manifest.schemaVersion}, expected 2`);
+    if (manifest.schemaVersion !== 3) throw new Error(`manifest schemaVersion is ${manifest.schemaVersion}, expected 3`);
     if (manifest.stores.members.count < 1) throw new Error("manifest says no members were backed up");
     if (manifest.stores.attachments.count !== 0) throw new Error("manifest says attachments were backed up");
     for (const entry of manifest.files) {
@@ -1233,8 +1233,8 @@ async function backupV2Checks(browser) {
     await nav(page, "Members");
     await page.locator("tr", { hasText: "Backup V2" }).getByRole("button", { name: "Delete member" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await toast(page, "Deleted");
-    if (await page.getByText("Backup V2").count()) throw new Error("deleted member still listed");
+    await toast(page, "Backup V2 moved to the trash bin");
+    if (await page.locator("tr", { hasText: "Backup V2" }).count()) throw new Error("deleted member still listed");
     await openBackupDialog(page);
     await page.getByRole("tab", { name: "Restore" }).click();
     await page.locator('input[type="file"]').setInputFiles(V2_PATH);
@@ -1497,7 +1497,7 @@ async function attachmentChecks(browser) {
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
     const files = unzipSync(readFileSync(ATT_BACKUP));
     const manifest = JSON.parse(strFromU8(files["manifest.json"]));
-    if (manifest.schemaVersion !== 2) throw new Error(`manifest schemaVersion is ${manifest.schemaVersion}, expected 2`);
+    if (manifest.schemaVersion !== 3) throw new Error(`manifest schemaVersion is ${manifest.schemaVersion}, expected 3`);
     if (manifest.stores.attachments.count !== 1) throw new Error(`manifest says ${manifest.stores.attachments.count} attachments, expected 1`);
     const lines = strFromU8(files["database/attachments.ndjson"]).split("\n").filter(Boolean);
     if (lines.length !== 1) throw new Error(`attachments.ndjson holds ${lines.length} rows, expected 1`);
@@ -1512,7 +1512,7 @@ async function attachmentChecks(browser) {
     await page.locator("tr", { hasText: "Attachment Ana" }).first().click();
     await page.getByRole("button", { name: "Delete invoice" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await toast(page, "Deleted");
+    await page.locator('[role="status"]', { hasText: "moved to the trash bin" }).first().waitFor({ timeout: 8000 });
     if (await page.getByText("Attachment Ana").count()) throw new Error("deleted invoice still listed");
     await openBackupDialog(page);
     await page.getByRole("tab", { name: "Restore" }).click();
@@ -1538,6 +1538,96 @@ async function attachmentChecks(browser) {
   await context.close();
 }
 
+/** v0.4.0 trash bin: delete moves a record to trash, restore brings it back, permanent delete removes it, retention switches 7/30 days. */
+async function trashChecks(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  async function openTrash() {
+    await nav(page, "Trash");
+    await page.getByText("Trash bin").first().waitFor();
+  }
+
+  /** Switches the retention setting, which lives in Settings as "7 days" / "30 days" buttons. */
+  async function setRetention(days) {
+    await nav(page, "Settings");
+    await page.getByRole("button", { name: `${days} days`, exact: true }).click();
+  }
+
+  await check("trash: create a member and delete it to the trash bin", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Trash Test Member");
+    await page.getByLabel("Email", { exact: true }).fill("trashtest@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Trash Test Member" }).waitFor();
+    await page.locator("tr", { hasText: "Trash Test Member" }).getByRole("button", { name: "Delete member" }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await toast(page, "Trash Test Member moved to the trash bin");
+    if (await page.locator("tr", { hasText: "Trash Test Member" }).count()) throw new Error("deleted member still listed");
+  });
+
+  await check("trash: entry is listed with kind, label and days remaining", async () => {
+    await openTrash();
+    await page.getByText("Member: Trash Test Member").waitFor({ timeout: 8000 });
+    await page.getByText("7 days left").waitFor();
+    await page.getByText("Deleted records are kept for 7 days, then automatically removed.").waitFor();
+    await noOverflow(page, "trash bin", 1280);
+  });
+
+  await check("trash: restore returns the member to the Members list", async () => {
+    await page.getByRole("button", { name: "Restore" }).first().click();
+    await toast(page, "Restored Trash Test Member");
+    await nav(page, "Members");
+    await page.locator("tr", { hasText: "Trash Test Member" }).waitFor({ timeout: 8000 });
+  });
+
+  await check("trash: delete again, then delete permanently behind confirm", async () => {
+    await page.locator("tr", { hasText: "Trash Test Member" }).getByRole("button", { name: "Delete member" }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await toast(page, "Trash Test Member moved to the trash bin");
+    await openTrash();
+    await page.getByText("Member: Trash Test Member").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Delete permanently" }).first().click();
+    await page.getByText("Permanently delete this item?").waitFor({ timeout: 5000 });
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete permanently", exact: true }).click();
+    await page.getByText("Trash is empty.").waitFor({ timeout: 8000 });
+    if (await page.getByText("Member: Trash Test Member").count()) throw new Error("permanently deleted entry still listed");
+  });
+
+  await check("trash: retention switches 7 to 30 days and back", async () => {
+    await setRetention(30);
+    await openTrash();
+    await page.getByText("Deleted records are kept for 30 days, then automatically removed.").waitFor({ timeout: 8000 });
+    await setRetention(7);
+    await openTrash();
+    await page.getByText("Deleted records are kept for 7 days, then automatically removed.").waitFor({ timeout: 8000 });
+  });
+
+  await check("trash: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+}
+
 const browser = await chromium.launch(launchOptions());
 try {
   await desktop(browser);
@@ -1552,6 +1642,7 @@ try {
   await mobileDarkMode(browser);
   await backupV2Checks(browser);
   await attachmentChecks(browser);
+  await trashChecks(browser);
 } finally {
   await browser.close();
 }

@@ -2,7 +2,7 @@
 export const BACKUP_FORMAT = "olaseena-backup";
 export const BACKUP_FORMAT_VERSION = 2;
 /** Must equal the IndexedDB schema version in OlaseenaDatabase. */
-export const DB_SCHEMA_VERSION = 2;
+export const DB_SCHEMA_VERSION = 3;
 
 export const MANIFEST_NAME = "manifest.json";
 /** Version 1 only: the single JSON payload. Version 2 stores one NDJSON file per store instead. */
@@ -46,7 +46,7 @@ export const STORE_NAMES = [
 export type StoreName = (typeof STORE_NAMES)[number];
 
 /** Every store the backup format knows, including attachments, which has no IndexedDB store yet. */
-export const BACKUP_STORE_NAMES = [...STORE_NAMES, "attachments"] as const;
+export const BACKUP_STORE_NAMES = [...STORE_NAMES, "attachments", "trash"] as const;
 export type BackupStoreName = (typeof BACKUP_STORE_NAMES)[number];
 
 /** Where each store lives inside a format 2 archive. Settings use JSON, every other store uses NDJSON. */
@@ -64,4 +64,5 @@ export const STORE_TO_FILE: Record<BackupStoreName, string> = {
   writeKeys: "database/write_keys.ndjson",
   settings: "settings/configuration.json",
   attachments: "database/attachments.ndjson",
+  trash: "database/trash.ndjson",
 };

@@ -105,6 +105,7 @@ describe("backup format 2", () => {
       "database/payroll_runs.ndjson",
       "database/sessions.ndjson",
       "database/trainers.ndjson",
+      "database/trash.ndjson",
       "database/write_keys.ndjson",
       "manifest.json",
       "settings/configuration.json",

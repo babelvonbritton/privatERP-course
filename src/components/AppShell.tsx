@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n";
 import { LOCALE_NAMES, type Locale } from "@/i18n/routing";
 import { setCurrency, subscribeCurrency } from "@/lib/currency";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { getServices } from "@/lib/domain/services";
 import { getStorage } from "@/lib/storage";
 import { Logo } from "./Logo";
 import { TourProvider } from "./Tour";
@@ -19,6 +20,7 @@ import { MembersScreen } from "./screens/MembersScreen";
 import { PayrollScreen } from "./screens/PayrollScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TrainersScreen } from "./screens/TrainersScreen";
+import { TrashScreen } from "./screens/TrashScreen";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
 import { Modal } from "./ui/Modal";
@@ -31,7 +33,8 @@ export function AppShell() {
   const [, setCurrencyTick] = useState(0);
 
   // Loads the stored currency at boot so amounts format in it, and re-renders
-  // every screen when a switch or a restore changes it.
+  // every screen when a switch or a restore changes it. Expired trash entries
+  // are purged on boot too, so the bin never shows items past their time.
   useEffect(() => {
     let cancelled = false;
     void getStorage()
@@ -40,6 +43,9 @@ export function AppShell() {
         if (!cancelled) setCurrency(preferences.currency);
       })
       .catch((e) => errorCenter.report(e, { action: "currency.load" }));
+    void getServices()
+      .trash.purgeExpired()
+      .catch((e) => errorCenter.report(e, { action: "trash.purge" }));
     return subscribeCurrency(() => setCurrencyTick((n) => n + 1));
   }, []);
 
@@ -101,6 +107,7 @@ export function AppShell() {
             {nav === "attendance" && <AttendanceScreen navigate={navigate} />}
             {nav === "invoices" && <InvoicesScreen navigate={navigate} />}
             {nav === "payroll" && <PayrollScreen navigate={navigate} />}
+            {nav === "trash" && <TrashScreen navigate={navigate} />}
             {nav === "settings" && <SettingsScreen navigate={navigate} />}
           </main>
           <LegalFooter className="mx-auto w-full max-w-5xl md:px-8" />

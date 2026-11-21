@@ -442,12 +442,13 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   async function submitDelete() {
     if (!confirmDelete) return;
+    const label = confirmDelete.number;
     try {
       await s.invoices.remove(confirmDelete.id);
       await reloadInvoices(debouncedQuery);
       setConfirmDelete(null);
       setDetail(null);
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
     } catch (e) {
       setConfirmDelete(null);
       errorCenter.report(e, { action: "invoice.delete" });
@@ -493,12 +494,13 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   async function submitDeletePayment() {
     if (!confirmDeletePayment || !detail) return;
+    const label = formatMoney(confirmDeletePayment.amount, locale);
     try {
       await s.invoices.removePayment(confirmDeletePayment.id);
       await reloadInvoices(debouncedQuery);
       await refreshDetail(detail.id);
       setConfirmDeletePayment(null);
-      errorCenter.notify({ key: "toast.deleted" });
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
     } catch (e) {
       setConfirmDeletePayment(null);
       errorCenter.report(e, { action: "payment.delete" });
