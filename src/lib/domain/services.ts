@@ -670,18 +670,18 @@ export class InvoiceService extends ServiceBase {
 
   async remove(id: string): Promise<void> {
     requireCan(this.actor, "invoice.delete");
-    const invoice = await this.storage.invoices.get(id);
-    if (!invoice) throw new AppError("NOT_FOUND", { details: `invoice ${id}` });
-    const payments = await this.storage.payments.listByInvoice(id);
-    if (payments.length > 0) throw new AppError("DELETE_BLOCKED", { details: "Invoice already has payments" });
-    await this.db.transaction("rw", [this.db.invoices, this.db.attachments, this.db.attachmentBlobs, this.db.auditLog], async () => {
+    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.attachments, this.db.attachmentBlobs, this.db.auditLog], async () => {
+      const invoice = await this.storage.invoices.get(id);
+      if (!invoice) throw new AppError("NOT_FOUND", { details: `invoice ${id}` });
+      const payments = await this.storage.payments.listByInvoice(id);
+      for (const payment of payments) await this.storage.payments.remove(payment.id);
       await this.storage.invoices.remove(id);
       // Attachments of a deleted invoice go with it: backup validation
       // rejects metadata that points at a missing invoice.
       const attached = await this.db.attachments.where("[entityType+entityId]").equals(["invoice", id]).toArray();
       await this.db.attachments.where("[entityType+entityId]").equals(["invoice", id]).delete();
       await this.db.attachmentBlobs.bulkDelete(attached.map((a) => a.id));
-      await this.audit("invoice.delete", "invoice", id, invoice.number);
+      await this.audit("invoice.delete", "invoice", id, `${invoice.number}; ${payments.length} payments deleted`);
     });
   }
 

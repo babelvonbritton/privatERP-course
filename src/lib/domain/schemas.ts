@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ValidationError } from "@/lib/storage/Guard";
+import { getCurrency, hasCurrencyPrecision } from "@/lib/currency";
 import {
   ATTENDANCE_STATUSES,
   COURSE_STATUSES,
@@ -24,6 +25,8 @@ const notes = z.string().max(LIMITS.notes);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const id = z.string().min(1).max(64);
 const idemKey = z.string().min(1).max(128);
+const money = (min: number, max: number) =>
+  z.number().min(min).max(max).refine((value) => hasCurrencyPrecision(value, getCurrency()));
 
 export const memberInput = z.object({
   name,
@@ -43,7 +46,7 @@ export const trainerInput = z.object({
   email,
   phone,
   subjects: z.array(z.string().trim().min(1).max(LIMITS.subject)).max(LIMITS.subjects),
-  ratePerSession: z.number().int().min(0).max(100_000_000),
+  ratePerSession: money(0, 100_000_000),
   status: z.enum(TRAINER_STATUSES),
   idempotencyKey: idemKey,
 });
@@ -56,7 +59,7 @@ export const courseInput = z.object({
   title: z.string().trim().min(1).max(LIMITS.courseTitle),
   description: z.string().max(LIMITS.description),
   level: z.string().trim().min(1).max(LIMITS.level),
-  price: z.number().int().min(0).max(1_000_000_000),
+  price: money(0, 1_000_000_000),
   capacity: z.number().int().min(1).max(10_000),
   trainerId: id,
   scheduleWeekday: z.number().int().min(0).max(6),
@@ -102,7 +105,7 @@ export type AttendanceInput = z.infer<typeof attendanceInput>;
 
 export const invoiceLineItem = z.object({
   description: z.string().trim().min(1).max(LIMITS.lineDescription),
-  amount: z.number().int().min(0).max(1_000_000_000),
+  amount: money(0, 1_000_000_000),
 });
 
 export const invoiceInput = z.object({
@@ -128,7 +131,7 @@ export type InvoicePatch = z.infer<typeof invoicePatch>;
 
 export const paymentInput = z.object({
   invoiceId: id,
-  amount: z.number().int().min(1).max(1_000_000_000),
+  amount: money(1, 1_000_000_000),
   method: z.enum(PAYMENT_METHODS),
   idempotencyKey: idemKey,
 });

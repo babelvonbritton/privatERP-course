@@ -133,6 +133,32 @@ describe("currency switch", () => {
     expect(audit.some((a) => a.action === "currency.switch" && a.detail.includes("IDR to EUR"))).toBe(true);
   });
 
+  it("accepts two decimal places for EUR amounts and keeps IDR whole", async () => {
+    const { s, m, t, c } = await seed();
+    await s.currency.switchCurrency("EUR");
+
+    await expect(s.courses.update(c.id, { price: 25.751, idempotencyKey: createId() })).rejects.toThrow();
+    await s.trainers.update(t.id, { ratePerSession: 7.25, idempotencyKey: createId() });
+    await s.courses.update(c.id, { price: 25.75, idempotencyKey: createId() });
+    const invoice = await s.invoices.create({
+      memberId: m.id,
+      enrollmentId: null,
+      lineItems: [{ description: "Course fee", amount: 10.25 }],
+      dueDate: "2026-12-01",
+      status: "sent",
+      idempotencyKey: createId(),
+    });
+    await s.invoices.recordPayment({ invoiceId: invoice.id, amount: 1.25, method: "cash", idempotencyKey: createId() });
+
+    expect((await s.trainers.get(t.id))?.ratePerSession).toBe(7.25);
+    expect((await s.courses.get(c.id))?.price).toBe(25.75);
+    expect((await s.invoices.get(invoice.id))?.total).toBe(10.25);
+    expect((await s.invoices.get(invoice.id))?.paidAmount).toBe(1.25);
+
+    await s.currency.switchCurrency("IDR");
+    await expect(s.courses.update(c.id, { price: 25.75, idempotencyKey: createId() })).rejects.toThrow();
+  });
+
   it("switching to the current currency is a no-op and fetches nothing", async () => {
     const { s } = await seed();
     const result = await s.currency.switchCurrency("IDR");
@@ -284,5 +310,13 @@ describe("currency in backups", () => {
     expect(getStorage().preferences.get().currency).toBe("EUR");
     expect(getCurrency()).toBe("EUR");
     expect((await getServices().invoices.get(inv.id))!.total).toBe(575000);
+  });
+
+  it("a backup validates decimal amounts stored in EUR", async () => {
+    const { s } = await seed();
+    await s.currency.switchCurrency("EUR");
+    const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
+    const created = await service.createBackup(noop);
+    expect(created.ok).toBe(true);
   });
 });

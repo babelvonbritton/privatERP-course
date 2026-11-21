@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { getServices, today, effectiveInvoiceStatus } from "@/lib/domain/services";
 import type { Course, CurrencyCode, Enrollment, Invoice, InvoiceDisplayStatus, Member, Payment, PaymentMethod } from "@/lib/domain/types";
-import { getCurrency, subscribeCurrency } from "@/lib/currency";
+import { fractionDigits, getCurrency, subscribeCurrency } from "@/lib/currency";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
@@ -682,6 +682,7 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                     <input
                       type="number"
                       min={0}
+                      step={fractionDigits(currency) === 0 ? 1 : 0.01}
                       inputMode="decimal"
                       value={line.amount}
                       onChange={(e) => setLine(i, { amount: e.target.value })}
@@ -855,6 +856,7 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                         type="number"
                         min={0}
                         max={detailRemaining}
+                        step={fractionDigits(currency) === 0 ? 1 : 0.01}
                         inputMode="decimal"
                         value={payAmount}
                         onChange={(e) => setPayAmount(e.target.value)}

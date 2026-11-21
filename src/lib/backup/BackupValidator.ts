@@ -29,6 +29,7 @@ import {
   type WriteKey,
 } from "@/lib/domain/types";
 import { ATTACHMENT_ENTITY_TYPES, MAX_ATTACHMENT_BYTES, type Attachment } from "@/lib/domain/attachments";
+import { hasCurrencyPrecision } from "@/lib/currency";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, BACKUP_STORE_NAMES, CONFIGURATION_NAME, DATA_NAME, DB_SCHEMA_VERSION, MAX_RECORDS_PER_STORE, STORE_NAMES, STORE_TO_FILE, type BackupStoreName, type StoreName } from "./constants";
 import { BACKUP_KDF_ITERATIONS } from "./BackupCrypto";
 import type { BackupEncryption, BackupKind, BackupManifest, BackupManifestFile } from "./types";
@@ -88,6 +89,13 @@ class FieldReader {
     const v = o[key];
     if (typeof v === "number" && Number.isSafeInteger(v) && v >= min && v <= max) return v;
     this.log.add(`${path}.${key}`, `must be a whole number from ${min} to ${max}`);
+    return min;
+  }
+
+  money(o: Raw, key: string, path: string, min: number, max: number, currency: CurrencyCode): number {
+    const v = o[key];
+    if (typeof v === "number" && hasCurrencyPrecision(v, currency) && v >= min && v <= max) return v;
+    this.log.add(`${path}.${key}`, `must be a valid ${currency} amount from ${min} to ${max}`);
     return min;
   }
 
@@ -171,6 +179,7 @@ class DataValidation {
   private readonly log = new IssueLog();
   private readonly read = new FieldReader(this.log);
   private unknownFieldRecords = 0;
+  private currency: CurrencyCode = "IDR";
 
   constructor(private readonly now: number) {}
 
@@ -190,6 +199,8 @@ class DataValidation {
     // Format 1 backups carry no attachments; they restore with an empty list.
     const rawAttachments = raw.attachments;
     const attachmentList: unknown[] = rawAttachments === undefined ? [] : Array.isArray(rawAttachments) ? rawAttachments : (this.log.add("attachments", "must be a list"), []);
+    const currencySetting = lists.settings.find((entry) => isRecord(entry) && entry.key === "pref.currency");
+    if (isRecord(currencySetting) && isCurrencyCode(currencySetting.value)) this.currency = currencySetting.value;
 
     const members = this.each(lists.members, "members", FIELDS.member, this.member);
     const trainers = this.each(lists.trainers, "trainers", FIELDS.trainer, this.trainer);
@@ -328,7 +339,7 @@ class DataValidation {
     email: this.read.email(o, "email", p),
     phone: this.read.text(o, "phone", p, LIMITS.phone, { trim: true }),
     subjects: this.read.stringList(o, "subjects", p, LIMITS.subjects, LIMITS.subject),
-    ratePerSession: this.read.int(o, "ratePerSession", p, 0, 100_000_000),
+    ratePerSession: this.read.money(o, "ratePerSession", p, 0, 100_000_000, this.currency),
     status: this.read.oneOf(o, "status", p, TRAINER_STATUSES),
   });
 
@@ -337,7 +348,7 @@ class DataValidation {
     title: this.read.text(o, "title", p, LIMITS.courseTitle, { required: true, trim: true }),
     description: this.read.text(o, "description", p, LIMITS.description),
     level: this.read.text(o, "level", p, LIMITS.level, { required: true, trim: true }),
-    price: this.read.int(o, "price", p, 0, 1_000_000_000),
+    price: this.read.money(o, "price", p, 0, 1_000_000_000, this.currency),
     capacity: this.read.int(o, "capacity", p, 1, 10_000),
     trainerId: this.read.id(o, "trainerId", p),
     scheduleWeekday: this.read.int(o, "scheduleWeekday", p, 0, 6),
@@ -383,7 +394,7 @@ class DataValidation {
         }
         lineItems.push({
           description: this.read.text(entry, "description", `${p}.lineItems[${i}]`, LIMITS.lineDescription, { required: true, trim: true }),
-          amount: this.read.int(entry, "amount", `${p}.lineItems[${i}]`, 0, 1_000_000_000),
+          amount: this.read.money(entry, "amount", `${p}.lineItems[${i}]`, 0, 1_000_000_000, this.currency),
         });
       });
     }
@@ -399,8 +410,8 @@ class DataValidation {
         return this.read.id(o, "enrollmentId", p);
       })(),
       lineItems,
-      total: this.read.int(o, "total", p, 0, 1_000_000_000),
-      paidAmount: this.read.int(o, "paidAmount", p, 0, 1_000_000_000),
+      total: this.read.money(o, "total", p, 0, 1_000_000_000, this.currency),
+      paidAmount: this.read.money(o, "paidAmount", p, 0, 1_000_000_000, this.currency),
       dueDate: this.read.date(o, "dueDate", p) ?? "",
       status: this.read.oneOf(o, "status", p, INVOICE_STATUSES),
       // Old backups carry no payment fields: cash with no details, and no
@@ -413,7 +424,7 @@ class DataValidation {
   private payment = (o: Raw, p: string): Payment => ({
     ...this.base(o, p),
     invoiceId: this.read.id(o, "invoiceId", p),
-    amount: this.read.int(o, "amount", p, 1, 1_000_000_000),
+    amount: this.read.money(o, "amount", p, 1, 1_000_000_000, this.currency),
     at: this.read.int(o, "at", p, 0, MAX_TIMESTAMP),
     method: this.read.oneOf(o, "method", p, PAYMENT_METHODS),
   });
@@ -425,8 +436,8 @@ class DataValidation {
     periodEnd: this.read.date(o, "periodEnd", p) ?? "",
     sessionIds: this.read.stringList(o, "sessionIds", p, 10_000, 64),
     sessionCount: this.read.int(o, "sessionCount", p, 0, 10_000),
-    ratePerSession: this.read.int(o, "ratePerSession", p, 0, 100_000_000),
-    total: this.read.int(o, "total", p, 0, 1_000_000_000),
+    ratePerSession: this.read.money(o, "ratePerSession", p, 0, 100_000_000, this.currency),
+    total: this.read.money(o, "total", p, 0, 1_000_000_000, this.currency),
     status: this.read.oneOf(o, "status", p, PAYROLL_STATUSES),
     paidAt: this.read.nullableInt(o, "paidAt", p, 0, MAX_TIMESTAMP),
   });

@@ -116,7 +116,7 @@ describe("services", () => {
     expect(await s.members.search("zzz")).toHaveLength(0);
   });
 
-  it("delete: a member with enrollments, a trainer with courses, and an invoice with payments are blocked", async () => {
+  it("delete: linked members, trainers, and courses are blocked; invoice deletion also removes payments", async () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
@@ -126,8 +126,12 @@ describe("services", () => {
     await expect(s.trainers.remove(t.id)).rejects.toThrow();
     await expect(s.courses.remove(c.id)).rejects.toThrow();
     const inv = await s.invoices.create({ memberId: m.id, enrollmentId: null, lineItems: [{ description: "Fee", amount: 100000 }], dueDate: "2026-12-01", status: "sent", idempotencyKey: createId() });
-    await s.invoices.recordPayment({ invoiceId: inv.id, amount: 100000, method: "cash", idempotencyKey: createId() });
-    await expect(s.invoices.remove(inv.id)).rejects.toThrow();
+    const payment = await s.invoices.recordPayment({ invoiceId: inv.id, amount: 100000, method: "cash", idempotencyKey: createId() });
+    await s.invoices.remove(inv.id);
+    expect(await s.invoices.get(inv.id)).toBeUndefined();
+    expect(await s.invoices.listPayments(inv.id)).toEqual([]);
+    expect(await getStorage().payments.get(payment.id)).toBeUndefined();
+    expect((await getStorage().integrity.run()).ok).toBe(true);
   });
 
   it("enrollment and session duplicates are rejected", async () => {

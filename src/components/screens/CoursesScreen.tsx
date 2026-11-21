@@ -6,7 +6,7 @@ import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
-import { getCurrency, subscribeCurrency } from "@/lib/currency";
+import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -169,7 +169,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       return;
     }
     const price = Number(form.price);
-    if (!Number.isInteger(price) || price < 0) {
+    if (!hasCurrencyPrecision(price, currency) || price < 0) {
       setFormError(t("validation.invalid", { field: t("field.price", { currency }) }));
       return;
     }
@@ -401,7 +401,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("field.price", { currency })} htmlFor="course-price" hint={t("hint.coursePrice")}>
-              <input id="course-price" type="number" min={0} step={1} inputMode="numeric" className={inputClass} value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
+              <input id="course-price" type="number" min={0} step={fractionDigits(currency) === 0 ? 1 : 0.01} inputMode={fractionDigits(currency) === 0 ? "numeric" : "decimal"} className={inputClass} value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
             </Field>
             <Field label={t("field.capacity")} htmlFor="course-capacity" hint={t("hint.courseCapacity")}>
               <input id="course-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))} />

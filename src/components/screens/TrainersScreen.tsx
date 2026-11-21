@@ -8,6 +8,8 @@ import type { Course, PayrollRun, Trainer, TrainerStatus } from "@/lib/domain/ty
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
+import { fractionDigits, getCurrency, subscribeCurrency } from "@/lib/currency";
+import type { CurrencyCode } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -35,6 +37,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [items, setItems] = useState<Trainer[]>([]);
   const [query, setQuery] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
+  const [currency, setCurrency] = useState<CurrencyCode>(() => getCurrency());
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Trainer | null>(null);
@@ -52,6 +55,8 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [detailPayRuns, setDetailPayRuns] = useState<PayrollRun[]>([]);
 
   const [deleteTarget, setDeleteTarget] = useState<Trainer | null>(null);
+
+  useEffect(() => subscribeCurrency(() => setCurrency(getCurrency())), []);
 
   async function load(q: string): Promise<void> {
     try {
@@ -118,8 +123,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       return;
     }
     setNameError("");
-    const parsedRate = Number.parseInt(rate, 10);
-    const ratePerSession = Number.isSafeInteger(parsedRate) && parsedRate >= 0 ? parsedRate : 0;
+    const ratePerSession = Number(rate);
     setSaving(true);
     try {
       if (editing) {
@@ -316,8 +320,8 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
               id="trainer-rate"
               type="number"
               min={0}
-              step={1}
-              inputMode="numeric"
+              step={fractionDigits(currency) === 0 ? 1 : 0.01}
+              inputMode={fractionDigits(currency) === 0 ? "numeric" : "decimal"}
               value={rate}
               onChange={(e) => setRate(e.target.value)}
               className={`${inputClass} h-10`}

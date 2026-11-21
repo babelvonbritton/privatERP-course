@@ -14,6 +14,14 @@ export function fractionDigits(currency: CurrencyCode): number {
   return currency === "IDR" ? 0 : 2;
 }
 
+/** Whether an amount uses the precision supported by its currency. */
+export function hasCurrencyPrecision(amount: number, currency: CurrencyCode): boolean {
+  if (!Number.isFinite(amount)) return false;
+  const rounded = Number(amount.toFixed(fractionDigits(currency)));
+  const tolerance = Number.EPSILON * Math.max(1, Math.abs(amount)) * 2;
+  return Math.abs(amount - rounded) <= tolerance;
+}
+
 /** Converts an amount at a rate, rounding to the target currency's precision. */
 export function convert(amount: number, rate: number, to: CurrencyCode): number {
   const digits = fractionDigits(to);
