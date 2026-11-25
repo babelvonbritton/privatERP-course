@@ -23,6 +23,7 @@ const email = z.string().trim().max(LIMITS.email).email().or(z.literal(""));
 const phone = z.string().trim().max(LIMITS.phone);
 const notes = z.string().max(LIMITS.notes);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const timeString = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const id = z.string().min(1).max(64);
 const idemKey = z.string().min(1).max(128);
 const money = (min: number, max: number) =>
@@ -62,8 +63,8 @@ export const courseInput = z.object({
   price: money(0, 1_000_000_000),
   capacity: z.number().int().min(1).max(10_000),
   trainerId: id,
-  scheduleWeekday: z.number().int().min(0).max(6),
-  scheduleTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  scheduleWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+  scheduleTime: timeString,
   status: z.enum(COURSE_STATUSES),
   idempotencyKey: idemKey,
 });
@@ -85,14 +86,24 @@ export type EnrollmentInput = z.infer<typeof enrollmentInput>;
 export const enrollmentPatch = enrollmentInput.partial().omit({ idempotencyKey: true }).extend({ idempotencyKey: idemKey });
 export type EnrollmentPatch = z.infer<typeof enrollmentPatch>;
 
-export const sessionInput = z.object({
-  courseId: id,
-  date: isoDate,
-  topic: z.string().trim().min(1).max(LIMITS.topic),
-  trainerId: id,
-  trainerPresent: z.boolean(),
-  idempotencyKey: idemKey,
-});
+export const sessionInput = z
+  .object({
+    courseId: id,
+    date: isoDate,
+    topic: z.string().trim().min(1).max(LIMITS.topic),
+    trainerId: id,
+    trainerPresent: z.boolean(),
+    startTime: timeString,
+    endTime: timeString,
+    idempotencyKey: idemKey,
+  })
+  .superRefine((data, ctx) => {
+    const [startHour, startMinute] = data.startTime.split(":").map(Number);
+    const [endHour, endMinute] = data.endTime.split(":").map(Number);
+    if (endHour * 60 + endMinute <= startHour * 60 + startMinute) {
+      ctx.addIssue({ code: "custom", path: ["endTime"], message: "End time must be after the start time." });
+    }
+  });
 export type SessionInput = z.infer<typeof sessionInput>;
 
 export const attendanceInput = z.object({

@@ -41,6 +41,7 @@ export function MembersScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [detail, setDetail] = useState<Member | null>(null);
   const [detailEnrollments, setDetailEnrollments] = useState<Enrollment[]>([]);
   const [detailInvoices, setDetailInvoices] = useState<Invoice[]>([]);
+  const [detailHours, setDetailHours] = useState<Map<string, number>>(new Map());
   const [courseTitles, setCourseTitles] = useState<Map<string, string>>(new Map());
 
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
@@ -98,6 +99,8 @@ export function MembersScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setCourseTitles(new Map(courses.map((c: Course) => [c.id, c.title])));
       setDetailEnrollments(enrollments);
       setDetailInvoices(invoices);
+      const hours = await Promise.all(enrollments.map((e) => services.attendance.attendedHours(member.id, e.courseId)));
+      setDetailHours(new Map(enrollments.map((e, i) => [e.id, hours[i]])));
       setDetail(member);
     } catch (e) {
       errorCenter.report(e, { action: "member.detail" });
@@ -331,7 +334,8 @@ export function MembersScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                     <span className="font-medium text-ink">{courseTitles.get(enrollment.courseId) ?? ""}</span>
                     <span className="text-muted">
                       {t(`status.${enrollment.status}` as MessageKey)} · {formatDate(enrollment.startDate, locale)}
-                      {enrollment.endDate ? ` - ${formatDate(enrollment.endDate, locale)}` : ""}
+                      {enrollment.endDate ? ` - ${formatDate(enrollment.endDate, locale)}` : ""} ·{" "}
+                      {t("duration.hours", { hours: detailHours.get(enrollment.id) ?? 0 })}
                     </span>
                   </li>
                 ))}

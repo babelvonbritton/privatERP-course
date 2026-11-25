@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
-import { getServices, today } from "@/lib/domain/services";
-import type { AttendanceStatus, Course, Enrollment, Member, Session } from "@/lib/domain/types";
+import { getServices, today, type AttendanceDashboardSummary } from "@/lib/domain/services";
+import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
+import { plusOneHour, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -20,6 +21,11 @@ import type { NavId } from "../nav";
 /** Placeholder value for selects with nothing chosen yet. */
 const NONE = "__none__";
 
+/** "All" value for the dashboard filters. */
+const ALL = "all";
+/** Dashboard rows per page. */
+const PAGE_SIZE = 10;
+
 const MARK_STATUSES: AttendanceStatus[] = ["present", "absent", "late"];
 
 /** Pick a course and session, then mark each enrolled member present, absent, or late. */
@@ -27,6 +33,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const { t, locale } = useI18n();
   const [courses, setCourses] = useState<Course[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [courseId, setCourseId] = useState(NONE);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionId, setSessionId] = useState(NONE);
@@ -40,6 +47,51 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [newDate, setNewDate] = useState<string | null>(today());
   const [newTopic, setNewTopic] = useState("");
+  const [newStartTime, setNewStartTime] = useState("09:00");
+  const [newEndTime, setNewEndTime] = useState("10:00");
+  const [newSessionError, setNewSessionError] = useState<string | null>(null);
+
+  const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
+  const [filterTrainer, setFilterTrainer] = useState(ALL);
+  const [filterMember, setFilterMember] = useState(ALL);
+  const [filterCourse, setFilterCourse] = useState(ALL);
+  const [dashboardPage, setDashboardPage] = useState(1);
+
+  /** Time range and duration for a session, empty when the session predates time ranges. */
+  const timeLabel = (s: Session): string => {
+    if (!s.startTime || !s.endTime) return "";
+    const hours = sessionDurationHours(s);
+    return hours === null ? ` ${s.startTime}–${s.endTime}` : ` ${s.startTime}–${s.endTime} (${t("duration.hours", { hours })})`;
+  };
+
+  const loadDashboard = useCallback(
+    async (trainerId: string, memberId: string, courseIdValue: string) => {
+      try {
+        const data = await getServices().attendance.dashboardSummary({
+          trainerId: trainerId === ALL ? undefined : trainerId,
+          memberId: memberId === ALL ? undefined : memberId,
+          courseId: courseIdValue === ALL ? undefined : courseIdValue,
+        });
+        setSummary(data);
+      } catch (e) {
+        errorCenter.report(e, { action: "attendance.dashboard" });
+      }
+    },
+    [],
+  );
+
+  const applyDashboardFilter = (which: "trainer" | "member" | "course", value: string) => {
+    const next = {
+      trainer: which === "trainer" ? value : filterTrainer,
+      member: which === "member" ? value : filterMember,
+      course: which === "course" ? value : filterCourse,
+    };
+    if (which === "trainer") setFilterTrainer(value);
+    if (which === "member") setFilterMember(value);
+    if (which === "course") setFilterCourse(value);
+    setDashboardPage(1);
+    void loadDashboard(next.trainer, next.member, next.course);
+  };
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const memberName = (id: string) => memberById.get(id)?.name ?? "";
@@ -49,15 +101,17 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     const load = async () => {
       try {
         const s = getServices();
-        const [allCourses, memberList] = await Promise.all([s.courses.list(), s.members.list()]);
+        const [allCourses, memberList, trainerList] = await Promise.all([s.courses.list(), s.members.list(), s.trainers.list()]);
         setCourses(allCourses.filter((c) => c.status === "active"));
         setMembers(memberList);
+        setTrainers(trainerList);
       } catch (e) {
         errorCenter.report(e, { action: "attendance.list" });
       }
     };
     void load();
-  }, []);
+    void loadDashboard(ALL, ALL, ALL);
+  }, [loadDashboard]);
 
   const chooseCourse = async (id: string) => {
     setCourseId(id);
@@ -71,7 +125,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     }
     try {
       const found = await getServices().attendance.listSessionsByCourse(id);
-      setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || b.topic.localeCompare(a.topic)));
+      setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
     } catch (e) {
       errorCenter.report(e, { action: "attendance.sessions" });
     }
@@ -123,6 +177,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       const marksList = enrollments.map((e) => ({ memberId: e.memberId, status: marks[e.memberId] ?? "present" }));
       await getServices().attendance.mark(session.id, marksList, createId());
       errorCenter.notify({ key: "attendance.saved" });
+      void loadDashboard(filterTrainer, filterMember, filterCourse);
     } catch (e) {
       errorCenter.report(e, { action: "attendance.mark" });
     } finally {
@@ -132,6 +187,16 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
 
   const createNewSession = async () => {
     if (!selectedCourse || !newDate || !newTopic.trim()) return;
+    if (!/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime)) {
+      setNewSessionError(t("validation.time", { field: t("field.startTime") }));
+      return;
+    }
+    const startMinutes = timeToMinutes(newStartTime);
+    const endMinutes = timeToMinutes(newEndTime);
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+      setNewSessionError(t("validation.endAfterStart"));
+      return;
+    }
     try {
       const created = await getServices().attendance.createSession({
         courseId: selectedCourse.id,
@@ -139,19 +204,27 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         topic: newTopic.trim(),
         trainerId: selectedCourse.trainerId,
         trainerPresent: false,
+        startTime: newStartTime,
+        endTime: newEndTime,
         idempotencyKey: createId(),
       });
       errorCenter.notify({ key: "toast.saved" });
       setNewSessionOpen(false);
       setNewTopic("");
       setNewDate(today());
+      setNewSessionError(null);
       const found = await getServices().attendance.listSessionsByCourse(selectedCourse.id);
-      setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || b.topic.localeCompare(a.topic)));
+      setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
       await chooseSession(created.id);
+      void loadDashboard(filterTrainer, filterMember, filterCourse);
     } catch (e) {
       errorCenter.report(e, { action: "session.create" });
     }
   };
+
+  const pageCount = Math.max(1, Math.ceil((summary?.rows.length ?? 0) / PAGE_SIZE));
+  const currentPage = Math.min(dashboardPage, pageCount);
+  const pageRows = (summary?.rows ?? []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div data-tour="attendance" className="flex flex-col gap-4">
@@ -190,12 +263,25 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               className="w-full"
               options={[
                 { value: NONE, label: t("attendance.pickSession") },
-                ...sessions.map((s) => ({ value: s.id, label: `${formatDate(s.date, locale)} - ${s.topic}` })),
+                ...sessions.map((s) => ({ value: s.id, label: `${formatDate(s.date, locale)}${timeLabel(s)} - ${s.topic}` })),
               ]}
             />
           </Field>
         </div>
-        <Button variant="soft" icon="plus" disabled={courseId === NONE} onClick={() => setNewSessionOpen(true)} className="shrink-0 max-sm:min-h-11">
+        <Button
+          variant="soft"
+          icon="plus"
+          disabled={courseId === NONE}
+          onClick={() => {
+            if (selectedCourse) {
+              setNewStartTime(selectedCourse.scheduleTime);
+              setNewEndTime(plusOneHour(selectedCourse.scheduleTime));
+              setNewSessionError(null);
+            }
+            setNewSessionOpen(true);
+          }}
+          className="shrink-0 max-sm:min-h-11"
+        >
           {t("attendance.newSession")}
         </Button>
       </div>
@@ -213,7 +299,8 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         <div className="overflow-hidden rounded-card border border-line bg-surface">
           <div className="border-b border-line px-4 py-3">
             <p className="text-sm font-semibold text-plum-900">
-              {formatDate(session.date, locale)} - {session.topic}
+              {formatDate(session.date, locale)}
+              {timeLabel(session)} - {session.topic}
             </p>
             <p className="text-xs text-muted">{selectedCourse?.title ?? ""}</p>
           </div>
@@ -251,6 +338,108 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         </div>
       )}
 
+      <section aria-label={t("attendance.dashboard")} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+        <h2 className="text-base font-semibold text-plum-900">{t("attendance.dashboard")}</h2>
+        <div className="flex flex-col gap-3 md:flex-row">
+          <div className="min-w-0 flex-1">
+            <Field label={t("field.trainer")} htmlFor="dashboard-trainer">
+              <Select
+                value={filterTrainer}
+                onChange={(v) => applyDashboardFilter("trainer", v)}
+                ariaLabel={t("field.trainer")}
+                className="w-full"
+                options={[{ value: ALL, label: t("attendance.all") }, ...trainers.map((tr) => ({ value: tr.id, label: tr.name }))]}
+              />
+            </Field>
+          </div>
+          <div className="min-w-0 flex-1">
+            <Field label={t("field.member")} htmlFor="dashboard-member">
+              <Select
+                value={filterMember}
+                onChange={(v) => applyDashboardFilter("member", v)}
+                ariaLabel={t("field.member")}
+                className="w-full"
+                options={[{ value: ALL, label: t("attendance.all") }, ...members.map((m) => ({ value: m.id, label: m.name }))]}
+              />
+            </Field>
+          </div>
+          <div className="min-w-0 flex-1">
+            <Field label={t("field.course")} htmlFor="dashboard-course">
+              <Select
+                value={filterCourse}
+                onChange={(v) => applyDashboardFilter("course", v)}
+                ariaLabel={t("field.course")}
+                className="w-full"
+                options={[{ value: ALL, label: t("attendance.all") }, ...courses.map((c) => ({ value: c.id, label: c.title }))]}
+              />
+            </Field>
+          </div>
+        </div>
+        {summary && (
+          <>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <p>
+                <span className="font-semibold text-ink">{summary.totalSessions}</span> <span className="text-muted">{t("session.title")}</span>
+              </p>
+              <p>
+                <span className="font-semibold text-ink">{summary.overallRate}%</span> <span className="text-muted">{t("dashboard.attendanceRate")}</span>
+              </p>
+              <p>
+                <span className="font-semibold text-ink">{t("duration.hours", { hours: summary.totalAttendedHours })}</span>{" "}
+                <span className="text-muted">{t("field.duration")}</span>
+              </p>
+            </div>
+            {summary.rows.length === 0 ? (
+              <p className="text-sm text-muted">{t("attendance.noData")}</p>
+            ) : (
+              <>
+                <div role="region" tabIndex={0} aria-label={t("attendance.dashboard")} className="relative overflow-x-auto rounded-card border border-line bg-surface">
+                  <table className="w-full min-w-[44rem] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-left text-muted">
+                        <th scope="col" className="px-4 py-3 font-medium">{t("field.member")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("field.course")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("session.title")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("status.present")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("status.absent")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("status.late")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("dashboard.attendanceRate")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("field.duration")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageRows.map((row) => (
+                          <tr key={`${row.memberId}|${row.courseId}`} className="border-b border-line last:border-b-0">
+                            <td className="px-4 py-3 font-medium text-ink">{row.memberName}</td>
+                            <td className="px-4 py-3 text-ink">{row.courseTitle}</td>
+                            <td className="px-4 py-3 text-ink">{row.sessions}</td>
+                            <td className="px-4 py-3 text-ink">{row.present}</td>
+                            <td className="px-4 py-3 text-ink">{row.absent}</td>
+                            <td className="px-4 py-3 text-ink">{row.late}</td>
+                            <td className="px-4 py-3 text-ink">{row.rate}%</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-ink">{t("duration.hours", { hours: row.attendedHours })}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-muted">{t("attendance.page", { page: currentPage, pages: pageCount })}</p>
+                  <div className="flex gap-2">
+                    <Button className="max-sm:min-h-11" variant="soft" disabled={currentPage <= 1} onClick={() => setDashboardPage((p) => Math.max(1, p - 1))}>
+                      {t("attendance.prevPage")}
+                    </Button>
+                    <Button className="max-sm:min-h-11" variant="soft" disabled={currentPage >= pageCount} onClick={() => setDashboardPage((p) => Math.min(pageCount, p + 1))}>
+                      {t("attendance.nextPage")}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </section>
+
       <GuideDialog open={guideOpen} section="attendance" onClose={() => setGuideOpen(false)} />
 
       <Modal open={newSessionOpen} onOpenChange={setNewSessionOpen} title={t("session.add")}>
@@ -261,11 +450,28 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
           <Field label={t("field.topic")} htmlFor="new-session-topic">
             <input id="new-session-topic" className={inputClass} value={newTopic} onChange={(e) => setNewTopic(e.target.value)} />
           </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("field.startTime")} htmlFor="new-session-start">
+              <input id="new-session-start" type="time" className={inputClass} value={newStartTime} onChange={(e) => setNewStartTime(e.target.value)} />
+            </Field>
+            <Field label={t("field.endTime")} htmlFor="new-session-end">
+              <input id="new-session-end" type="time" className={inputClass} value={newEndTime} onChange={(e) => setNewEndTime(e.target.value)} />
+            </Field>
+          </div>
+          {newSessionError && (
+            <p role="alert" className="text-sm text-danger">
+              {newSessionError}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setNewSessionOpen(false)}>
               {t("action.cancel")}
             </Button>
-            <Button className="max-sm:min-h-11" onClick={() => void createNewSession()} disabled={!newDate || !newTopic.trim()}>
+            <Button
+              className="max-sm:min-h-11"
+              onClick={() => void createNewSession()}
+              disabled={!newDate || !newTopic.trim() || !/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime)}
+            >
               {t("action.add")}
             </Button>
           </div>

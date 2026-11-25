@@ -93,5 +93,48 @@ export class OlaseenaDatabase extends Dexie {
       attachmentBlobs: "id",
       trash: "id, kind, originalId, deletedAt",
     });
+    // Version 4 reshapes the schedule fields. Courses move from one weekday
+    // to a list of weekdays, and sessions gain a start and end time; rows
+    // written before then get an empty time, so their duration is unknown
+    // rather than invented.
+    this.version(4)
+      .stores({
+        members: "id, name, email, phone, status, updatedAt",
+        trainers: "id, name, email, phone, status, updatedAt",
+        courses: "id, title, trainerId, status, updatedAt",
+        enrollments: "id, memberId, courseId, status, [memberId+courseId], [memberId+courseId+status], updatedAt",
+        sessions: "id, courseId, date, [courseId+date], updatedAt",
+        attendance: "id, sessionId, memberId, [sessionId+memberId], updatedAt",
+        invoices: "id, number, memberId, status, dueDate, updatedAt",
+        payments: "id, invoiceId, at, updatedAt",
+        payrollRuns: "id, trainerId, periodStart, status, [trainerId+periodStart], updatedAt",
+        auditLog: "id, at, entity, [entity+at]",
+        writeKeys: "key, entity, createdAt",
+        settings: "key",
+        attachments: "id, [entityType+entityId], createdAt",
+        attachmentBlobs: "id",
+        trash: "id, kind, originalId, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("courses")
+          .toCollection()
+          .modify((row: Record<string, unknown>) => {
+            if (!Array.isArray(row.scheduleWeekdays)) {
+              row.scheduleWeekdays =
+                typeof row.scheduleWeekday === "number" && Number.isInteger(row.scheduleWeekday) && row.scheduleWeekday >= 0 && row.scheduleWeekday <= 6
+                  ? [row.scheduleWeekday]
+                  : [];
+            }
+            delete row.scheduleWeekday;
+          });
+        await tx
+          .table("sessions")
+          .toCollection()
+          .modify((row: Record<string, unknown>) => {
+            if (typeof row.startTime !== "string") row.startTime = "";
+            if (typeof row.endTime !== "string") row.endTime = "";
+          });
+      });
   }
 }

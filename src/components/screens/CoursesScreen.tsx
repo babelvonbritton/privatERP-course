@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
+import { courseWeekdays, plusOneHour, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
 import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
@@ -31,7 +32,7 @@ interface CourseForm {
   price: string;
   capacity: string;
   trainerId: string;
-  scheduleWeekday: string;
+  scheduleWeekdays: number[];
   scheduleTime: string;
   status: CourseStatus;
 }
@@ -43,7 +44,7 @@ const emptyForm = (): CourseForm => ({
   price: "",
   capacity: "",
   trainerId: NONE,
-  scheduleWeekday: "1",
+  scheduleWeekdays: [1],
   scheduleTime: "09:00",
   status: "active",
 });
@@ -74,6 +75,9 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [sessionDate, setSessionDate] = useState<string | null>(today());
   const [sessionTopic, setSessionTopic] = useState("");
+  const [sessionStart, setSessionStart] = useState("09:00");
+  const [sessionEnd, setSessionEnd] = useState("10:00");
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -111,7 +115,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
         s.attendance.listSessionsByCourse(courseId),
       ]);
       setEnrollments(foundEnrollments);
-      setSessions([...foundSessions].sort((a, b) => b.date.localeCompare(a.date)));
+      setSessions([...foundSessions].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "")));
     } catch (e) {
       errorCenter.report(e, { action: "course.detail" });
     }
@@ -147,7 +151,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       price: String(course.price),
       capacity: String(course.capacity),
       trainerId: course.trainerId,
-      scheduleWeekday: String(course.scheduleWeekday),
+      scheduleWeekdays: courseWeekdays(course),
       scheduleTime: course.scheduleTime,
       status: course.status,
     });
@@ -182,6 +186,10 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setFormError(t("validation.time", { field: t("field.scheduleTime") }));
       return;
     }
+    if (form.scheduleWeekdays.length === 0) {
+      setFormError(t("validation.required", { field: t("field.scheduleWeekdays") }));
+      return;
+    }
     try {
       const s = getServices();
       if (editing) {
@@ -192,7 +200,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           price,
           capacity,
           trainerId: form.trainerId,
-          scheduleWeekday: Number(form.scheduleWeekday),
+          scheduleWeekdays: form.scheduleWeekdays,
           scheduleTime: form.scheduleTime,
           status: form.status,
           idempotencyKey: createId(),
@@ -207,7 +215,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           price,
           capacity,
           trainerId: form.trainerId,
-          scheduleWeekday: Number(form.scheduleWeekday),
+          scheduleWeekdays: form.scheduleWeekdays,
           scheduleTime: form.scheduleTime,
           status: form.status,
           idempotencyKey: createId(),
@@ -277,6 +285,16 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const submitSession = async () => {
     if (!selected || !sessionDate || !sessionTopic.trim()) return;
+    if (!/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd)) {
+      setSessionError(t("validation.time", { field: t("field.startTime") }));
+      return;
+    }
+    const startMinutes = timeToMinutes(sessionStart);
+    const endMinutes = timeToMinutes(sessionEnd);
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+      setSessionError(t("validation.endAfterStart"));
+      return;
+    }
     try {
       await getServices().attendance.createSession({
         courseId: selected.id,
@@ -284,12 +302,15 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
         topic: sessionTopic.trim(),
         trainerId: selected.trainerId,
         trainerPresent: false,
+        startTime: sessionStart,
+        endTime: sessionEnd,
         idempotencyKey: createId(),
       });
       errorCenter.notify({ key: "toast.saved" });
       setShowSessionForm(false);
       setSessionTopic("");
       setSessionDate(today());
+      setSessionError(null);
       await loadDetail(selected.id);
     } catch (e) {
       errorCenter.report(e, { action: "session.create" });
@@ -419,20 +440,36 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               options={[{ value: NONE, label: t("field.trainer") }, ...trainers.map((tr) => ({ value: tr.id, label: tr.name }))]}
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("field.scheduleWeekday")} htmlFor="course-weekday" hint={t("hint.courseSchedule")}>
-              <Select
-                value={form.scheduleWeekday}
-                onChange={(v) => setForm((f) => ({ ...f, scheduleWeekday: v }))}
-                ariaLabel={t("field.scheduleWeekday")}
-                className="w-full"
-                options={[0, 1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: t(`weekday.${n}` as MessageKey) }))}
-              />
-            </Field>
-            <Field label={t("field.scheduleTime")} htmlFor="course-time">
-              <input id="course-time" type="time" className={inputClass} value={form.scheduleTime} onChange={(e) => setForm((f) => ({ ...f, scheduleTime: e.target.value }))} />
-            </Field>
-          </div>
+          <Field label={t("field.scheduleWeekdays")} htmlFor="course-weekday-1" hint={t("hint.courseSchedule")}>
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t("field.scheduleWeekdays")}>
+              {[0, 1, 2, 3, 4, 5, 6].map((n) => {
+                const checked = form.scheduleWeekdays.includes(n);
+                return (
+                  <label
+                    key={n}
+                    className={`flex cursor-pointer items-center gap-2 rounded-control border px-3 py-2 text-sm transition-colors duration-200 max-sm:min-h-11 ${checked ? "border-plum-600 bg-plum-50 font-medium text-plum-900" : "border-line bg-surface text-ink hover:border-plum-200"}`}
+                  >
+                    <input
+                      id={`course-weekday-${n}`}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setForm((f) => ({
+                          ...f,
+                          scheduleWeekdays: checked ? f.scheduleWeekdays.filter((d) => d !== n) : [...f.scheduleWeekdays, n].sort((a, b) => a - b),
+                        }))
+                      }
+                      className="size-4 shrink-0 accent-plum-600"
+                    />
+                    {t(`weekday.short.${n}` as MessageKey)}
+                  </label>
+                );
+              })}
+            </div>
+          </Field>
+          <Field label={t("field.scheduleTime")} htmlFor="course-time">
+            <input id="course-time" type="time" className={inputClass} value={form.scheduleTime} onChange={(e) => setForm((f) => ({ ...f, scheduleTime: e.target.value }))} />
+          </Field>
           <Field label={t("field.status")} htmlFor="course-status">
             <Select
               value={form.status}
@@ -472,7 +509,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <div>
               {selected.description && <p className="text-sm text-ink/90">{selected.description}</p>}
               <p className="mt-1 text-sm text-muted">
-                {t(`weekday.${selected.scheduleWeekday}` as MessageKey)} {selected.scheduleTime} - {trainerName(selected.trainerId)} - {formatMoney(selected.price, locale)}
+                {courseWeekdays(selected).map((d) => t(`weekday.short.${d}` as MessageKey)).join(", ")} {selected.scheduleTime} - {trainerName(selected.trainerId)} - {formatMoney(selected.price, locale)}
               </p>
               <div className="mt-3 flex gap-2">
                 <Button className="max-sm:min-h-11" variant="soft" icon="pencil" onClick={() => openEdit(selected)}>
@@ -542,7 +579,19 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <section>
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-plum-900">{t("course.detail.sessions")}</h2>
-                <Button className="max-sm:min-h-11" variant="soft" icon="plus" onClick={() => setShowSessionForm((v) => !v)}>
+                <Button
+                  className="max-sm:min-h-11"
+                  variant="soft"
+                  icon="plus"
+                  onClick={() => {
+                    if (!showSessionForm && selected) {
+                      setSessionStart(selected.scheduleTime);
+                      setSessionEnd(plusOneHour(selected.scheduleTime));
+                      setSessionError(null);
+                    }
+                    setShowSessionForm((v) => !v);
+                  }}
+                >
                   {t("session.add")}
                 </Button>
               </div>
@@ -554,11 +603,28 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                   <Field label={t("field.topic")} htmlFor="session-topic">
                     <input id="session-topic" className={inputClass} value={sessionTopic} onChange={(e) => setSessionTopic(e.target.value)} />
                   </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label={t("field.startTime")} htmlFor="session-start">
+                      <input id="session-start" type="time" className={inputClass} value={sessionStart} onChange={(e) => setSessionStart(e.target.value)} />
+                    </Field>
+                    <Field label={t("field.endTime")} htmlFor="session-end">
+                      <input id="session-end" type="time" className={inputClass} value={sessionEnd} onChange={(e) => setSessionEnd(e.target.value)} />
+                    </Field>
+                  </div>
+                  {sessionError && (
+                    <p role="alert" className="text-sm text-danger">
+                      {sessionError}
+                    </p>
+                  )}
                   <div className="flex justify-end gap-2">
                     <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setShowSessionForm(false)}>
                       {t("action.cancel")}
                     </Button>
-                    <Button className="max-sm:min-h-11" onClick={() => void submitSession()} disabled={!sessionDate || !sessionTopic.trim()}>
+                    <Button
+                      className="max-sm:min-h-11"
+                      onClick={() => void submitSession()}
+                      disabled={!sessionDate || !sessionTopic.trim() || !/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd)}
+                    >
                       {t("action.add")}
                     </Button>
                   </div>
@@ -568,21 +634,26 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                 <p className="mt-2 text-sm text-muted">{t("session.empty")}</p>
               ) : (
                 <ul className="mt-3 flex flex-col divide-y divide-line rounded-card border border-line bg-surface">
-                  {sessions.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-ink">
-                          {formatDate(s.date, locale)} - {s.topic}
-                        </p>
-                        <p className="text-xs text-muted">
-                          {t("field.trainerPresent")}: {t(s.trainerPresent ? "status.present" : "status.absent")}
-                        </p>
-                      </div>
-                      <Button className="max-sm:min-h-11" variant="dangerSoft" onClick={() => setPendingSession(s)}>
-                        {t("session.delete")}
-                      </Button>
-                    </li>
-                  ))}
+                  {sessions.map((s) => {
+                    const hours = sessionDurationHours(s);
+                    return (
+                      <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-ink">
+                            {formatDate(s.date, locale)}
+                            {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
+                          </p>
+                          <p className="text-xs text-muted">
+                            {hours !== null ? `${t("duration.hours", { hours })} · ` : ""}
+                            {t("field.trainerPresent")}: {t(s.trainerPresent ? "status.present" : "status.absent")}
+                          </p>
+                        </div>
+                        <Button className="max-sm:min-h-11" variant="dangerSoft" onClick={() => setPendingSession(s)}>
+                          {t("session.delete")}
+                        </Button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>

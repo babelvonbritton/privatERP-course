@@ -63,7 +63,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR } from "./types";
+import { ORG_ID, OWNER_ACTOR, sessionDurationHours } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -286,6 +286,11 @@ export class TrainerService extends ServiceBase {
 
 // ---------------------------------------------------------------- courses + enrollments
 
+/** Weekdays sorted ascending with duplicates removed, so [5, 1, 1] stores as [1, 5]. */
+function normalizeWeekdays(days: number[]): number[] {
+  return [...new Set(days)].sort((a, b) => a - b);
+}
+
 export class CourseService extends ServiceBase {
   list(): Promise<Course[]> {
     return this.storage.courses.all();
@@ -331,7 +336,7 @@ export class CourseService extends ServiceBase {
         if (existing) return existing;
       }
       const now = this.now();
-      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, trainerId: data.trainerId, scheduleWeekday: data.scheduleWeekday, scheduleTime: data.scheduleTime, status: data.status };
+      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, trainerId: data.trainerId, scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), scheduleTime: data.scheduleTime, status: data.status };
       await this.storage.courses.put(course);
       await this.recordKey(data.idempotencyKey, "course", course.id);
       await this.audit("course.create", "course", course.id, course.title);
@@ -363,7 +368,7 @@ export class CourseService extends ServiceBase {
         price: data.price ?? current.price,
         capacity: data.capacity ?? current.capacity,
         trainerId: data.trainerId ?? current.trainerId,
-        scheduleWeekday: data.scheduleWeekday ?? current.scheduleWeekday,
+        scheduleWeekdays: data.scheduleWeekdays ? normalizeWeekdays(data.scheduleWeekdays) : current.scheduleWeekdays,
         scheduleTime: data.scheduleTime ?? current.scheduleTime,
         status: data.status ?? current.status,
       };
@@ -470,6 +475,38 @@ export class CourseService extends ServiceBase {
 
 // ---------------------------------------------------------------- sessions + attendance
 
+/** One row of the attendance dashboard: one member in one course, with every attendance mark for that pair. */
+export interface AttendanceDashboardRow {
+  memberId: string;
+  memberName: string;
+  courseId: string;
+  courseTitle: string;
+  trainerId: string;
+  trainerName: string;
+  /** Attendance marks for this pair. */
+  sessions: number;
+  present: number;
+  absent: number;
+  late: number;
+  /** Present + late as a share of all marks, 0-100. */
+  rate: number;
+  /** Hours attended in this course, from the time ranges of present and late sessions. */
+  attendedHours: number;
+}
+
+export interface AttendanceDashboardFilter {
+  trainerId?: string;
+  memberId?: string;
+  courseId?: string;
+}
+
+export interface AttendanceDashboardSummary {
+  rows: AttendanceDashboardRow[];
+  totalSessions: number;
+  totalAttendedHours: number;
+  overallRate: number;
+}
+
 export class AttendanceService extends ServiceBase {
   listSessionsByCourse(courseId: string): Promise<Session[]> {
     return this.storage.sessions.listByCourse(courseId);
@@ -495,7 +532,7 @@ export class AttendanceService extends ServiceBase {
       const duplicate = await this.storage.sessions.findByCourseAndDate(data.courseId, data.date);
       if (duplicate) throw new ValidationError("date", "a session already exists for this course on this date", "invalid");
       const now = this.now();
-      const session: Session = { ...baseFields(this.actor, now), courseId: data.courseId, date: data.date, topic: data.topic, trainerId: data.trainerId, trainerPresent: data.trainerPresent };
+      const session: Session = { ...baseFields(this.actor, now), courseId: data.courseId, date: data.date, topic: data.topic, trainerId: data.trainerId, trainerPresent: data.trainerPresent, startTime: data.startTime, endTime: data.endTime };
       await this.storage.sessions.put(session);
       await this.recordKey(data.idempotencyKey, "session", session.id);
       await this.audit("session.create", "session", session.id, `${course.title} · ${session.date}`);
@@ -572,6 +609,94 @@ export class AttendanceService extends ServiceBase {
 
   listAttendance(sessionId: string): Promise<Attendance[]> {
     return this.storage.attendance.listBySession(sessionId);
+  }
+
+  /** Total hours a member attended in one course: present or late sessions only, durations derived from each session's time range. Sessions without times add nothing. */
+  async attendedHours(memberId: string, courseId: string): Promise<number> {
+    const sessions = await this.storage.sessions.listByCourse(courseId);
+    let total = 0;
+    for (const session of sessions) {
+      const rows = await this.storage.attendance.listBySession(session.id);
+      const mark = rows.find((r) => r.memberId === memberId);
+      if (!mark || (mark.status !== "present" && mark.status !== "late")) continue;
+      const hours = sessionDurationHours(session);
+      if (hours !== null) total = Math.round((total + hours) * 100) / 100;
+    }
+    return total;
+  }
+
+  async dashboardSummary(filter: AttendanceDashboardFilter = {}): Promise<AttendanceDashboardSummary> {
+    const [sessions, attendance, members, courses, trainers] = await Promise.all([
+      this.storage.sessions.all(),
+      this.storage.attendance.all(),
+      this.storage.members.all(),
+      this.storage.courses.all(),
+      this.storage.trainers.all(),
+    ]);
+    const memberById = new Map(members.map((m) => [m.id, m]));
+    const courseById = new Map(courses.map((c) => [c.id, c]));
+    const trainerById = new Map(trainers.map((t) => [t.id, t]));
+    const sessionById = new Map(sessions.map((s) => [s.id, s]));
+    // A session counts only when it passes the session-level filters.
+    const visibleSessions = new Set(
+      sessions
+        .filter((s) => (filter.trainerId ? s.trainerId === filter.trainerId : true))
+        .filter((s) => (filter.courseId ? s.courseId === filter.courseId : true))
+        .map((s) => s.id),
+    );
+    const byPair = new Map<string, AttendanceDashboardRow>();
+    let totalSessions = 0;
+    let totalAttended = 0;
+    let totalAttendedHours = 0;
+    for (const row of attendance) {
+      if (!visibleSessions.has(row.sessionId)) continue;
+      if (filter.memberId && row.memberId !== filter.memberId) continue;
+      const session = sessionById.get(row.sessionId);
+      if (!session) continue;
+      const key = `${row.memberId}|${session.courseId}`;
+      let pair = byPair.get(key);
+      if (!pair) {
+        pair = {
+          memberId: row.memberId,
+          memberName: memberById.get(row.memberId)?.name ?? "",
+          courseId: session.courseId,
+          courseTitle: courseById.get(session.courseId)?.title ?? "",
+          trainerId: session.trainerId,
+          trainerName: trainerById.get(session.trainerId)?.name ?? "",
+          sessions: 0,
+          present: 0,
+          absent: 0,
+          late: 0,
+          rate: 0,
+          attendedHours: 0,
+        };
+        byPair.set(key, pair);
+      }
+      pair.sessions += 1;
+      totalSessions += 1;
+      if (row.status === "present") pair.present += 1;
+      else if (row.status === "absent") pair.absent += 1;
+      else pair.late += 1;
+      if (row.status === "present" || row.status === "late") {
+        totalAttended += 1;
+        const hours = sessionDurationHours(session);
+        if (hours !== null) {
+          pair.attendedHours = Math.round((pair.attendedHours + hours) * 100) / 100;
+          totalAttendedHours = Math.round((totalAttendedHours + hours) * 100) / 100;
+        }
+      }
+    }
+    const rows = [...byPair.values()].map((r) => ({
+      ...r,
+      rate: r.sessions === 0 ? 0 : Math.round(((r.present + r.late) / r.sessions) * 100),
+    }));
+    rows.sort((a, b) => a.memberName.localeCompare(b.memberName) || a.courseTitle.localeCompare(b.courseTitle));
+    return {
+      rows,
+      totalSessions,
+      totalAttendedHours,
+      overallRate: totalSessions === 0 ? 0 : Math.round((totalAttended / totalSessions) * 100),
+    };
   }
 }
 

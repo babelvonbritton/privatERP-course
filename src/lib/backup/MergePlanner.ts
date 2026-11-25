@@ -1,5 +1,6 @@
 import type { Msg } from "@/i18n/types";
 import type { BackupData } from "@/lib/domain/types";
+import { courseWeekdays } from "@/lib/domain/types";
 import { STORE_NAMES, type StoreName } from "./constants";
 
 export type Decision = "replace" | "skip";
@@ -36,6 +37,8 @@ export type DiffField =
   | "date"
   | "startDate"
   | "endDate"
+  | "startTime"
+  | "endTime"
   | "topic"
   | "number"
   | "total"
@@ -166,7 +169,7 @@ export class MergePlanner {
       { field: "price", kind: "money", get: (v) => v.price },
       { field: "capacity", kind: "text", get: (v) => String(v.capacity) },
       { field: "trainer", kind: "text", get: (v) => v.trainerId },
-      { field: "schedule", kind: "text", get: (v) => `${v.scheduleWeekday} ${v.scheduleTime}` },
+      { field: "schedule", kind: "text", get: (v) => `${courseWeekdays(v).join(", ")} ${v.scheduleTime}` },
       { field: "status", kind: "status", get: (v) => v.status },
     ], current.courses, incoming.courses);
 
@@ -180,6 +183,8 @@ export class MergePlanner {
       { field: "date", kind: "date", get: (v) => v.date },
       { field: "topic", kind: "text", get: (v) => v.topic },
       { field: "trainer", kind: "text", get: (v) => v.trainerId },
+      { field: "startTime", kind: "text", get: (v) => v.startTime },
+      { field: "endTime", kind: "text", get: (v) => v.endTime },
       { field: "status", kind: "text", get: (v) => (v.trainerPresent ? "present" : "absent") },
     ], current.sessions, incoming.sessions);
 

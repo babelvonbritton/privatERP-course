@@ -35,13 +35,19 @@
     "zoomOut": "Zoom out"
   },
   "attendance": {
+    "all": "All",
+    "dashboard": "Attendance summary",
     "empty": "No sessions yet",
     "emptyHint": "Create a session for a course, then mark who showed up.",
     "mark": "Mark attendance",
     "newSession": "New session",
+    "nextPage": "Next",
+    "noData": "No attendance records yet.",
     "noEnrollments": "No members are enrolled in this course yet.",
+    "page": "Page {page} of {pages}",
     "pickCourse": "Choose a course",
     "pickSession": "Choose a session",
+    "prevPage": "Previous",
     "saved": "Attendance saved",
     "title": "Attendance",
     "trainerPresent": "Trainer present"
@@ -140,6 +146,7 @@
     "dueDate": "Due date",
     "email": "Email",
     "endDate": "End date",
+    "endTime": "End time",
     "level": "Level",
     "member": "Member",
     "method": "Method",
@@ -155,6 +162,7 @@
     "schedule": "Schedule",
     "sessions": "Sessions",
     "startDate": "Start date",
+    "startTime": "Start time",
     "status": "Status",
     "subjects": "Subjects",
     "title": "Title",
@@ -162,6 +170,9 @@
     "total": "Total",
     "trainer": "Trainer",
     "value": "Value"
+  },
+  "duration": {
+    "hours": "{hours} h"
   },
   "enrollment": {
     "add": "Enroll member",
@@ -348,8 +359,10 @@
     "date": "Date",
     "description": "Description",
     "dueDate": "Due date",
+    "duration": "Duration",
     "email": "Email",
     "endDate": "End date",
+    "endTime": "End time",
     "level": "Level",
     "member": "Member",
     "method": "Payment method",
@@ -361,8 +374,9 @@
     "price": "Price ({currency})",
     "ratePerSession": "Rate per session (IDR)",
     "scheduleTime": "Time",
-    "scheduleWeekday": "Weekday",
+    "scheduleWeekdays": "Days",
     "startDate": "Start date",
+    "startTime": "Start time",
     "status": "Status",
     "subjects": "Subjects",
     "title": "Title",
@@ -372,11 +386,13 @@
   },
   "guide": {
     "attendance": {
+      "dashboard": "Attendance summary",
+      "dashboardDesc": "Below the marking form, totals per member and course, filtered by trainer, member, or course.",
       "intro": "Attendance is the record of who showed up. It feeds the payroll, so mark it carefully.",
       "mark": "Mark who came",
       "markDesc": "For each enrolled member, choose Present, Absent, or Late. Also mark whether the trainer was there.",
       "sessions": "Pick or create a session",
-      "sessionsDesc": "Choose a course, then a session date. If the session does not exist yet, create it first.",
+      "sessionsDesc": "Choose a course, then a session date and time range. If the session does not exist yet, create it first.",
       "title": "What you can do with attendance",
       "trainer": "Trainer check-in",
       "trainerDesc": "A session only counts toward a trainer's pay when the trainer is marked present."
@@ -458,7 +474,7 @@
   "hint": {
     "courseCapacity": "How many members can enroll at once.",
     "coursePrice": "The price of the course. Used on invoices.",
-    "courseSchedule": "The regular weekly slot for this course.",
+    "courseSchedule": "The regular weekly days and start time for this course.",
     "invoiceDueDate": "When the member should pay by. Overdue is shown automatically after this date.",
     "invoiceCharges": "One charge per row. The total is the sum of the charges.",
     "memberEmail": "Optional. Used for search and for contacting the member.",
@@ -814,6 +830,7 @@
   },
   "validation": {
     "email": "{field} must be a valid email address.",
+    "endAfterStart": "End time must be after the start time.",
     "invalid": "{field} is not valid.",
     "positive": "{field} must be more than zero.",
     "required": "{field} is required.",

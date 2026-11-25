@@ -35,13 +35,19 @@
     "zoomOut": "Perkecil"
   },
   "attendance": {
+    "all": "Semua",
+    "dashboard": "Ringkasan kehadiran",
     "empty": "Belum ada sesi",
     "emptyHint": "Buat sesi untuk sebuah kursus, lalu tandai siapa saja yang hadir.",
     "mark": "Tandai kehadiran",
     "newSession": "Sesi baru",
+    "nextPage": "Berikutnya",
+    "noData": "Belum ada data kehadiran.",
     "noEnrollments": "Belum ada member yang terdaftar di kursus ini.",
+    "page": "Halaman {page} dari {pages}",
     "pickCourse": "Pilih kursus",
     "pickSession": "Pilih sesi",
+    "prevPage": "Sebelumnya",
     "saved": "Kehadiran tersimpan",
     "title": "Kehadiran",
     "trainerPresent": "Pengajar hadir"
@@ -140,6 +146,7 @@
     "dueDate": "Jatuh tempo",
     "email": "Email",
     "endDate": "Tanggal selesai",
+    "endTime": "Waktu selesai",
     "level": "Tingkat",
     "member": "Member",
     "method": "Metode",
@@ -155,6 +162,7 @@
     "schedule": "Jadwal",
     "sessions": "Sesi",
     "startDate": "Tanggal mulai",
+    "startTime": "Waktu mulai",
     "status": "Status",
     "subjects": "Mata pelajaran",
     "title": "Judul",
@@ -162,6 +170,9 @@
     "total": "Total",
     "trainer": "Pengajar",
     "value": "Nilai"
+  },
+  "duration": {
+    "hours": "{hours} jam"
   },
   "enrollment": {
     "add": "Daftarkan member",
@@ -348,8 +359,10 @@
     "date": "Tanggal",
     "description": "Deskripsi",
     "dueDate": "Jatuh tempo",
+    "duration": "Durasi",
     "email": "Email",
     "endDate": "Tanggal selesai",
+    "endTime": "Waktu selesai",
     "level": "Tingkat",
     "member": "Member",
     "method": "Metode pembayaran",
@@ -361,8 +374,9 @@
     "price": "Harga ({currency})",
     "ratePerSession": "Tarif per sesi (IDR)",
     "scheduleTime": "Jam",
-    "scheduleWeekday": "Hari",
+    "scheduleWeekdays": "Hari",
     "startDate": "Tanggal mulai",
+    "startTime": "Waktu mulai",
     "status": "Status",
     "subjects": "Mata pelajaran",
     "title": "Judul",
@@ -372,11 +386,13 @@
   },
   "guide": {
     "attendance": {
+      "dashboard": "Ringkasan kehadiran",
+      "dashboardDesc": "Di bawah formulir penandaan, total per member dan kursus, difilter berdasarkan pengajar, member, atau kursus.",
       "intro": "Kehadiran adalah catatan siapa yang datang. Data ini menjadi dasar penggajian, jadi tandai dengan teliti.",
       "mark": "Tandai yang hadir",
       "markDesc": "Untuk setiap member yang terdaftar, pilih Hadir, Tidak Hadir, atau Terlambat. Tandai juga apakah pengajar hadir.",
       "sessions": "Pilih atau buat sesi",
-      "sessionsDesc": "Pilih kursus, lalu tanggal sesi. Jika sesi belum ada, buat dulu.",
+      "sessionsDesc": "Pilih kursus, lalu tanggal dan rentang waktu sesi. Jika sesi belum ada, buat dulu.",
       "title": "Yang bisa Anda lakukan dengan kehadiran",
       "trainer": "Check-in pengajar",
       "trainerDesc": "Sesi hanya dihitung untuk gaji pengajar jika pengajar ditandai hadir."
@@ -458,7 +474,7 @@
   "hint": {
     "courseCapacity": "Berapa banyak member yang bisa mendaftar sekaligus.",
     "coursePrice": "Harga kursus. Dipakai pada tagihan.",
-    "courseSchedule": "Slot mingguan tetap untuk kursus ini.",
+    "courseSchedule": "Hari dan jam mulai rutin tiap minggu untuk kursus ini.",
     "invoiceDueDate": "Kapan member harus membayar. Jatuh Tempo ditampilkan otomatis setelah tanggal ini.",
     "invoiceCharges": "Satu biaya per baris. Total adalah jumlah semua biaya.",
     "memberEmail": "Opsional. Dipakai untuk pencarian dan menghubungi member.",
@@ -814,6 +830,7 @@
   },
   "validation": {
     "email": "{field} harus berupa alamat email yang valid.",
+    "endAfterStart": "Waktu selesai harus setelah waktu mulai.",
     "invalid": "{field} tidak valid.",
     "positive": "{field} harus lebih dari nol.",
     "required": "{field} wajib diisi.",

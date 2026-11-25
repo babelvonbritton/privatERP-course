@@ -129,6 +129,34 @@ class FieldReader {
     return "00:00";
   }
 
+  /** A time that may be absent: rows written before time ranges existed carry none, and that is not a problem. */
+  timeOptional(o: Raw, key: string, path: string): string {
+    const v = o[key];
+    if (v === null || v === undefined || v === "") return "";
+    if (typeof v === "string" && TIME_RE.test(v)) return v;
+    this.log.add(`${path}.${key}`, "must be a time like 09:00");
+    return "";
+  }
+
+  /** Whole numbers in range, deduplicated and sorted, for weekday lists. */
+  intList(o: Raw, key: string, path: string, min: number, max: number): number[] {
+    const v = o[key];
+    if (!Array.isArray(v)) {
+      this.log.add(`${path}.${key}`, "must be a list");
+      return [];
+    }
+    const out: number[] = [];
+    for (let i = 0; i < v.length; i++) {
+      const entry = v[i];
+      if (typeof entry !== "number" || !Number.isSafeInteger(entry) || entry < min || entry > max) {
+        this.log.add(`${path}.${key}[${i}]`, `must be a whole number from ${min} to ${max}`);
+        continue;
+      }
+      if (!out.includes(entry)) out.push(entry);
+    }
+    return out.sort((a, b) => a - b);
+  }
+
   stringList(o: Raw, key: string, path: string, maxItems: number, maxLen: number): string[] {
     const v = o[key];
     if (!Array.isArray(v)) {
@@ -162,9 +190,9 @@ export interface ValidationResult {
 const FIELDS = {
   member: ["id", "orgId", "ownerId", "name", "email", "phone", "notes", "status", "createdAt", "updatedAt", "rev"],
   trainer: ["id", "orgId", "ownerId", "name", "email", "phone", "subjects", "ratePerSession", "status", "createdAt", "updatedAt", "rev"],
-  course: ["id", "orgId", "ownerId", "title", "description", "level", "price", "capacity", "trainerId", "scheduleWeekday", "scheduleTime", "status", "createdAt", "updatedAt", "rev"],
+  course: ["id", "orgId", "ownerId", "title", "description", "level", "price", "capacity", "trainerId", "scheduleWeekdays", "scheduleWeekday", "scheduleTime", "status", "createdAt", "updatedAt", "rev"],
   enrollment: ["id", "orgId", "ownerId", "memberId", "courseId", "startDate", "endDate", "status", "createdAt", "updatedAt", "rev"],
-  session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "createdAt", "updatedAt", "rev"],
+  session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "startTime", "endTime", "createdAt", "updatedAt", "rev"],
   attendance: ["id", "orgId", "ownerId", "sessionId", "memberId", "status", "createdAt", "updatedAt", "rev"],
   invoice: ["id", "orgId", "ownerId", "number", "memberId", "enrollmentId", "lineItems", "total", "paidAmount", "dueDate", "status", "paymentMethod", "paymentDetails", "createdAt", "updatedAt", "rev"],
   payment: ["id", "orgId", "ownerId", "invoiceId", "amount", "at", "method", "createdAt", "updatedAt", "rev"],
@@ -363,10 +391,19 @@ class DataValidation {
     price: this.read.money(o, "price", p, 0, 1_000_000_000, this.currency),
     capacity: this.read.int(o, "capacity", p, 1, 10_000),
     trainerId: this.read.id(o, "trainerId", p),
-    scheduleWeekday: this.read.int(o, "scheduleWeekday", p, 0, 6),
+    scheduleWeekdays: this.weekdays(o, p),
     scheduleTime: this.read.time(o, "scheduleTime", p),
     status: this.read.oneOf(o, "status", p, COURSE_STATUSES),
   });
+
+  /** Weekdays from the list when present; a backup written before the list existed carries one weekday instead. */
+  private weekdays(o: Raw, p: string): number[] {
+    if (Array.isArray(o.scheduleWeekdays)) return this.read.intList(o, "scheduleWeekdays", p, 0, 6);
+    const legacy = o.scheduleWeekday;
+    if (typeof legacy === "number" && Number.isSafeInteger(legacy) && legacy >= 0 && legacy <= 6) return [legacy];
+    if (legacy !== undefined && legacy !== null) this.read.int(o, "scheduleWeekday", p, 0, 6);
+    return [];
+  }
 
   private enrollment = (o: Raw, p: string): Enrollment => ({
     ...this.base(o, p),
@@ -384,6 +421,8 @@ class DataValidation {
     topic: this.read.text(o, "topic", p, LIMITS.topic, { required: true, trim: true }),
     trainerId: this.read.id(o, "trainerId", p),
     trainerPresent: this.read.bool(o, "trainerPresent", p),
+    startTime: this.read.timeOptional(o, "startTime", p),
+    endTime: this.read.timeOptional(o, "endTime", p),
   });
 
   private attendance = (o: Raw, p: string): Attendance => ({

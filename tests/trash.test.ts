@@ -61,7 +61,7 @@ const courseInput = (trainerId: string, title = "Piano Basics") => ({
   price: 500000,
   capacity: 10,
   trainerId,
-  scheduleWeekday: 1,
+  scheduleWeekdays: [1],
   scheduleTime: "09:00",
   status: "active" as const,
   idempotencyKey: createId(),
@@ -82,7 +82,7 @@ async function seedEnrolled(s: Services) {
 
 async function seedSession(s: Services, date = "2026-11-10") {
   const base = await seedEnrolled(s);
-  const session = await s.attendance.createSession({ courseId: base.c.id, date, topic: "Scales", trainerId: base.t.id, trainerPresent: true, idempotencyKey: createId() });
+  const session = await s.attendance.createSession({ courseId: base.c.id, date, topic: "Scales", trainerId: base.t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
   const attendance = await s.attendance.mark(session.id, [{ memberId: base.m.id, status: "present" }], createId());
   return { ...base, session, attendance };
 }
@@ -297,7 +297,7 @@ describe("trash: restore conflicts", () => {
     const { c, t, session } = await seedSession(s);
     await s.attendance.removeSession(session.id);
     const entry = await trashOf(s, "session", session.id);
-    await s.attendance.createSession({ courseId: c.id, date: "2026-11-10", topic: "Replacement", trainerId: t.id, trainerPresent: false, idempotencyKey: createId() });
+    await s.attendance.createSession({ courseId: c.id, date: "2026-11-10", topic: "Replacement", trainerId: t.id, trainerPresent: false, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     await expectCode(s.trash.restore(entry.id), "RESTORE_CONFLICT");
     expect((await s.trash.list()).map((e) => e.id)).toContain(entry.id);
   });

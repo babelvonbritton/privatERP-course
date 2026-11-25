@@ -90,8 +90,8 @@ export interface Course extends BaseRecord {
   price: number;
   capacity: number;
   trainerId: string;
-  /** 0 = Sunday … 6 = Saturday, matching Date.getDay(). */
-  scheduleWeekday: number;
+  /** Weekdays the course meets, 0 = Sunday … 6 = Saturday, matching Date.getDay(). A course can meet on several days. */
+  scheduleWeekdays: number[];
   /** Start time as HH:MM. */
   scheduleTime: string;
   status: CourseStatus;
@@ -112,6 +112,46 @@ export interface Session extends BaseRecord {
   topic: string;
   trainerId: string;
   trainerPresent: boolean;
+  /** Start time as HH:MM. Empty on rows created before time ranges existed. */
+  startTime: string;
+  /** End time as HH:MM. Empty on rows created before time ranges existed. */
+  endTime: string;
+}
+
+/** Minutes after midnight for an HH:MM string, or null when it is not a valid time. */
+export function timeToMinutes(time: string): number | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+/** HH:MM for minutes after midnight, wrapping past midnight. */
+export function minutesToTime(minutes: number): string {
+  const total = ((minutes % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** One hour after the given HH:MM time, for prefilling a session end time. */
+export function plusOneHour(time: string): string {
+  const start = timeToMinutes(time);
+  return start === null ? "" : minutesToTime(start + 60);
+}
+
+/** Duration of a session in hours, derived from its time range. Null when either time is missing or the end is not after the start. */
+export function sessionDurationHours(session: Pick<Session, "startTime" | "endTime">): number | null {
+  const start = timeToMinutes(session.startTime);
+  const end = timeToMinutes(session.endTime);
+  if (start === null || end === null || end <= start) return null;
+  return Math.round(((end - start) / 60) * 100) / 100;
+}
+
+/** Weekdays a course meets, tolerating a legacy row that still carries a single scheduleWeekday. */
+export function courseWeekdays(course: Pick<Course, "scheduleWeekdays"> & { scheduleWeekday?: unknown }): number[] {
+  if (Array.isArray(course.scheduleWeekdays)) {
+    return [...new Set(course.scheduleWeekdays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
+  }
+  const legacy = course.scheduleWeekday;
+  return typeof legacy === "number" && Number.isInteger(legacy) && legacy >= 0 && legacy <= 6 ? [legacy] : [];
 }
 
 export interface Attendance extends BaseRecord {

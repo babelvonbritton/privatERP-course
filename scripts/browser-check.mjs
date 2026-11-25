@@ -101,6 +101,12 @@ async function pickSelect(page, label, option) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+/** The Attendance session picker shares its "Course" label with the dashboard filter below it; the picker is the first of the two. */
+async function pickSessionCourse(page, option) {
+  await page.getByRole("combobox", { name: "Course", exact: true }).first().click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
 async function nav(page, name) {
   await page.getByRole("button", { name, exact: true }).first().click();
 }
@@ -214,12 +220,15 @@ async function desktop(browser) {
       await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
       await page.getByLabel("Capacity", { exact: true }).fill("10");
       await pickSelect(page, "Trainer", "Budi Santoso");
-      await pickSelect(page, "Weekday", "Monday");
+      await page.getByRole("checkbox", { name: "Mon" }).check();
+      await page.getByRole("checkbox", { name: "Wed" }).check();
+      await page.getByRole("checkbox", { name: "Fri" }).check();
       await page.getByLabel("Time", { exact: true }).fill("10:00");
       await page.getByRole("button", { name: "Save changes" }).click();
       await toast(page, "Saved");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
+      await page.getByText("Mon, Wed, Fri 10:00").waitFor();
       await page.getByRole("button", { name: "Enroll member" }).click();
       await pickSelect(page, "Member", "Ayu Lestari");
       await page.getByRole("button", { name: "Add", exact: true }).last().click();
@@ -236,17 +245,82 @@ async function desktop(browser) {
 
   await check("desktop: create session and mark attendance", async () => {
     await nav(page, "Attendance");
-    await pickSelect(page, "Course", "Piano Basics");
+    await pickSessionCourse(page, "Piano Basics");
     await page.getByRole("button", { name: "New session" }).click();
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
+    await page.getByLabel("Start time", { exact: true }).fill("10:00");
+    await page.getByLabel("End time", { exact: true }).fill("11:30");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Scales" }).waitFor();
+    await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
     await page.getByRole("switch", { name: "Trainer present" }).click();
     await page.getByRole("button", { name: "Mark attendance" }).click();
     await toast(page, "Attendance saved");
     await noOverflow(page, "attendance", 1280);
+  });
+
+  await check("desktop: member detail shows attended hours per course", async () => {
+    try {
+      await nav(page, "Members");
+      await page.locator("tr", { hasText: "Ayu Lestari" }).click();
+      await page.getByText("Enrollments").first().waitFor();
+      await page.getByText("1.5 h").waitFor();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+    await noOverflow(page, "members", 1280);
+  });
+
+  await check("desktop: attendance dashboard below marking, filters narrow rows, pagination present", async () => {
+    // A second member with no attendance, so a filter can narrow to zero rows.
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Benny");
+    await page.getByLabel("Email", { exact: true }).fill("benny@example.com");
+    await page.getByLabel("Phone", { exact: true }).fill("081234567891");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Piano Basics");
+    await page.getByRole("heading", { name: "Attendance summary" }).waitFor();
+    const positions = await page.evaluate(() => {
+      const heading = [...document.querySelectorAll("h2")].find((h) => h.textContent === "Attendance summary");
+      const mark = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Mark attendance");
+      return { headingTop: heading?.getBoundingClientRect().top ?? -1, markTop: mark?.getBoundingClientRect().top ?? -1 };
+    });
+    if (positions.headingTop <= positions.markTop) {
+      throw new Error("attendance dashboard is not below the marking section");
+    }
+    const dashboard = page.locator('section[aria-label="Attendance summary"]');
+    const pickDashboardSelect = async (label, option) => {
+      await dashboard.getByRole("combobox", { name: label, exact: true }).click();
+      await page.getByRole("option", { name: option, exact: true }).click();
+    };
+    await dashboard.locator("tbody tr").first().waitFor();
+    if ((await dashboard.locator("tbody tr").count()) !== 1) {
+      throw new Error("expected 1 dashboard row before filtering");
+    }
+    await dashboard.getByText("1.5 h").first().waitFor();
+    await page.getByText("Page 1 of 1").waitFor();
+    await page.getByRole("button", { name: "Previous" }).waitFor();
+    await page.getByRole("button", { name: "Next" }).waitFor();
+    await pickDashboardSelect("Member", "Benny");
+    await page.getByText("No attendance records yet.").waitFor();
+    await pickDashboardSelect("Member", "All");
+    await dashboard.locator("tbody tr").first().waitFor();
+    if ((await dashboard.locator("tbody tr").count()) !== 1) {
+      throw new Error("expected 1 dashboard row after resetting the member filter");
+    }
+    await pickDashboardSelect("Course", "Piano Basics");
+    await dashboard.locator("tbody tr").first().waitFor();
+    if ((await dashboard.locator("tbody tr").count()) !== 1) {
+      throw new Error("expected 1 dashboard row after filtering by course");
+    }
+    await noOverflow(page, "attendance-dashboard", 1280);
   });
 
   await check("desktop: create invoice, partial then full payment", async () => {
@@ -626,24 +700,29 @@ async function mobileScreensWithData(browser) {
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     await page.getByLabel("Capacity", { exact: true }).fill("10");
     await pickSelect(page, "Trainer", "Budi Santoso");
-    await pickSelect(page, "Weekday", "Monday");
+    await page.getByRole("checkbox", { name: "Mon" }).check();
+    await page.getByRole("checkbox", { name: "Wed" }).check();
     await page.getByLabel("Time", { exact: true }).fill("10:00");
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
     await page.locator("tr", { hasText: "Piano Basics" }).click();
     await page.getByText("Enrollments").first().waitFor();
+    await page.getByText("Mon, Wed 10:00").waitFor();
     await page.getByRole("button", { name: "Enroll member" }).click();
     await pickSelect(page, "Member", "Ayu Lestari");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
     await moreNav("Attendance");
-    await pickSelect(page, "Course", "Piano Basics");
+    await pickSessionCourse(page, "Piano Basics");
     await page.getByRole("button", { name: "New session" }).click();
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
+    await page.getByLabel("Start time", { exact: true }).fill("10:00");
+    await page.getByLabel("End time", { exact: true }).fill("11:30");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Scales" }).waitFor();
+    await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
     await page.getByRole("switch", { name: "Trainer present" }).click();
     await page.getByRole("button", { name: "Mark attendance" }).click();
@@ -713,7 +792,7 @@ async function mobileScreensWithData(browser) {
 
   await check("mobile data: attendance with a session, radio targets are 44px", async () => {
     await moreNav("Attendance");
-    await pickSelect(page, "Course", "Piano Basics");
+    await pickSessionCourse(page, "Piano Basics");
     // The session option is labeled with its date and topic, so match the topic part.
     await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
     await page.getByRole("option", { name: /Scales/ }).click();
