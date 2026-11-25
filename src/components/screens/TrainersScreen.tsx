@@ -213,7 +213,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.email")}</th>
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.phone")}</th>
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.subjects")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.ratePerSession")}</th>
+                <th scope="col" className="px-4 py-3 font-medium">{t("field.ratePerSession", { currency })}</th>
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.status")}</th>
                 <th scope="col" className="px-4 py-3">
                   <span className="sr-only">{t("action.edit")}</span>
@@ -319,7 +319,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
               className={`${inputClass} py-2`}
             />
           </Field>
-          <Field label={t("field.ratePerSession")} htmlFor="trainer-rate" hint={t("hint.trainerRate")}>
+          <Field label={t("field.ratePerSession", { currency })} htmlFor="trainer-rate" hint={t("hint.trainerRate")}>
             <input
               id="trainer-rate"
               type="number"

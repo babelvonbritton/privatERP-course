@@ -77,7 +77,7 @@ export interface Trainer extends BaseRecord {
   phone: string;
   /** Subjects or skills this trainer teaches, one per entry. */
   subjects: string[];
-  /** Pay per taught session, in IDR. */
+  /** Pay per taught session, in the current currency. */
   ratePerSession: number;
   status: TrainerStatus;
 }
@@ -86,7 +86,7 @@ export interface Course extends BaseRecord {
   title: string;
   description: string;
   level: string;
-  /** Price per enrollment, in IDR. */
+  /** Price per enrollment, in the current currency. */
   price: number;
   capacity: number;
   trainerId: string;
@@ -157,9 +157,9 @@ export interface Invoice extends BaseRecord {
   memberId: string;
   enrollmentId: string | null;
   lineItems: InvoiceLineItem[];
-  /** Sum of lineItems, in IDR. */
+  /** Sum of lineItems, in the current currency. */
   total: number;
-  /** Sum of payments, in IDR. Kept in step with the payments store. */
+  /** Sum of payments, in the current currency. Kept in step with the payments store. */
   paidAmount: number;
   dueDate: string;
   status: InvoiceStatus;
@@ -184,7 +184,7 @@ export interface PayrollRun extends BaseRecord {
   sessionIds: string[];
   sessionCount: number;
   ratePerSession: number;
-  /** sessionCount × ratePerSession, in IDR. */
+  /** sessionCount × ratePerSession, in the current currency. */
   total: number;
   status: PayrollStatus;
   paidAt: number | null;

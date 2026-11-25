@@ -437,7 +437,7 @@
     "periodStart": "Period start",
     "phone": "Phone",
     "price": "Price ({currency})",
-    "ratePerSession": "Rate per session (IDR)",
+    "ratePerSession": "Rate per session ({currency})",
     "scheduleWeekdays": "Days",
     "startDate": "Start date",
     "startTime": "Start time",

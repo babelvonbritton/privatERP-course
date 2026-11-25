@@ -437,7 +437,7 @@
     "periodStart": "Awal periode",
     "phone": "Telepon",
     "price": "Harga ({currency})",
-    "ratePerSession": "Tarif per sesi (IDR)",
+    "ratePerSession": "Tarif per sesi ({currency})",
     "scheduleWeekdays": "Hari",
     "startDate": "Tanggal mulai",
     "startTime": "Waktu mulai",
