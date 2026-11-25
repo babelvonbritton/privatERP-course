@@ -2,7 +2,6 @@ import type { OlaseenaDatabase } from "./OlaseenaDatabase";
 import type { Clock } from "./types";
 
 export type IntegrityCode =
-  | "ORPHAN_COURSE_TRAINER"
   | "ORPHAN_ENROLLMENT"
   | "ORPHAN_SESSION"
   | "ORPHAN_ATTENDANCE"
@@ -48,9 +47,6 @@ export class IntegrityChecker {
     const invoiceIds = new Set(invoices.map((i) => i.id));
     const issues: IntegrityIssue[] = [];
 
-    for (const c of courses) {
-      if (!trainerIds.has(c.trainerId)) issues.push({ code: "ORPHAN_COURSE_TRAINER", id: c.id, message: "Course points to a missing trainer" });
-    }
     for (const e of enrollments) {
       if (!memberIds.has(e.memberId) || !courseIds.has(e.courseId)) {
         issues.push({ code: "ORPHAN_ENROLLMENT", id: e.id, message: "Enrollment points to a missing member or course" });

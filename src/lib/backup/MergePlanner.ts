@@ -31,6 +31,7 @@ export type DiffField =
   | "price"
   | "capacity"
   | "trainer"
+  | "requiredSkills"
   | "schedule"
   | "member"
   | "course"
@@ -168,7 +169,7 @@ export class MergePlanner {
       { field: "level", kind: "text", get: (v) => v.level },
       { field: "price", kind: "money", get: (v) => v.price },
       { field: "capacity", kind: "text", get: (v) => String(v.capacity) },
-      { field: "trainer", kind: "text", get: (v) => v.trainerId },
+      { field: "requiredSkills", kind: "text", get: (v) => (v.requiredSkills ?? []).join(", ") },
       { field: "schedule", kind: "text", get: (v) => courseWeekdays(v).join(", ") },
       { field: "status", kind: "status", get: (v) => v.status },
     ], current.courses, incoming.courses);

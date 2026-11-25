@@ -82,8 +82,8 @@
     },
     "edit": "Edit course",
     "empty": "No courses yet",
-    "emptyHint": "Add your first course, pick a trainer, and set a schedule and price.",
-    "search": "Search by title or trainer",
+    "emptyHint": "Add your first course, set its required skills, schedule, and price.",
+    "search": "Search by title",
     "title": "Courses"
   },
   "currency": {
@@ -162,6 +162,7 @@
     "phone": "Phone",
     "price": "Price",
     "rate": "Rate",
+    "requiredSkills": "Required skills",
     "schedule": "Schedule",
     "sessions": "Sessions",
     "startDate": "Start date",
@@ -438,6 +439,7 @@
     "phone": "Phone",
     "price": "Price ({currency})",
     "ratePerSession": "Rate per session ({currency})",
+    "requiredSkills": "Required skills",
     "scheduleWeekdays": "Days",
     "startDate": "Start date",
     "startTime": "Start time",
@@ -463,12 +465,12 @@
     },
     "courses": {
       "add": "Add a course",
-      "addDesc": "Give it a title, a trainer, a weekly schedule, a price, and a capacity.",
+      "addDesc": "Give it a title, required skills, a weekly schedule, a price, and a capacity.",
       "detail": "Open a course",
       "detailDesc": "See who is enrolled and which sessions already happened.",
       "enroll": "Enroll members",
       "enrollDesc": "From a course, enroll members who signed up. A member can only be enrolled once per course at a time.",
-      "intro": "Courses are what you teach. Each one has a trainer, a schedule, a price, and a capacity.",
+      "intro": "Courses are what you teach. Each one has required skills, a schedule, a price, and a capacity.",
       "title": "What you can do with courses"
     },
     "dashboard": {
@@ -538,6 +540,7 @@
   "hint": {
     "courseCapacity": "How many members can enroll at once.",
     "coursePrice": "The price of the course. Used on invoices.",
+    "courseRequiredSkills": "Skills a trainer must have at least one of to teach a session of this course. Leave empty and any trainer can teach it.",
     "courseSchedule": "The regular weekly days for this course.",
     "invoiceDueDate": "When the member should pay by. Overdue is shown automatically after this date.",
     "invoiceCharges": "One charge per row. The total is the sum of the charges.",
@@ -550,7 +553,7 @@
     "paymentDetails": "Where the customer should pay, for example a bank account or e-wallet number.",
     "payrollPeriod": "A pay run covers one trainer for one period. Generating again refreshes a draft run from the latest attendance.",
     "trainerRate": "What this trainer is paid per session. Payroll multiplies it by the sessions attended.",
-    "trainerSubjects": "What this trainer teaches, one per line or separated by commas."
+    "trainerSubjects": "Type a skill and press Enter to add it. Suggestions come from skills already used."
   },
   "invoice": {
     "add": "New invoice",
@@ -764,7 +767,9 @@
     "deleteBody": "Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.",
     "edit": "Edit session",
     "empty": "No sessions yet",
-    "title": "Sessions"
+    "noQualifiedTrainer": "No trainer teaches any of the skills this course requires. Add the skill to a trainer first.",
+    "title": "Sessions",
+    "trainerMatches": "Matches {count} of {required} required skills"
   },
   "settings": {
     "about": "About",
@@ -825,6 +830,12 @@
     "verifyArchive": "Verify the new archive",
     "verifyRestore": "Verify restored data"
   },
+  "tagInput": {
+    "create": "Add “{skill}”",
+    "placeholder": "Type a skill…",
+    "remove": "Remove {skill}",
+    "suggestions": "Suggestions"
+  },
   "terms": {
     "changes": {
       "body": "If these terms change, the new version and its date will appear on this page.",
@@ -880,7 +891,7 @@
         "title": "Attendance"
       },
       "courses": {
-        "body": "This is where your classes live (courses). Each course has a trainer, weekly days, a price, and a capacity. Open one to enroll members and see its sessions — each session has a start and end time, and its length is worked out from them.",
+        "body": "This is where your classes live (courses). Each course has required skills, weekly days, a price, and a capacity. Open one to enroll members and see its sessions — each session has a start and end time, and its length is worked out from them.",
         "title": "Courses"
       },
       "dashboard": {
@@ -922,7 +933,7 @@
     "add": "Add trainer",
     "count": "{count, plural, one {# trainer} other {# trainers}}",
     "delete": "Delete trainer",
-    "deleteBody": "Delete {name}? Their courses and pay runs stay. The trainer record will move to the trash bin, and you can restore it from there.",
+    "deleteBody": "Delete {name}? Their sessions and pay runs stay. The trainer record will move to the trash bin, and you can restore it from there.",
     "detail": {
       "courses": "Courses",
       "payRuns": "Pay runs",

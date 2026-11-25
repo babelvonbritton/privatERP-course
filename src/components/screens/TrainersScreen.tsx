@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, type TrainerDashboardRow } from "@/lib/domain/services";
 import type { Course, PayrollRun, Trainer, TrainerStatus } from "@/lib/domain/types";
+import { allSkills } from "@/lib/domain/types";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
@@ -18,16 +19,9 @@ import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
 import { SearchField } from "../ui/SearchField";
 import { Select } from "../ui/Select";
+import { TagInput } from "../ui/TagInput";
 import { GuideDialog } from "../GuideDialog";
 import type { NavId } from "../nav";
-
-/** Splits a subjects field into a clean list: one subject per line or separated by commas. */
-function parseSubjects(value: string): string[] {
-  return value
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter((s) => s !== "");
-}
 
 /** Trainers screen: searchable table, add and edit form, detail view, delete with confirmation. */
 export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) => void }) {
@@ -38,13 +32,16 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [query, setQuery] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>(() => getCurrency());
+  /** Every trainer and course, unfiltered: the skill suggestions pool. */
+  const [allTrainers, setAllTrainers] = useState<Trainer[]>([]);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Trainer | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [subjects, setSubjects] = useState("");
+  const [subjects, setSubjects] = useState<string[]>([]);
   const [rate, setRate] = useState("0");
   const [status, setStatus] = useState<TrainerStatus>("active");
   const [nameError, setNameError] = useState("");
@@ -68,9 +65,26 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     }
   }
 
+  /** Refreshes the unfiltered lists the skill suggestions draw from. */
+  async function loadSkillPool(): Promise<void> {
+    try {
+      const [trainers, courses] = await Promise.all([services.trainers.list(), services.courses.list()]);
+      setAllTrainers(trainers);
+      setAllCourses(courses);
+    } catch (e) {
+      errorCenter.report(e, { action: "trainer.list" });
+    }
+  }
+
   function reload(): void {
     void load(query);
+    void loadSkillPool();
   }
+
+  useEffect(() => {
+    void loadSkillPool();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -85,7 +99,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     setName("");
     setEmail("");
     setPhone("");
-    setSubjects("");
+    setSubjects([]);
     setRate("0");
     setStatus("active");
     setNameError("");
@@ -97,7 +111,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     setName(trainer.name);
     setEmail(trainer.email);
     setPhone(trainer.phone);
-    setSubjects(trainer.subjects.join("\n"));
+    setSubjects([...trainer.subjects]);
     setRate(String(trainer.ratePerSession));
     setStatus(trainer.status);
     setNameError("");
@@ -106,12 +120,15 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   async function openDetail(trainer: Trainer): Promise<void> {
     try {
+      // A trainer owns no course any more: the courses listed are the ones
+      // they actually taught, taken from the per-course taught summary.
       const [courses, runs, taught] = await Promise.all([
-        services.courses.listByTrainer(trainer.id),
+        services.courses.list(),
         services.payroll.listByTrainer(trainer.id),
         services.attendance.trainerDashboardSummary({ trainerId: trainer.id }),
       ]);
-      setDetailCourses(courses);
+      const taughtIds = new Set(taught.rows.map((r) => r.courseId));
+      setDetailCourses(courses.filter((c) => taughtIds.has(c.id)));
       setDetailPayRuns(runs);
       setDetailTaught(taught.rows);
       setDetail(trainer);
@@ -134,7 +151,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          subjects: parseSubjects(subjects),
+          subjects,
           ratePerSession,
           status,
           idempotencyKey: createId(),
@@ -144,7 +161,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          subjects: parseSubjects(subjects),
+          subjects,
           ratePerSession,
           status,
           idempotencyKey: createId(),
@@ -311,12 +328,12 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
             />
           </Field>
           <Field label={t("field.subjects")} htmlFor="trainer-subjects" hint={t("hint.trainerSubjects")}>
-            <textarea
+            <TagInput
               id="trainer-subjects"
-              rows={3}
               value={subjects}
-              onChange={(e) => setSubjects(e.target.value)}
-              className={`${inputClass} py-2`}
+              onChange={setSubjects}
+              suggestions={allSkills(allTrainers, allCourses)}
+              placeholder={t("tagInput.placeholder")}
             />
           </Field>
           <Field label={t("field.ratePerSession", { currency })} htmlFor="trainer-rate" hint={t("hint.trainerRate")}>

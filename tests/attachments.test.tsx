@@ -141,10 +141,10 @@ describe("schema upgrade", () => {
       rev: 1,
     });
     await legacy.close();
-    // Opening the real database runs the version 3 upgrade: new stores appear, old rows survive.
+    // Opening the real database runs the version 6 upgrade: new stores appear, old rows survive.
     const s = getServices();
     await getStorage().init();
-    expect(getStorage().schemaVersion).toBe(5);
+    expect(getStorage().schemaVersion).toBe(6);
     expect((await s.members.list()).map((m) => m.name)).toEqual(["Legacy Ana"]);
     expect(await s.attachments.list("invoice", "nothing")).toHaveLength(0);
     const report = await getStorage().snapshots.readAll();

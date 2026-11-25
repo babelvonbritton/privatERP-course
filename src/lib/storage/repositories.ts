@@ -51,7 +51,6 @@ export interface CourseStore {
   get(id: string): Promise<Course | undefined>;
   all(): Promise<Course[]>;
   search(query: string): Promise<Course[]>;
-  listByTrainer(trainerId: string): Promise<Course[]>;
   listByStatus(status: CourseStatus): Promise<Course[]>;
   put(record: Course): Promise<string>;
   remove(id: string): Promise<void>;
@@ -182,9 +181,6 @@ export class DexieTrainerStore extends BaseRepository<Trainer, string> implement
 export class DexieCourseStore extends BaseRepository<Course, string> implements CourseStore {
   search(query: string): Promise<Course[]> {
     return multiIndexSearch(this.table, ["title"], query);
-  }
-  listByTrainer(trainerId: string): Promise<Course[]> {
-    return this.table.where("trainerId").equals(trainerId).sortBy("title");
   }
   listByStatus(status: CourseStatus): Promise<Course[]> {
     return this.table.where("status").equals(status).sortBy("title");

@@ -30,7 +30,7 @@ async function seed() {
   const m = await s.members.create({ name: "Ana", email: "ana@example.com", phone: "0812000000", notes: "", status: "active", idempotencyKey: createId() });
   const m2 = await s.members.create({ name: "Citra", email: "citra@example.com", phone: "0812000002", notes: "", status: "active", idempotencyKey: createId() });
   const t = await s.trainers.create({ name: "Budi", email: "budi@example.com", phone: "0812000001", subjects: ["Piano"], ratePerSession: 150000, status: "active", idempotencyKey: createId() });
-  const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+  const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
   return { s, m, m2, t, c };
 }
 
@@ -202,8 +202,8 @@ describe("backup format 2", () => {
   });
 
   it("restores a legacy backup: a single weekday becomes a list, a course time is dropped, and a session without times gets empty times", async () => {
-    const { s, c } = await seed();
-    const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: c.trainerId, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
+    const { s, c, t } = await seed();
+    const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
     const created = await service.createBackup(noop);
     expect(created.ok).toBe(true);
@@ -252,6 +252,41 @@ describe("backup format 2", () => {
     const restoredSession = (await getServices().attendance.listSessionsByCourse(c.id)).find((x) => x.id === session.id)!;
     expect(restoredSession.startTime).toBe("");
     expect(restoredSession.endTime).toBe("");
+  });
+
+  it("restores a pre-v0.9.0 backup: a course carrying a trainerId loses it and gains no required skills", async () => {
+    const { c } = await seed();
+    const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
+    const created = await service.createBackup(noop);
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const files = unzipMap(created.value.zip);
+    const courseLines = strFromU8(files.get("database/courses.ndjson")!).split("\n").filter(Boolean);
+    const oldCourses = courseLines.map((line) => {
+      const row = JSON.parse(line) as Record<string, unknown>;
+      delete row.requiredSkills;
+      return { ...row, trainerId: "t-old" };
+    });
+    const oldCourseBytes = encodeNdjson(oldCourses);
+    files.set("database/courses.ndjson", oldCourseBytes);
+    const manifest = readManifest(files);
+    const entry = manifest.files.find((f) => f.name === STORE_TO_FILE.courses)!;
+    entry.bytes = oldCourseBytes.length;
+    entry.sha256 = await sha256Hex(oldCourseBytes);
+    manifest.stores.courses.sha256 = entry.sha256;
+    writeManifest(files, manifest);
+
+    await freshServices();
+    const freshService = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
+    const inspected = await freshService.inspect(toFile(rezip(files), "old-course.zip"), noop);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.value.warnings.some((w) => w.key === "warn.unknownFields")).toBe(false);
+    const restored = await freshService.restore(inspected.value, { safetyBackup: false, decisions: new Map(), onRestored: async () => {} }, noop);
+    expect(restored.ok).toBe(true);
+    const restoredCourse = (await getServices().courses.list()).find((x) => x.id === c.id)!;
+    expect(restoredCourse).not.toHaveProperty("trainerId");
+    expect(restoredCourse.requiredSkills).toEqual([]);
   });
 
   it("refuses a backup whose manifest checksum does not match a store file", async () => {

@@ -62,7 +62,7 @@ export const courseInput = z.object({
   level: z.string().trim().min(1).max(LIMITS.level),
   price: money(0, 1_000_000_000),
   capacity: z.number().int().min(1).max(10_000),
-  trainerId: id,
+  requiredSkills: z.array(z.string().trim().min(1).max(LIMITS.subject)).max(LIMITS.requiredSkills),
   scheduleWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
   status: z.enum(COURSE_STATUSES),
   idempotencyKey: idemKey,

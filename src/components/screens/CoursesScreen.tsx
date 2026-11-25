@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseWeekdays, isDateOnSchedule, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { allSkills, courseRequiredSkills, courseWeekdays, isDateOnSchedule, rankTrainersForCourse, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
 import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
@@ -18,6 +18,8 @@ import { Select } from "../ui/Select";
 import { SearchField } from "../ui/SearchField";
 import { DatePicker } from "../ui/DatePicker";
 import { TimePicker } from "../ui/TimePicker";
+import { TagInput } from "../ui/TagInput";
+import { TrainerPicker } from "../ui/TrainerPicker";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
@@ -32,7 +34,7 @@ interface CourseForm {
   level: string;
   price: string;
   capacity: string;
-  trainerId: string;
+  requiredSkills: string[];
   scheduleWeekdays: number[];
   status: CourseStatus;
 }
@@ -43,7 +45,7 @@ const emptyForm = (): CourseForm => ({
   level: "",
   price: "",
   capacity: "",
-  trainerId: NONE,
+  requiredSkills: [],
   scheduleWeekdays: [1],
   status: "active",
 });
@@ -77,6 +79,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [sessionTopic, setSessionTopic] = useState("");
   const [sessionStart, setSessionStart] = useState("09:00");
   const [sessionEnd, setSessionEnd] = useState("10:00");
+  const [sessionTrainerId, setSessionTrainerId] = useState("");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
 
@@ -86,9 +89,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [currency, setCurrencyState] = useState<CurrencyCode>(() => getCurrency());
   useEffect(() => subscribeCurrency(() => setCurrencyState(getCurrency())), []);
 
-  const trainerById = useMemo(() => new Map(trainers.map((tr) => [tr.id, tr])), [trainers]);
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
-  const trainerName = useCallback((id: string) => trainerById.get(id)?.name ?? "", [trainerById]);
   const memberName = useCallback((id: string) => memberById.get(id)?.name ?? "", [memberById]);
 
   const load = useCallback(async (q: string) => {
@@ -128,10 +129,17 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     return () => clearTimeout(handle);
   }, [query, load]);
 
+  /** Trainers qualified for a session of the open course, ranked by matching required skills. */
+  const rankedSessionTrainers = useMemo(
+    () => (selected ? rankTrainersForCourse(trainers, courseRequiredSkills(selected)) : []),
+    [selected, trainers],
+  );
+
   const openDetail = (course: Course) => {
     setSelected(course);
     setShowEnrollForm(false);
     setShowSessionForm(false);
+    setSessionTrainerId("");
     void loadDetail(course.id);
   };
 
@@ -150,7 +158,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       level: course.level,
       price: String(course.price),
       capacity: String(course.capacity),
-      trainerId: course.trainerId,
+      requiredSkills: courseRequiredSkills(course),
       scheduleWeekdays: courseWeekdays(course),
       status: course.status,
     });
@@ -165,10 +173,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     }
     if (!form.level.trim()) {
       setFormError(t("validation.required", { field: t("field.level") }));
-      return;
-    }
-    if (form.trainerId === NONE) {
-      setFormError(t("validation.required", { field: t("field.trainer") }));
       return;
     }
     const price = Number(form.price);
@@ -194,7 +198,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           level: form.level.trim(),
           price,
           capacity,
-          trainerId: form.trainerId,
+          requiredSkills: form.requiredSkills,
           scheduleWeekdays: form.scheduleWeekdays,
           status: form.status,
           idempotencyKey: createId(),
@@ -208,7 +212,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           level: form.level.trim(),
           price,
           capacity,
-          trainerId: form.trainerId,
+          requiredSkills: form.requiredSkills,
           scheduleWeekdays: form.scheduleWeekdays,
           status: form.status,
           idempotencyKey: createId(),
@@ -307,12 +311,20 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setSessionError(t("validation.endAfterStart"));
       return;
     }
+    if (rankedSessionTrainers.length === 0) {
+      setSessionError(t("session.noQualifiedTrainer"));
+      return;
+    }
+    if (!sessionTrainerId) {
+      setSessionError(t("validation.required", { field: t("field.trainer") }));
+      return;
+    }
     try {
       await getServices().attendance.createSession({
         courseId: selected.id,
         date: sessionDate,
         topic: sessionTopic.trim(),
-        trainerId: selected.trainerId,
+        trainerId: sessionTrainerId,
         trainerPresent: false,
         startTime: sessionStart,
         endTime: sessionEnd,
@@ -322,6 +334,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setShowSessionForm(false);
       setSessionTopic("");
       setSessionDate(today());
+      setSessionTrainerId("");
       setSessionError(null);
       await loadDetail(selected.id);
     } catch (e) {
@@ -374,7 +387,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <thead>
               <tr className="border-b border-line text-left text-muted">
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.title")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.trainer")}</th>
+                <th scope="col" className="px-4 py-3 font-medium">{t("field.requiredSkills")}</th>
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.level")}</th>
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.price", { currency })}</th>
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.capacity")}</th>
@@ -396,7 +409,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                   className="cursor-pointer border-b border-line transition-colors duration-200 last:border-b-0 hover:bg-plum-50"
                 >
                   <td className="px-4 py-3 font-medium text-ink">{course.title}</td>
-                  <td className="px-4 py-3 text-ink">{trainerName(course.trainerId)}</td>
+                  <td className="max-w-[12rem] truncate px-4 py-3 text-ink">{courseRequiredSkills(course).join(", ")}</td>
                   <td className="px-4 py-3 text-ink">{course.level}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-ink">{formatMoney(course.price, locale)}</td>
                   <td className="px-4 py-3 text-ink">{course.capacity}</td>
@@ -443,13 +456,13 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               <input id="course-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))} />
             </Field>
           </div>
-          <Field label={t("field.trainer")} htmlFor="course-trainer">
-            <Select
-              value={form.trainerId}
-              onChange={(v) => setForm((f) => ({ ...f, trainerId: v }))}
-              ariaLabel={t("field.trainer")}
-              className="w-full"
-              options={[{ value: NONE, label: t("field.trainer") }, ...trainers.map((tr) => ({ value: tr.id, label: tr.name }))]}
+          <Field label={t("field.requiredSkills")} htmlFor="course-required-skills" hint={t("hint.courseRequiredSkills")}>
+            <TagInput
+              id="course-required-skills"
+              value={form.requiredSkills}
+              onChange={(requiredSkills) => setForm((f) => ({ ...f, requiredSkills }))}
+              suggestions={allSkills(trainers, courses)}
+              placeholder={t("tagInput.placeholder")}
             />
           </Field>
           <Field label={t("field.scheduleWeekdays")} htmlFor="course-weekday-1" hint={t("hint.courseSchedule")}>
@@ -518,7 +531,8 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <div>
               {selected.description && <p className="text-sm text-ink/90">{selected.description}</p>}
               <p className="mt-1 text-sm text-muted">
-                {courseWeekdays(selected).map((d) => t(`weekday.short.${d}` as MessageKey)).join(", ")} - {trainerName(selected.trainerId)} - {formatMoney(selected.price, locale)}
+                {courseWeekdays(selected).map((d) => t(`weekday.short.${d}` as MessageKey)).join(", ")} - {formatMoney(selected.price, locale)}
+                {courseRequiredSkills(selected).length > 0 ? ` - ${courseRequiredSkills(selected).join(", ")}` : ""}
               </p>
               <div className="mt-3 flex gap-2">
                 <Button className="max-sm:min-h-11" variant="soft" icon="pencil" onClick={() => openEdit(selected)}>
@@ -601,6 +615,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                     if (!showSessionForm && selected) {
                       setSessionStart("09:00");
                       setSessionEnd("10:00");
+                      setSessionTrainerId("");
                       setSessionError(null);
                     }
                     setShowSessionForm((v) => !v);
@@ -625,6 +640,17 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                       <TimePicker id="session-end" ariaLabel={t("field.endTime")} value={sessionEnd} onChange={setSessionEnd} />
                     </Field>
                   </div>
+                  <Field label={t("field.trainer")}>
+                    <TrainerPicker
+                      name="session-trainer"
+                      trainers={rankedSessionTrainers}
+                      requiredSkills={courseRequiredSkills(selected)}
+                      value={sessionTrainerId}
+                      onChange={setSessionTrainerId}
+                      label={t("field.trainer")}
+                      emptyMessage={t("session.noQualifiedTrainer")}
+                    />
+                  </Field>
                   {sessionError && (
                     <p role="alert" className="text-sm text-danger">
                       {sessionError}
@@ -637,7 +663,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                     <Button
                       className="max-sm:min-h-11"
                       onClick={() => void submitSession()}
-                      disabled={!sessionDate || !sessionTopic.trim() || !/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd)}
+                      disabled={!sessionDate || !sessionTopic.trim() || !/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd) || rankedSessionTrainers.length === 0}
                     >
                       {t("action.add")}
                     </Button>

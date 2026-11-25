@@ -82,8 +82,8 @@
     },
     "edit": "Ubah kursus",
     "empty": "Belum ada kursus",
-    "emptyHint": "Tambahkan kursus pertama Anda, pilih pengajar, lalu atur jadwal dan harga.",
-    "search": "Cari berdasarkan judul atau pengajar",
+    "emptyHint": "Tambahkan kursus pertama Anda, atur keterampilan wajib, jadwal, dan harga.",
+    "search": "Cari berdasarkan judul",
     "title": "Kursus"
   },
   "currency": {
@@ -162,6 +162,7 @@
     "phone": "Telepon",
     "price": "Harga",
     "rate": "Tarif",
+    "requiredSkills": "Keterampilan wajib",
     "schedule": "Jadwal",
     "sessions": "Sesi",
     "startDate": "Tanggal mulai",
@@ -438,6 +439,7 @@
     "phone": "Telepon",
     "price": "Harga ({currency})",
     "ratePerSession": "Tarif per sesi ({currency})",
+    "requiredSkills": "Keterampilan wajib",
     "scheduleWeekdays": "Hari",
     "startDate": "Tanggal mulai",
     "startTime": "Waktu mulai",
@@ -463,12 +465,12 @@
     },
     "courses": {
       "add": "Tambah kursus",
-      "addDesc": "Beri judul, pengajar, jadwal mingguan, harga, dan kapasitas.",
+      "addDesc": "Beri judul, keterampilan wajib, jadwal mingguan, harga, dan kapasitas.",
       "detail": "Buka kursus",
       "detailDesc": "Lihat siapa saja yang terdaftar dan sesi apa saja yang sudah berjalan.",
       "enroll": "Daftarkan member",
       "enrollDesc": "Dari sebuah kursus, daftarkan member yang mendaftar. Satu member hanya bisa terdaftar sekali per kursus dalam satu waktu.",
-      "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki pengajar, jadwal, harga, dan kapasitas.",
+      "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki keterampilan wajib, jadwal, harga, dan kapasitas.",
       "title": "Yang bisa Anda lakukan dengan kursus"
     },
     "dashboard": {
@@ -538,6 +540,7 @@
   "hint": {
     "courseCapacity": "Berapa banyak member yang bisa mendaftar sekaligus.",
     "coursePrice": "Harga kursus. Dipakai pada tagihan.",
+    "courseRequiredSkills": "Keterampilan yang harus dimiliki pengajar, minimal satu, untuk mengajar sesi kursus ini. Biarkan kosong dan pengajar mana pun bisa mengajar.",
     "courseSchedule": "Hari rutin tiap minggu untuk kursus ini.",
     "invoiceDueDate": "Kapan member harus membayar. Jatuh Tempo ditampilkan otomatis setelah tanggal ini.",
     "invoiceCharges": "Satu biaya per baris. Total adalah jumlah semua biaya.",
@@ -550,7 +553,7 @@
     "paymentDetails": "Tempat pelanggan membayar, misalnya nomor rekening bank atau e-wallet.",
     "payrollPeriod": "Satu run penggajian mencakup satu pengajar untuk satu periode. Membuat lagi akan menyegarkan run draf dari data kehadiran terbaru.",
     "trainerRate": "Upah pengajar ini per sesi. Penggajian mengalikannya dengan jumlah sesi yang dihadiri.",
-    "trainerSubjects": "Mata pelajaran yang diajarkan pengajar ini, satu per baris atau dipisah koma."
+    "trainerSubjects": "Ketik keterampilan lalu tekan Enter untuk menambahkannya. Saran berasal dari keterampilan yang sudah dipakai."
   },
   "invoice": {
     "add": "Tagihan baru",
@@ -764,7 +767,9 @@
     "deleteBody": "Hapus sesi ini? Sesi akan dipindahkan ke tempat sampah. Anda bisa memulihkannya dari sana. Catatan kehadirannya juga ikut terhapus.",
     "edit": "Ubah sesi",
     "empty": "Belum ada sesi",
-    "title": "Sesi"
+    "noQualifiedTrainer": "Tidak ada pengajar yang mengajar satu pun keterampilan yang dibutuhkan kursus ini. Tambahkan keterampilan itu ke seorang pengajar terlebih dahulu.",
+    "title": "Sesi",
+    "trainerMatches": "Cocok {count} dari {required} keterampilan wajib"
   },
   "settings": {
     "about": "Tentang",
@@ -825,6 +830,12 @@
     "verifyArchive": "Verifikasi arsip baru",
     "verifyRestore": "Verifikasi data yang dipulihkan"
   },
+  "tagInput": {
+    "create": "Tambah “{skill}”",
+    "placeholder": "Ketik keterampilan…",
+    "remove": "Hapus {skill}",
+    "suggestions": "Saran"
+  },
   "terms": {
     "changes": {
       "body": "Jika ketentuan ini berubah, versi baru dan tanggalnya akan muncul di halaman ini.",
@@ -880,7 +891,7 @@
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki pengajar, hari mingguan, harga, dan kapasitas. Buka satu kursus untuk mendaftarkan member dan melihat sesinya — setiap sesi memiliki jam mulai dan jam selesai, dan durasinya dihitung dari rentang tersebut.",
+        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, harga, dan kapasitas. Buka satu kursus untuk mendaftarkan member dan melihat sesinya — setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut.",
         "title": "Kursus"
       },
       "dashboard": {
@@ -922,7 +933,7 @@
     "add": "Tambah pengajar",
     "count": "{count, plural, one {# pengajar} other {# pengajar}}",
     "delete": "Hapus pengajar",
-    "deleteBody": "Hapus {name}? Kursus dan run penggajian mereka tetap ada. Catatan pengajar akan dipindahkan ke tempat sampah, dan Anda bisa memulihkannya dari sana.",
+    "deleteBody": "Hapus {name}? Sesi dan riwayat gajinya tetap ada. Data pengajar akan dipindahkan ke tempat sampah, dan Anda bisa memulihkannya dari sana.",
     "detail": {
       "courses": "Kursus",
       "payRuns": "Run penggajian",

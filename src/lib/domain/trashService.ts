@@ -123,10 +123,10 @@ export class TrashService {
       case "course": {
         const course = snapshot as unknown as Course;
         await this.noLive("course", entry.originalId);
-        if (!(await this.storage.trainers.get(course.trainerId))) {
-          throw new AppError("RESTORE_CONFLICT", { details: `Trainer ${course.trainerId} no longer exists` });
-        }
-        await this.storage.courses.put(course);
+        // A snapshot written before v0.9.0 still carries a trainerId: drop it, since the course no longer has a trainer.
+        const { trainerId: _droppedTrainer, ...rest } = course as unknown as Course & { trainerId?: string };
+        void _droppedTrainer;
+        await this.storage.courses.put({ ...rest, requiredSkills: Array.isArray(rest.requiredSkills) ? rest.requiredSkills : [] });
         return;
       }
       case "enrollment": {

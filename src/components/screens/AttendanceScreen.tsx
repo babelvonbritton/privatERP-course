@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseWeekdays, isDateOnSchedule, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { courseRequiredSkills, courseWeekdays, isDateOnSchedule, rankTrainersForCourse, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -15,6 +15,7 @@ import { Field, inputClass } from "../ui/Field";
 import { Select } from "../ui/Select";
 import { DatePicker } from "../ui/DatePicker";
 import { TimePicker } from "../ui/TimePicker";
+import { TrainerPicker } from "../ui/TrainerPicker";
 import { Switch } from "../ui/Switch";
 import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
@@ -51,6 +52,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [newTopic, setNewTopic] = useState("");
   const [newStartTime, setNewStartTime] = useState("09:00");
   const [newEndTime, setNewEndTime] = useState("10:00");
+  const [newTrainerId, setNewTrainerId] = useState("");
   const [newSessionError, setNewSessionError] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
@@ -108,6 +110,11 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const memberName = (id: string) => memberById.get(id)?.name ?? "";
   const selectedCourse = useMemo(() => courses.find((c) => c.id === courseId) ?? null, [courses, courseId]);
+  /** Trainers qualified for a session of the chosen course, ranked by matching required skills. */
+  const rankedNewSessionTrainers = useMemo(
+    () => (selectedCourse ? rankTrainersForCourse(trainers, courseRequiredSkills(selectedCourse)) : []),
+    [selectedCourse, trainers],
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -131,6 +138,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     setSession(null);
     setEnrollments([]);
     setMarks({});
+    setNewTrainerId("");
     if (id === NONE) {
       setSessions([]);
       return;
@@ -214,12 +222,20 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       setNewSessionError(t("validation.endAfterStart"));
       return;
     }
+    if (rankedNewSessionTrainers.length === 0) {
+      setNewSessionError(t("session.noQualifiedTrainer"));
+      return;
+    }
+    if (!newTrainerId) {
+      setNewSessionError(t("validation.required", { field: t("field.trainer") }));
+      return;
+    }
     try {
       const created = await getServices().attendance.createSession({
         courseId: selectedCourse.id,
         date: newDate,
         topic: newTopic.trim(),
-        trainerId: selectedCourse.trainerId,
+        trainerId: newTrainerId,
         trainerPresent: false,
         startTime: newStartTime,
         endTime: newEndTime,
@@ -229,6 +245,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       setNewSessionOpen(false);
       setNewTopic("");
       setNewDate(today());
+      setNewTrainerId("");
       setNewSessionError(null);
       const found = await getServices().attendance.listSessionsByCourse(selectedCourse.id);
       setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
@@ -301,6 +318,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
             if (selectedCourse) {
               setNewStartTime("09:00");
               setNewEndTime("10:00");
+              setNewTrainerId("");
               setNewSessionError(null);
             }
             setNewSessionOpen(true);
@@ -566,6 +584,17 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               <TimePicker id="new-session-end" ariaLabel={t("field.endTime")} value={newEndTime} onChange={setNewEndTime} />
             </Field>
           </div>
+          <Field label={t("field.trainer")}>
+            <TrainerPicker
+              name="new-session-trainer"
+              trainers={rankedNewSessionTrainers}
+              requiredSkills={selectedCourse ? courseRequiredSkills(selectedCourse) : []}
+              value={newTrainerId}
+              onChange={setNewTrainerId}
+              label={t("field.trainer")}
+              emptyMessage={t("session.noQualifiedTrainer")}
+            />
+          </Field>
           {newSessionError && (
             <p role="alert" className="text-sm text-danger">
               {newSessionError}
@@ -578,7 +607,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
             <Button
               className="max-sm:min-h-11"
               onClick={() => void createNewSession()}
-              disabled={!newDate || !newTopic.trim() || !/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime)}
+              disabled={!newDate || !newTopic.trim() || !/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime) || rankedNewSessionTrainers.length === 0}
             >
               {t("action.add")}
             </Button>

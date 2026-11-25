@@ -195,8 +195,8 @@ describe("create invoice form fills charges from the course", () => {
     const s = await freshServices();
     const m = await s.members.create({ name: "Ana", email: "ana@example.com", phone: "0812000000", notes: "", status: "active", idempotencyKey: createId() });
     const t = await s.trainers.create({ name: "Budi", email: "budi@example.com", phone: "0812000001", subjects: ["Piano"], ratePerSession: 100000, status: "active", idempotencyKey: createId() });
-    const piano = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
-    const guitar = await s.courses.create({ title: "Guitar Basics", description: "", level: "Beginner", price: 300000, capacity: 10, trainerId: t.id, scheduleWeekdays: [2], status: "active", idempotencyKey: createId() });
+    const piano = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const guitar = await s.courses.create({ title: "Guitar Basics", description: "", level: "Beginner", price: 300000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [2], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: piano.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: guitar.id, startDate: "2026-11-03", endDate: null, status: "active", idempotencyKey: createId() });
     return { s, m, piano, guitar };

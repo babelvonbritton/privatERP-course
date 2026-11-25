@@ -89,7 +89,8 @@ export interface Course extends BaseRecord {
   /** Price per enrollment, in the current currency. */
   price: number;
   capacity: number;
-  trainerId: string;
+  /** Skills a session trainer must have at least one of to teach this course. Empty means any trainer qualifies. */
+  requiredSkills: string[];
   /** Weekdays the course meets, 0 = Sunday … 6 = Saturday, matching Date.getDay(). A course can meet on several days. */
   scheduleWeekdays: number[];
   status: CourseStatus;
@@ -157,6 +158,72 @@ export function isDateOnSchedule(date: string, weekdays: number[]): boolean {
   if (weekdays.length === 0) return true;
   const day = dateWeekday(date);
   return day !== null && weekdays.includes(day);
+}
+
+/** One skill, trimmed. Empty strings stay empty so callers can drop them. */
+export function normalizeSkill(skill: string): string {
+  return skill.trim();
+}
+
+/** Skills deduplicated case-insensitively, keeping the first-seen casing and order. */
+export function dedupeSkills(skills: Iterable<string>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of skills) {
+    const skill = normalizeSkill(raw);
+    if (!skill) continue;
+    const key = skill.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(skill);
+  }
+  return out;
+}
+
+/** Required skills of a course, tolerating a row written before required skills existed. */
+export function courseRequiredSkills(course: { requiredSkills?: unknown }): string[] {
+  return Array.isArray(course.requiredSkills) ? dedupeSkills(course.requiredSkills.filter((s): s is string => typeof s === "string")) : [];
+}
+
+/** Every skill already used anywhere: all trainer subjects plus all course required skills, deduplicated case-insensitively. */
+export function allSkills(trainers: Pick<Trainer, "subjects">[], courses: Pick<Course, "requiredSkills">[]): string[] {
+  const pool: string[] = [];
+  for (const trainer of trainers) pool.push(...(Array.isArray(trainer.subjects) ? trainer.subjects : []));
+  for (const course of courses) pool.push(...courseRequiredSkills(course));
+  return dedupeSkills(pool);
+}
+
+/** How many of the course's required skills this trainer teaches, compared case-insensitively. */
+export function trainerSkillMatchCount(trainer: Pick<Trainer, "subjects">, requiredSkills: string[]): number {
+  const taught = new Set((Array.isArray(trainer.subjects) ? trainer.subjects : []).map((s) => s.trim().toLocaleLowerCase()));
+  return dedupeSkills(requiredSkills).filter((skill) => taught.has(skill.toLocaleLowerCase())).length;
+}
+
+/** True when the trainer may teach a session of this course: at least one required skill, or any trainer when the course requires none. */
+export function isTrainerQualified(trainer: Pick<Trainer, "subjects">, requiredSkills: string[]): boolean {
+  const required = dedupeSkills(requiredSkills);
+  return required.length === 0 || trainerSkillMatchCount(trainer, required) > 0;
+}
+
+export interface RankedTrainer<T extends Pick<Trainer, "subjects" | "name"> = Trainer> {
+  trainer: T;
+  /** Required skills this trainer matches. Zero when the course requires none. */
+  matches: number;
+}
+
+/**
+ * Trainers choosable for a session of a course, ranked by matching required
+ * skills descending, ties alphabetical by name. Trainers matching none are
+ * excluded when the course requires skills; with no required skills every
+ * trainer is choosable in the order given.
+ */
+export function rankTrainersForCourse<T extends Pick<Trainer, "subjects" | "name">>(trainers: T[], requiredSkills: string[]): RankedTrainer<T>[] {
+  const required = dedupeSkills(requiredSkills);
+  const ranked = trainers.map((trainer) => ({ trainer, matches: required.length === 0 ? 0 : trainerSkillMatchCount(trainer, required) }));
+  if (required.length === 0) return ranked;
+  const kept = ranked.filter((r) => r.matches > 0);
+  kept.sort((a, b) => b.matches - a.matches || a.trainer.name.localeCompare(b.trainer.name));
+  return kept;
 }
 
 export interface Attendance extends BaseRecord {
@@ -243,6 +310,7 @@ export const LIMITS = {
   notes: 2000,
   subject: 60,
   subjects: 12,
+  requiredSkills: 12,
   courseTitle: 120,
   description: 2000,
   level: 40,

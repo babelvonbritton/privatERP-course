@@ -63,7 +63,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, courseWeekdays, dateWeekday, sessionDurationHours } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseWeekdays, dateWeekday, dedupeSkills, sessionDurationHours } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -246,7 +246,7 @@ export class TrainerService extends ServiceBase {
         if (existing) return existing;
       }
       const now = this.now();
-      const trainer: Trainer = { ...baseFields(this.actor, now), name: data.name, email: data.email, phone: data.phone, subjects: [...data.subjects], ratePerSession: data.ratePerSession, status: data.status };
+      const trainer: Trainer = { ...baseFields(this.actor, now), name: data.name, email: data.email, phone: data.phone, subjects: dedupeSkills(data.subjects), ratePerSession: data.ratePerSession, status: data.status };
       await this.storage.trainers.put(trainer);
       await this.recordKey(data.idempotencyKey, "trainer", trainer.id);
       await this.audit("trainer.create", "trainer", trainer.id, trainer.name);
@@ -271,7 +271,7 @@ export class TrainerService extends ServiceBase {
         name: data.name ?? current.name,
         email: data.email ?? current.email,
         phone: data.phone ?? current.phone,
-        subjects: data.subjects ? [...data.subjects] : current.subjects,
+        subjects: data.subjects ? dedupeSkills(data.subjects) : current.subjects,
         ratePerSession: data.ratePerSession ?? current.ratePerSession,
         status: data.status ?? current.status,
       };
@@ -286,10 +286,11 @@ export class TrainerService extends ServiceBase {
     requireCan(this.actor, "trainer.delete");
     const trainer = await this.storage.trainers.get(id);
     if (!trainer) throw new AppError("NOT_FOUND", { details: `trainer ${id}` });
-    const courses = await this.storage.courses.listByTrainer(id);
+    // A trainer owns no course any more, so only sessions they taught and pay runs block the delete.
+    const sessions = await this.storage.sessions.all();
     const runs = await this.storage.payrollRuns.listByTrainer(id);
-    if (courses.length > 0 || runs.length > 0) {
-      throw new AppError("DELETE_BLOCKED", { details: "Trainer still has courses or pay runs" });
+    if (sessions.some((s) => s.trainerId === id) || runs.length > 0) {
+      throw new AppError("DELETE_BLOCKED", { details: "Trainer still has sessions or pay runs" });
     }
     await this.db.transaction("rw", [this.db.trainers, this.db.trash, this.db.auditLog], async () => {
       await this.storage.trainers.remove(id);
@@ -314,36 +315,17 @@ export class CourseService extends ServiceBase {
   async search(query: string): Promise<Course[]> {
     const q = query.trim();
     const byTitle = await this.storage.courses.search(q);
-    if (!q) return byTitle;
-    // The search bar promises "title or trainer": match trainers by name, then their courses.
-    const trainers = await this.storage.trainers.search(q);
-    const seen = new Set(byTitle.map((c) => c.id));
-    const merged = [...byTitle];
-    for (const t of trainers) {
-      for (const course of await this.storage.courses.listByTrainer(t.id)) {
-        if (!seen.has(course.id)) {
-          seen.add(course.id);
-          merged.push(course);
-        }
-      }
-    }
-    merged.sort((a, b) => a.title.localeCompare(b.title));
-    return merged;
+    byTitle.sort((a, b) => a.title.localeCompare(b.title));
+    return byTitle;
   }
 
   get(id: string): Promise<Course | undefined> {
     return this.storage.courses.get(id);
   }
 
-  listByTrainer(trainerId: string): Promise<Course[]> {
-    return this.storage.courses.listByTrainer(trainerId);
-  }
-
   async create(input: CourseInput): Promise<Course> {
     requireCan(this.actor, "course.create");
     const data = parseInput(courseInput, input);
-    const trainer = await this.storage.trainers.get(data.trainerId);
-    if (!trainer) throw new ValidationError("trainerId", "trainer does not exist", "invalid");
     return this.db.transaction("rw", [this.db.courses, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "course");
       if (seenId) {
@@ -351,7 +333,7 @@ export class CourseService extends ServiceBase {
         if (existing) return existing;
       }
       const now = this.now();
-      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, trainerId: data.trainerId, scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), status: data.status };
+      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, requiredSkills: dedupeSkills(data.requiredSkills), scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), status: data.status };
       await this.storage.courses.put(course);
       await this.recordKey(data.idempotencyKey, "course", course.id);
       await this.audit("course.create", "course", course.id, course.title);
@@ -362,10 +344,6 @@ export class CourseService extends ServiceBase {
   async update(id: string, input: CoursePatch): Promise<Course> {
     requireCan(this.actor, "course.update");
     const data = parseInput(coursePatch, input);
-    if (data.trainerId) {
-      const trainer = await this.storage.trainers.get(data.trainerId);
-      if (!trainer) throw new ValidationError("trainerId", "trainer does not exist", "invalid");
-    }
     return this.db.transaction("rw", [this.db.courses, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "course");
       if (seenId === id) {
@@ -382,7 +360,7 @@ export class CourseService extends ServiceBase {
         level: data.level ?? current.level,
         price: data.price ?? current.price,
         capacity: data.capacity ?? current.capacity,
-        trainerId: data.trainerId ?? current.trainerId,
+        requiredSkills: data.requiredSkills ? dedupeSkills(data.requiredSkills) : current.requiredSkills ?? [],
         scheduleWeekdays: data.scheduleWeekdays ? normalizeWeekdays(data.scheduleWeekdays) : current.scheduleWeekdays,
         status: data.status ?? current.status,
       };

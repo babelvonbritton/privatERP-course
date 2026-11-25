@@ -93,7 +93,7 @@ describe("services", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 150000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: false, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     await s.attendance.setTrainerPresent(session.id, true, createId());
@@ -111,7 +111,7 @@ describe("services", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 150000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     const present = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     const absent = await s.attendance.createSession({ courseId: c.id, date: "2026-11-16", topic: "Arpeggios", trainerId: t.id, trainerPresent: false, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
@@ -132,7 +132,7 @@ describe("services", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 150000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     const run = await s.payroll.generate({ trainerId: t.id, periodStart: "2026-11-01", periodEnd: "2026-11-30", idempotencyKey: createId() });
@@ -172,8 +172,10 @@ describe("services", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
+    // The trainer taught a session of the course, so the trainer delete is blocked too.
+    await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     await expect(s.members.remove(m.id)).rejects.toThrow();
     await expect(s.trainers.remove(t.id)).rejects.toThrow();
     await expect(s.courses.remove(c.id)).rejects.toThrow();
@@ -190,7 +192,7 @@ describe("services", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     await expect(s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() })).rejects.toThrow();
     await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "One", trainerId: t.id, trainerPresent: false, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
@@ -233,7 +235,7 @@ describe("services", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     const enrollments = await Promise.allSettled([
       s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() }),
       s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() }),
@@ -248,15 +250,16 @@ describe("services", () => {
     expect(await s.attendance.listSessionsByCourse(c.id)).toHaveLength(1);
   });
 
-  it("search: invoices are found by member name, courses by trainer name", async () => {
+  it("search: invoices are found by member name, courses by title only", async () => {
     const s = await freshServices();
-    const t = await s.trainers.create(trainer("Budi", 100000));
+    await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, capacity: 5, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     const inv = await s.invoices.create({ memberId: m.id, enrollmentId: null, lineItems: [{ description: "Fee", amount: 100000 }], dueDate: "2026-12-01", status: "sent", idempotencyKey: createId() });
     expect((await s.invoices.search("ana")).map((i) => i.id)).toEqual([inv.id]);
     expect((await s.invoices.search(inv.number.slice(0, 8))).map((i) => i.id)).toEqual([inv.id]);
-    expect((await s.courses.search("budi")).map((x) => x.id)).toEqual([c.id]);
+    // A course owns no trainer any more, so a trainer name finds no course.
+    expect((await s.courses.search("budi")).map((x) => x.id)).toEqual([]);
     expect((await s.courses.search("pia")).map((x) => x.id)).toEqual([c.id]);
   });
 
@@ -270,13 +273,13 @@ describe("services", () => {
 });
 
 describe("session times, weekdays, and attended hours", () => {
-  const makeCourse = (trainerId: string, title = "Piano", days: number[] = [1, 3, 5]) => ({
+  const makeCourse = (title = "Piano", days: number[] = [1, 3, 5]) => ({
     title,
     description: "",
     level: "Beginner",
     price: 100000,
     capacity: 5,
-    trainerId,
+    requiredSkills: ["Piano"],
     scheduleWeekdays: days,
     status: "active" as const,
     idempotencyKey: createId(),
@@ -313,15 +316,15 @@ describe("session times, weekdays, and attended hours", () => {
   it("course: several weekdays are stored sorted, an empty list is rejected", async () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
-    const c = await s.courses.create(makeCourse(t.id, "Piano", [5, 1, 3]));
+    const c = await s.courses.create(makeCourse("Piano", [5, 1, 3]));
     expect(c.scheduleWeekdays).toEqual([1, 3, 5]);
-    await expect(s.courses.create(makeCourse(t.id, "Guitar", []))).rejects.toThrow();
+    await expect(s.courses.create(makeCourse("Guitar", []))).rejects.toThrow();
   });
 
   it("course: updating weekdays replaces the list", async () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
-    const c = await s.courses.create(makeCourse(t.id, "Piano", [1]));
+    const c = await s.courses.create(makeCourse("Piano", [1]));
     const updated = await s.courses.update(c.id, { scheduleWeekdays: [2, 4], idempotencyKey: createId() });
     expect(updated.scheduleWeekdays).toEqual([2, 4]);
   });
@@ -329,7 +332,7 @@ describe("session times, weekdays, and attended hours", () => {
   it("session: end at or before start is rejected, a valid range is stored", async () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
-    const c = await s.courses.create(makeCourse(t.id));
+    const c = await s.courses.create(makeCourse());
     await expect(s.attendance.createSession(makeSession(c.id, t.id, "2026-11-09", "One", "10:00", "10:00"))).rejects.toThrow();
     await expect(s.attendance.createSession(makeSession(c.id, t.id, "2026-11-09", "One", "10:00", "09:00"))).rejects.toThrow();
     const ok = await s.attendance.createSession(makeSession(c.id, t.id, "2026-11-09", "One", "09:00", "10:30"));
@@ -341,8 +344,8 @@ describe("session times, weekdays, and attended hours", () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
-    const piano = await s.courses.create(makeCourse(t.id, "Piano", [1, 3]));
-    const guitar = await s.courses.create(makeCourse(t.id, "Guitar", [2]));
+    const piano = await s.courses.create(makeCourse("Piano", [1, 3]));
+    const guitar = await s.courses.create(makeCourse("Guitar", [2]));
     await s.courses.enroll({ memberId: m.id, courseId: piano.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: guitar.id, startDate: "2026-11-03", endDate: null, status: "active", idempotencyKey: createId() });
     const s1 = await s.attendance.createSession(makeSession(piano.id, t.id, "2026-11-09", "One", "09:00", "10:30"));
@@ -363,8 +366,8 @@ describe("session times, weekdays, and attended hours", () => {
     const siti = await s.trainers.create(trainer("Siti", 120000));
     const ana = await s.members.create(member("Ana"));
     const ben = await s.members.create(member("Ben"));
-    const piano = await s.courses.create(makeCourse(budi.id, "Piano", [1]));
-    const guitar = await s.courses.create(makeCourse(siti.id, "Guitar", [2]));
+    const piano = await s.courses.create(makeCourse("Piano", [1]));
+    const guitar = await s.courses.create(makeCourse("Guitar", [2]));
     for (const [mem, c] of [
       [ana, piano],
       [ana, guitar],
@@ -405,7 +408,7 @@ describe("session times, weekdays, and attended hours", () => {
   it("course: no time is stored on a course", async () => {
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
-    const c = await s.courses.create(makeCourse(t.id, "Piano", [1]));
+    const c = await s.courses.create(makeCourse("Piano", [1]));
     expect(c).not.toHaveProperty("scheduleTime");
     expect(c.scheduleWeekdays).toEqual([1]);
   });
@@ -414,8 +417,8 @@ describe("session times, weekdays, and attended hours", () => {
     const s = await freshServices();
     const budi = await s.trainers.create(trainer("Budi", 100000));
     const siti = await s.trainers.create(trainer("Siti", 120000));
-    const piano = await s.courses.create(makeCourse(budi.id, "Piano", [1]));
-    const guitar = await s.courses.create(makeCourse(siti.id, "Guitar", [2]));
+    const piano = await s.courses.create(makeCourse("Piano", [1]));
+    const guitar = await s.courses.create(makeCourse("Guitar", [2]));
     await s.attendance.createSession(makeSession(piano.id, budi.id, "2026-11-09", "One", "09:00", "10:30"));
     await s.attendance.createSession(makeSession(piano.id, budi.id, "2026-11-16", "Two", "09:00", "10:30"));
     const p3 = await s.attendance.createSession(makeSession(piano.id, budi.id, "2026-11-23", "Three", "09:00", "09:45"));
@@ -444,8 +447,8 @@ describe("session times, weekdays, and attended hours", () => {
   it("trainerDashboardSummary: hours are per course and only count sessions the trainer was present for", async () => {
     const s = await freshServices();
     const budi = await s.trainers.create(trainer("Budi", 100000));
-    const piano = await s.courses.create(makeCourse(budi.id, "Piano", [1]));
-    const guitar = await s.courses.create(makeCourse(budi.id, "Guitar", [2]));
+    const piano = await s.courses.create(makeCourse("Piano", [1]));
+    const guitar = await s.courses.create(makeCourse("Guitar", [2]));
     await s.attendance.createSession(makeSession(piano.id, budi.id, "2026-11-09", "One", "09:00", "10:30"));
     const g1 = await s.attendance.createSession(makeSession(guitar.id, budi.id, "2026-11-10", "Strings", "09:00", "09:45"));
     await s.attendance.setTrainerPresent(g1.id, false, createId());
@@ -472,7 +475,7 @@ describe("weekly slot: sessions and enrollments stay on scheduled weekdays", () 
     const s = await freshServices();
     const t = await s.trainers.create(trainer("Budi", 100000));
     const m = await s.members.create(member("Ana"));
-    const c = await s.courses.create({ title: "Weekend Piano", description: "", level: "Beginner", price: 100000, capacity: 5, trainerId: t.id, scheduleWeekdays: [6, 0], status: "active", idempotencyKey: createId() });
+    const c = await s.courses.create({ title: "Weekend Piano", description: "", level: "Beginner", price: 100000, capacity: 5, requiredSkills: ["Piano"], scheduleWeekdays: [6, 0], status: "active", idempotencyKey: createId() });
     return { s, t, m, c };
   }
 
@@ -516,7 +519,7 @@ describe("weekly slot: sessions and enrollments stay on scheduled weekdays", () 
   it("moving an enrollment to a non-slot weekday is rejected, but an untouched out-of-slot enrollment can still be updated", async () => {
     const { s, t, m, c } = await weekendCourse();
     // Enroll on Monday while the course still meets on Mondays, then narrow the slot to weekends.
-    const weekdayCourse = await s.courses.create({ title: "Weekday Piano", description: "", level: "Beginner", price: 100000, capacity: 5, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+    const weekdayCourse = await s.courses.create({ title: "Weekday Piano", description: "", level: "Beginner", price: 100000, capacity: 5, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     const enrollment = await s.courses.enroll({ memberId: m.id, courseId: weekdayCourse.id, startDate: MON, endDate: null, status: "active", idempotencyKey: createId() });
     await s.courses.update(weekdayCourse.id, { scheduleWeekdays: [6, 0], idempotencyKey: createId() });
     await expect(s.courses.updateEnrollment(enrollment.id, { startDate: "2026-12-07", idempotencyKey: createId() })).rejects.toThrow("not one of the course's scheduled weekdays");

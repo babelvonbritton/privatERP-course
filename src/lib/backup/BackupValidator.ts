@@ -11,6 +11,7 @@ import {
   PAYMENT_METHODS,
   PAYROLL_STATUSES,
   TRAINER_STATUSES,
+  dedupeSkills,
   isCurrencyCode,
   type BackupData,
   type Attendance,
@@ -190,7 +191,7 @@ export interface ValidationResult {
 const FIELDS = {
   member: ["id", "orgId", "ownerId", "name", "email", "phone", "notes", "status", "createdAt", "updatedAt", "rev"],
   trainer: ["id", "orgId", "ownerId", "name", "email", "phone", "subjects", "ratePerSession", "status", "createdAt", "updatedAt", "rev"],
-  course: ["id", "orgId", "ownerId", "title", "description", "level", "price", "capacity", "trainerId", "scheduleWeekdays", "scheduleWeekday", "scheduleTime", "status", "createdAt", "updatedAt", "rev"],
+  course: ["id", "orgId", "ownerId", "title", "description", "level", "price", "capacity", "trainerId", "requiredSkills", "scheduleWeekdays", "scheduleWeekday", "scheduleTime", "status", "createdAt", "updatedAt", "rev"],
   enrollment: ["id", "orgId", "ownerId", "memberId", "courseId", "startDate", "endDate", "status", "createdAt", "updatedAt", "rev"],
   session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "startTime", "endTime", "createdAt", "updatedAt", "rev"],
   attendance: ["id", "orgId", "ownerId", "sessionId", "memberId", "status", "createdAt", "updatedAt", "rev"],
@@ -272,7 +273,6 @@ class DataValidation {
     const sessionIds = new Set(sessions.map((s) => s.id));
     const invoiceIds = new Set(invoices.map((i) => i.id));
 
-    courses.forEach((c, i) => { if (!trainerIds.has(c.trainerId)) this.log.add(`courses[${i}].trainerId`, "points to a missing trainer"); });
     enrollments.forEach((e, i) => {
       if (!memberIds.has(e.memberId)) this.log.add(`enrollments[${i}].memberId`, "points to a missing member");
       if (!courseIds.has(e.courseId)) this.log.add(`enrollments[${i}].courseId`, "points to a missing course");
@@ -390,7 +390,10 @@ class DataValidation {
     level: this.read.text(o, "level", p, LIMITS.level, { required: true, trim: true }),
     price: this.read.money(o, "price", p, 0, 1_000_000_000, this.currency),
     capacity: this.read.int(o, "capacity", p, 1, 10_000),
-    trainerId: this.read.id(o, "trainerId", p),
+    // A backup written before required skills existed carries none, and one
+    // written before v0.9.0 carries a trainerId instead: both are dropped
+    // silently, so the course restores with no required skills and no trainer.
+    requiredSkills: o.requiredSkills === undefined ? [] : dedupeSkills(this.read.stringList(o, "requiredSkills", p, LIMITS.requiredSkills, LIMITS.subject)),
     scheduleWeekdays: this.weekdays(o, p),
     status: this.read.oneOf(o, "status", p, COURSE_STATUSES),
   });

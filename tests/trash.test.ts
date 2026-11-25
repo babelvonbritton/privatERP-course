@@ -54,13 +54,13 @@ const trainerInput = (name: string, rate = 100000) => ({
   status: "active" as const,
   idempotencyKey: createId(),
 });
-const courseInput = (trainerId: string, title = "Piano Basics") => ({
+const courseInput = (title = "Piano Basics") => ({
   title,
   description: "",
   level: "Beginner",
   price: 500000,
   capacity: 10,
-  trainerId,
+  requiredSkills: ["Piano"],
   scheduleWeekdays: [1],
   status: "active" as const,
   idempotencyKey: createId(),
@@ -69,7 +69,7 @@ const courseInput = (trainerId: string, title = "Piano Basics") => ({
 async function seedBasic(s: Services) {
   const t = await s.trainers.create(trainerInput("Budi"));
   const m = await s.members.create(memberInput("Ana"));
-  const c = await s.courses.create(courseInput(t.id));
+  const c = await s.courses.create(courseInput());
   return { t, m, c };
 }
 
@@ -457,12 +457,14 @@ describe("trash: delete blocked", () => {
     expect(invoice.id).toBeTruthy();
   });
 
-  it("trainer with courses or pay runs stays live and out of trash", async () => {
+  it("trainer with only courses can be deleted; trainer with sessions or pay runs stays live and out of trash", async () => {
     const s = await freshServices();
     const { t, c } = await seedBasic(s);
-    await expectCode(s.trainers.remove(t.id), "DELETE_BLOCKED");
-    expect(await s.trash.list()).toHaveLength(0);
-    expect(c.id).toBeTruthy();
+    // A course owns no trainer any more, so the course alone does not block the delete.
+    await s.trainers.remove(t.id);
+    expect(await s.trainers.get(t.id)).toBeUndefined();
+    expect((await s.trash.list()).map((e) => e.originalId)).toContain(t.id);
+    expect(await s.courses.get(c.id)).toBeDefined();
     const s2 = await freshServices();
     const trainer = await s2.trainers.create(trainerInput("Dewi"));
     const run = await s2.payroll.generate({ trainerId: trainer.id, periodStart: "2026-11-01", periodEnd: "2026-11-30", idempotencyKey: createId() });
@@ -634,17 +636,19 @@ describe("trash: restore with missing references", () => {
     expect((await s.trash.list()).map((e) => e.id)).toContain(invoiceEntry.id);
   });
 
-  it("course restore fails when its trainer is gone for good", async () => {
+  it("course restore succeeds even when its old trainer is gone for good", async () => {
     const s = await freshServices();
     const { t, c } = await seedBasic(s);
     await s.courses.remove(c.id);
     const courseEntry = await trashOf(s, "course", c.id);
-    // The trashed course no longer blocks the trainer delete.
+    // The trashed course no longer depends on the trainer at all.
     await s.trainers.remove(t.id);
     const trainerEntry = await trashOf(s, "trainer", t.id);
     await s.trash.deletePermanently(trainerEntry.id);
-    await expectCode(s.trash.restore(courseEntry.id), "RESTORE_CONFLICT");
-    expect(await s.courses.get(c.id)).toBeUndefined();
-    expect((await s.trash.list()).map((e) => e.id)).toContain(courseEntry.id);
+    await s.trash.restore(courseEntry.id);
+    const restored = await s.courses.get(c.id);
+    expect(restored).toBeDefined();
+    expect(restored).not.toHaveProperty("trainerId");
+    expect((await s.trash.list()).map((e) => e.id)).not.toContain(courseEntry.id);
   });
 });
