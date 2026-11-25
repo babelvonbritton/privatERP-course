@@ -2,6 +2,7 @@ import type { Msg } from "@/i18n/types";
 import { AppError } from "@/lib/errors/AppError";
 import type { ErrorCenter } from "@/lib/errors/ErrorCenter";
 import { setCurrency } from "@/lib/currency";
+import { applyBusinessProfile } from "@/lib/domain/services";
 import type { BackupData } from "@/lib/domain/types";
 import type { StorageService } from "@/lib/storage";
 import { AttachmentService } from "@/lib/attachments/service";
@@ -629,6 +630,9 @@ export class BackupService {
           // so amounts are formatted in the backup's currency from here on.
           const prefs = await this.storage.reloadPreferences();
           setCurrency(prefs.currency);
+          // The restored settings may carry a different business profile too;
+          // re-stamp the shared services so new records carry the restored names.
+          applyBusinessProfile(await this.storage.reloadProfile());
           return { detail: { key: "detail.refreshed" } };
         },
       },

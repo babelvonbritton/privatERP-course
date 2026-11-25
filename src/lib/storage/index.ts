@@ -1,5 +1,6 @@
 import { IntegrityChecker, type IntegrityReport } from "./IntegrityChecker";
 import { OlaseenaDatabase } from "./OlaseenaDatabase";
+import { BusinessProfileService, type BusinessProfile } from "./BusinessProfileService";
 import { PreferenceService, type Preferences } from "./PreferenceService";
 import {
   DexieAttendanceStore,
@@ -42,6 +43,7 @@ export class StorageService {
   readonly settings: DexieSettingsStore;
   readonly trash: DexieTrashStore;
   readonly preferences: PreferenceService;
+  readonly profile: BusinessProfileService;
   readonly snapshots: SnapshotService;
   readonly integrity: IntegrityChecker;
   private initPromise: Promise<StorageReport> | null = null;
@@ -65,6 +67,7 @@ export class StorageService {
     this.settings = new DexieSettingsStore(db.settings, clock);
     this.trash = new DexieTrashStore(db.trash, clock, this.notifyWrite);
     this.preferences = new PreferenceService(this.settings);
+    this.profile = new BusinessProfileService(this.settings);
     this.snapshots = new SnapshotService(db);
     this.integrity = new IntegrityChecker(db, clock);
   }
@@ -90,6 +93,11 @@ export class StorageService {
   /** Re-reads preferences, for example after a restore changed the settings store. */
   reloadPreferences(): Promise<Preferences> {
     return this.preferences.load().then((r) => r.preferences);
+  }
+
+  /** Re-reads the business profile, for example after a restore changed the settings store. */
+  reloadProfile(): Promise<BusinessProfile> {
+    return this.profile.load().then((r) => r.profile);
   }
 
   /** Opens the database, loads preferences and verifies integrity. Safe to call repeatedly. */
@@ -138,4 +146,5 @@ export * from "./Guard";
 export * from "./utils";
 export { LocalPrefs } from "./LocalPrefs";
 export type { Preferences } from "./PreferenceService";
+export type { BusinessProfile } from "./BusinessProfileService";
 export type { IntegrityReport, IntegrityIssue } from "./IntegrityChecker";

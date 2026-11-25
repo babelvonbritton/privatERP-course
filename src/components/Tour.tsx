@@ -27,6 +27,9 @@ export const TOUR_STEPS: TourStep[] = [
   { nav: "trash", target: "trash", step: "trash" },
   { nav: "settings", target: "settings", step: "settings" },
   { nav: "settings", target: "drive", step: "drive" },
+  // Last: the business profile lives at the top of Settings, after the
+  // Drive section, so it closes the tour where the app is configured.
+  { nav: "settings", target: "profile", step: "profile" },
 ];
 
 interface TourContextValue {

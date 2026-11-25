@@ -37,9 +37,15 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 export class TrashService {
   constructor(
     private readonly storage: StorageService,
-    private readonly actor: Actor,
+    /** The actor trash audit entries are stamped with. Mutable so the shared services can follow the business profile without a rebuild. */
+    private actor: Actor,
     private readonly clock: Clock = Date.now,
   ) {}
+
+  /** Re-stamps this service with a new actor. Trash audit entries from here on use it. */
+  setActor(actor: Actor): void {
+    this.actor = actor;
+  }
 
   private get db() {
     return this.storage.db;

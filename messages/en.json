@@ -107,7 +107,10 @@
     "revenueMonth": "Revenue collected this month",
     "title": "Dashboard",
     "upcoming": "Upcoming sessions",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "profileReminderTitle": "Set up your business profile",
+    "profileReminderBody": "Add your business name, logo, and contact details so they show on your invoices.",
+    "quickSetup": "Quick setup"
   },
   "date": {
     "clear": "Clear",
@@ -479,7 +482,9 @@
       "moneyDesc": "Revenue collected this month and the total of unpaid invoices. Overdue invoices are called out separately.",
       "next": "What is next",
       "nextDesc": "Upcoming sessions and the most recent invoices, so you always know what needs attention.",
-      "title": "What you can do on the dashboard"
+      "title": "What you can do on the dashboard",
+      "profile": "Set up your business profile",
+      "profileDesc": "While your business name is empty, a reminder at the top of the dashboard opens a quick setup. The name, logo, tagline, address, and contacts you set appear on your invoices."
     },
     "invoices": {
       "intro": "Invoices are bills for members. Each one has a number, charges, a due date, and a status.",
@@ -516,7 +521,9 @@
       "languageDesc": "The whole app switches language, including dates. Names and notes keep the text you typed.",
       "title": "What you can do in settings",
       "tour": "Replay the tour",
-      "tourDesc": "Walk through the main screens again with short explanations."
+      "tourDesc": "Walk through the main screens again with short explanations.",
+      "profile": "Business profile",
+      "profileDesc": "The first section in Settings. Set your business name, logo, tagline, address, and contacts; the business name is required, the rest is optional."
     },
     "trainers": {
       "add": "Add a trainer",
@@ -898,7 +905,7 @@
         "title": "Courses"
       },
       "dashboard": {
-        "body": "This is your overview (the dashboard). It shows money collected this month, unpaid invoices, how often members show up, and what is coming next.",
+        "body": "This is your overview (the dashboard). It shows money collected this month, unpaid invoices, how often members show up, and what is coming next. While your business name is empty, a reminder here opens a quick setup for your business profile.",
         "title": "Dashboard"
       },
       "drive": {
@@ -918,7 +925,7 @@
         "title": "Payroll"
       },
       "settings": {
-        "body": "This is where you change the language, make backups, and replay this tour (settings). Backups are ZIP files you keep on your own device.",
+        "body": "This is where you change the language, make backups, and replay this tour (settings). Your business profile sits at the top: its name, logo, and contacts show on your invoices. Backups are ZIP files you keep on your own device.",
         "title": "Settings"
       },
       "trainers": {
@@ -928,6 +935,10 @@
       "trash": {
         "title": "Trash bin",
         "body": "This is where deleted records wait (trash bin). They stay here until the auto-delete time runs out, so a mistake can be undone. Restore one, or delete it permanently."
+      },
+      "profile": {
+        "title": "Business profile",
+        "body": "This is your business profile (business profile). Set your business name, logo, tagline, address, and contacts here. The business name and owner's name also identify new records, and the name and contacts appear on every invoice."
       }
     },
     "title": "Get to know Olaseena"
@@ -1043,5 +1054,28 @@
     "restored": "Restored {label}",
     "movedToTrash": "{label} moved to the trash bin",
     "retentionHint": "Applies to everything already in the trash bin too. Items are removed permanently once their time runs out."
+  },
+  "profile": {
+    "title": "Business profile",
+    "hint": "Your business name, logo, and contact details. They show on your invoices, and the business and owner names identify new records.",
+    "logo": "Business logo",
+    "logoHint": "Shown on your invoices. JPG, PNG, WebP, or GIF, up to 4 MB.",
+    "uploadLogo": "Upload logo",
+    "changeLogo": "Change logo",
+    "removeLogo": "Remove logo",
+    "businessName": "Business name",
+    "businessNameHint": "Shown on your invoices and used to identify new records.",
+    "businessNamePlaceholder": "e.g. Melody Studio",
+    "ownerName": "Owner's name",
+    "ownerNameHint": "Used to identify new records. Never shown on an invoice.",
+    "ownerNamePlaceholder": "e.g. Ayu Lestari",
+    "address": "Business address",
+    "addressPlaceholder": "Street, city, and postcode",
+    "contacts": "Business contacts",
+    "contactsHint": "Phone numbers, emails, or links — one per contact. Shown on your invoices.",
+    "contactsPlaceholder": "Type a contact, then press Enter…",
+    "tagline": "Business tagline",
+    "taglinePlaceholder": "e.g. Music lessons for every age",
+    "nameRequired": "Enter a business name to save the profile."
   }
 }

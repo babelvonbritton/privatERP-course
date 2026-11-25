@@ -8,7 +8,7 @@ import { Modal } from "./ui/Modal";
 
 /** The "How to use this section" items for each screen, in order. */
 const GUIDE_ITEMS: Record<string, string[]> = {
-  dashboard: ["money", "next"],
+  dashboard: ["money", "next", "profile"],
   members: ["add", "find", "detail"],
   trainers: ["add", "find", "detail"],
   courses: ["add", "enroll", "detail"],
@@ -16,7 +16,7 @@ const GUIDE_ITEMS: Record<string, string[]> = {
   invoices: ["pay", "status"],
   payroll: ["generate", "paid"],
   trash: ["restore", "empty"],
-  settings: ["language", "backup", "tour"],
+  settings: ["profile", "language", "backup", "tour"],
 };
 
 interface Props {

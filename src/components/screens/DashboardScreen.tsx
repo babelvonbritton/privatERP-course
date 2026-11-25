@@ -7,10 +7,14 @@ import { formatDate } from "@/lib/dates";
 import { getServices, today, type DashboardData } from "@/lib/domain/services";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
+import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
+import { getStorage } from "@/lib/storage";
 import { GuideDialog } from "../GuideDialog";
 import type { NavId } from "../nav";
+import { BusinessProfileForm } from "../profile/BusinessProfileForm";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { Modal } from "../ui/Modal";
 
 /** Upcoming sessions per dashboard page. */
 const PAGE_SIZE = 5;
@@ -31,6 +35,8 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
   const [data, setData] = useState<DashboardData | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
+  const [quickSetupOpen, setQuickSetupOpen] = useState(false);
 
   // The attendance dashboard pagination, reused: clamp the page to what
   // exists and slice the rows for it.
@@ -57,6 +63,21 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
     void load();
   }, [load]);
 
+  // The business profile decides the reminder: it shows while no business
+  // name is set, and saving one in the quick-setup dialog clears it.
+  useEffect(() => {
+    let cancelled = false;
+    void getStorage()
+      .profile.load()
+      .then(({ profile: stored }) => {
+        if (!cancelled) setProfile(stored);
+      })
+      .catch((e) => errorCenter.report(e, { action: "profile.load" }));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div data-tour="dashboard" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
@@ -71,6 +92,26 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
         </button>
       </div>
       <GuideDialog open={guideOpen} section="dashboard" onClose={() => setGuideOpen(false)} />
+
+      {profile.businessName.trim() === "" && (
+        <div data-tour="profile-reminder" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink">{t("dashboard.profileReminderTitle")}</p>
+            <p className="mt-0.5 text-sm text-muted">{t("dashboard.profileReminderBody")}</p>
+          </div>
+          <Button className="max-sm:min-h-11" onClick={() => setQuickSetupOpen(true)}>
+            {t("dashboard.quickSetup")}
+          </Button>
+        </div>
+      )}
+      <Modal open={quickSetupOpen} onOpenChange={setQuickSetupOpen} title={t("profile.title")}>
+        <BusinessProfileForm
+          onSaved={(saved) => {
+            setProfile(saved);
+            setQuickSetupOpen(false);
+          }}
+        />
+      </Modal>
 
       {data && (
         <>

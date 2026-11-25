@@ -6,7 +6,7 @@ import { useI18n } from "@/i18n";
 import { LOCALE_NAMES, type Locale } from "@/i18n/routing";
 import { setCurrency, subscribeCurrency } from "@/lib/currency";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
-import { getServices } from "@/lib/domain/services";
+import { getServices, applyBusinessProfile } from "@/lib/domain/services";
 import { startDriveSync } from "@/lib/driveSync";
 import { getStorage } from "@/lib/storage";
 import { Logo } from "./Logo";
@@ -48,6 +48,15 @@ export function AppShell() {
         if (!cancelled) setCurrency(preferences.currency);
       })
       .catch((e) => errorCenter.report(e, { action: "currency.load" }));
+    // New records are stamped with the business and owner names from the
+    // profile, so the shared services take the stored profile's actor at
+    // boot; saving the profile re-applies it without a restart.
+    void getStorage()
+      .profile.load()
+      .then(({ profile }) => {
+        if (!cancelled) applyBusinessProfile(profile);
+      })
+      .catch((e) => errorCenter.report(e, { action: "profile.load" }));
     void getServices()
       .trash.purgeExpired()
       .catch((e) => errorCenter.report(e, { action: "trash.purge" }));

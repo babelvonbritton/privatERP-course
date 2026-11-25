@@ -314,7 +314,8 @@ class DataValidation {
     const trashedInvoiceIds = new Set(trash.filter((t) => t.kind === "invoice").map((t) => t.originalId));
     attachments.forEach((a, idx) => {
       const pointsAtInvoice = a.entityType === "invoice" && (invoiceIds.has(a.entityId) || trashedInvoiceIds.has(a.entityId));
-      const known = a.entityType === "invoice" ? pointsAtInvoice : a.entityType === "member" ? memberIds.has(a.entityId) : sessionIds.has(a.entityId);
+      // The business logo points at the fixed profile entity, not at a record.
+      const known = a.entityType === "invoice" ? pointsAtInvoice : a.entityType === "member" ? memberIds.has(a.entityId) : a.entityType === "session" ? sessionIds.has(a.entityId) : a.entityType === "profile" && a.entityId === "profile";
       if (!known) this.log.add(`attachments[${idx}].entityId`, "points to a missing record");
     });
     if (this.log.total > 0) throw this.fail();

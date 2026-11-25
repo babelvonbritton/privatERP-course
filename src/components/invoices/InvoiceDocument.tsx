@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/money";
 import { formatDate } from "@/lib/dates";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 import type { Invoice } from "@/lib/domain/types";
+import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { LambdaMark } from "@/components/Logo";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 
@@ -38,10 +39,16 @@ export function InvoiceDocument({
   invoice,
   memberName,
   attachments = EMPTY_ATTACHMENTS,
+  profile = DEFAULT_BUSINESS_PROFILE,
+  logoBlob = null,
 }: {
   invoice: Invoice;
   memberName: string;
   attachments?: InvoiceDocumentAttachment[];
+  /** Business profile shown in the header. Defaults to the placeholder: the Olaseena wordmark, no tagline, address or contacts. The owner's name is never shown. */
+  profile?: BusinessProfile;
+  /** Uploaded logo bytes, or null when the profile has none. */
+  logoBlob?: Blob | null;
 }) {
   const { t, locale } = useI18n();
   const remaining = invoice.total - invoice.paidAmount;
@@ -54,6 +61,31 @@ export function InvoiceDocument({
     dataUrls: Map<string, string>;
     failedIds: Set<string>;
   } | null>(null);
+  /** The logo as an exportable image source, or null while it is still converting. */
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  // The logo converts the same way attachment bytes do, and the export waits
+  // for it too: a PDF or PNG taken mid-conversion would ship the placeholder.
+  useEffect(() => {
+    let cancelled = false;
+    setLogoDataUrl(null);
+    setLogoFailed(false);
+    if (!logoBlob) return;
+    void blobAsDataUrl(logoBlob)
+      .then((url) => {
+        if (!cancelled) setLogoDataUrl(url);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          errorCenter.report(e, { action: "invoice.logo.read" });
+          setLogoFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [logoBlob]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,11 +117,19 @@ export function InvoiceDocument({
   const currentAttachments = loadedAttachments?.attachments === attachments ? loadedAttachments : null;
   const hasAttachmentBlobs = attachments.some((attachment) => attachment.blob !== null);
   const attachmentsReady = !hasAttachmentBlobs || currentAttachments !== null;
-  const attachmentStatus = !attachmentsReady
+  // The logo counts toward readiness too: with no logo there is nothing to
+  // wait for, and a failed conversion falls back to the placeholder.
+  const logoReady = !logoBlob || logoDataUrl !== null || logoFailed;
+  const attachmentStatus = !attachmentsReady || !logoReady
     ? "false"
     : currentAttachments && currentAttachments.failedIds.size > 0
       ? "error"
       : "true";
+
+  const businessName = profile.businessName.trim() || "Olaseena";
+  const tagline = profile.tagline.trim();
+  const address = profile.address.trim();
+  const contacts = profile.contacts.map((c) => c.trim()).filter((c) => c.length > 0);
 
   const ink = "#2B1E2B";
   const muted = "#5C4A5C";
@@ -105,8 +145,15 @@ export function InvoiceDocument({
     >
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, color: accent }}>
-          <LambdaMark size={28} />
-          <span style={{ fontSize: 26, fontWeight: 700, color: ink }}>Olaseena</span>
+          {logoDataUrl ? (
+            <img src={logoDataUrl} alt="" style={{ display: "block", height: 40, maxWidth: 120, objectFit: "contain" }} />
+          ) : (
+            <LambdaMark size={28} />
+          )}
+          <div>
+            <span style={{ fontSize: 26, fontWeight: 700, color: ink }}>{businessName}</span>
+            {tagline && <div style={{ fontSize: 13, fontWeight: 400, color: muted }}>{tagline}</div>}
+          </div>
         </div>
         <div style={{ maxWidth: "100%", textAlign: "right" }}>
           <div style={{ fontSize: 20, fontWeight: 700, overflowWrap: "anywhere" }}>{invoice.number}</div>
@@ -115,6 +162,15 @@ export function InvoiceDocument({
           </div>
         </div>
       </div>
+
+      {(address || contacts.length > 0) && (
+        <div style={{ marginTop: 12, fontSize: 13, color: muted }}>
+          {address && <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{address}</div>}
+          {contacts.map((contact) => (
+            <div key={contact} style={{ overflowWrap: "anywhere" }}>{contact}</div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28, fontSize: 14 }}>
         <div>

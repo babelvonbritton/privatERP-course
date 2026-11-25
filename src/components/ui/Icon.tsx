@@ -34,6 +34,8 @@ const PATHS = {
   file: "M7 3h7l4 4v14H7z|M14 3v4h4",
   upload: "M12 15V5|m8 8 4-4 4 4|M5 19h14",
   home: "M4 11 12 4l8 7|M6 10v10h12V10",
+  /** A building, the placeholder for the business logo until one is uploaded. */
+  building: "M5 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17|M15 9h3a1 1 0 0 1 1 1v11|M3 21h18|M8 7h2|M8 11h2|M8 15h2|M12 7h2|M12 11h2|M12 15h2",
   users: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z|M3 20c0-3 2.5-5 6-5s6 2 6 5|M16 8.5a3 3 0 1 0-1.5-5.6|M17.5 15c2.2.6 3.5 2 3.5 5",
   user: "M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z|M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5",
   book: "M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2z|M12 6v14",

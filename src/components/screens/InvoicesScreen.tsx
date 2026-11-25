@@ -6,6 +6,8 @@ import { getServices, today, effectiveInvoiceStatus } from "@/lib/domain/service
 import type { Course, CurrencyCode, Enrollment, Invoice, InvoiceDisplayStatus, Member, Payment, PaymentMethod } from "@/lib/domain/types";
 import { fractionDigits, getCurrency, subscribeCurrency } from "@/lib/currency";
 import { createId } from "@/lib/storage/utils";
+import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
+import { getStorage } from "@/lib/storage";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
 import { formatDate, parseDate } from "@/lib/dates";
@@ -99,6 +101,8 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [detailPayments, setDetailPayments] = useState<Payment[]>([]);
   const [attachmentRows, setAttachmentRows] = useState<Attachment[]>([]);
   const [attachmentBlobs, setAttachmentBlobs] = useState<Map<string, Blob>>(new Map());
+  const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
+  const [logoBlob, setLogoBlob] = useState<Blob | null>(null);
   const [lightboxAttachment, setLightboxAttachment] = useState<Attachment | null>(null);
   const [confirmDeleteAttachment, setConfirmDeleteAttachment] = useState<Attachment | null>(null);
   const [printOpen, setPrintOpen] = useState(false);
@@ -140,6 +144,29 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
         errorCenter.report(e, { action: "invoice.list" });
       } finally {
         if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The print view shows the business profile, so it loads with the lists
+  // and the logo bytes travel with it.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { profile: stored } = await getStorage().profile.load();
+        if (cancelled) return;
+        setProfile(stored);
+        if (stored.logoAttachmentId) {
+          const blob = await s.attachments.getBlob(stored.logoAttachmentId);
+          if (!cancelled && blob) setLogoBlob(blob);
+        }
+      } catch (e) {
+        errorCenter.report(e, { action: "profile.load" });
       }
     })();
     return () => {
@@ -916,6 +943,8 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                 invoice={detail}
                 memberName={memberById.get(detail.memberId)?.name ?? ""}
                 attachments={printableAttachments}
+                profile={profile}
+                logoBlob={logoBlob}
               />
             </div>
             <div className="flex flex-wrap justify-end gap-2">

@@ -300,6 +300,30 @@ async function desktop(browser) {
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
   });
 
+
+  await check("desktop: business profile reminder and quick setup", async () => {
+    await page.getByText("Set up your business profile").waitFor();
+    await page.getByRole("button", { name: "Quick setup" }).click();
+    const dlg = page.getByRole("dialog");
+    await dlg.getByRole("heading", { name: "Business profile" }).waitFor();
+    // Saving without a name shows the error and stays in the dialog.
+    await dlg.getByRole("button", { name: "Save changes" }).click();
+    await dlg.getByText("Enter a business name to save the profile.").waitFor();
+    await dlg.getByLabel("Business name", { exact: true }).fill("Melody Studio");
+    await dlg.getByLabel("Owner's name", { exact: true }).fill("Rina Hartono");
+    await dlg.getByLabel("Business tagline", { exact: true }).fill("Music lessons for every age");
+    await dlg.getByLabel("Business address", { exact: true }).fill("Jl. Melati 12, Bandung");
+    await dlg.getByLabel("Business contacts", { exact: true }).fill("081234567890");
+    await page.keyboard.press("Enter");
+    await dlg.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    // The reminder is gone once a business name is saved, and the dashboard is still the current screen.
+    if (await page.getByText("Set up your business profile").count()) throw new Error("profile reminder still shown after saving a business name");
+    await page.getByRole("heading", { name: "Dashboard" }).waitFor();
+    await noOverflow(page, "dashboard profile reminder", 1280);
+  });
+
   await check("desktop: add member, search, edit", async () => {
     await nav(page, "Members");
     await page.getByText("No members yet").waitFor();
@@ -532,6 +556,28 @@ async function desktop(browser) {
     await noOverflow(page, "invoices", 1280);
   });
 
+
+  await check("desktop: printed invoice shows the business profile, not the owner", async () => {
+    try {
+      await nav(page, "Invoices");
+      await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+      await page.getByRole("button", { name: "Print invoice", exact: true }).click();
+      const doc = page.getByTestId("invoice-document");
+      await doc.getByText("Melody Studio").waitFor();
+      await doc.getByText("Music lessons for every age").waitFor();
+      await doc.getByText("Jl. Melati 12, Bandung").waitFor();
+      await doc.getByText("081234567890").waitFor();
+      if (await doc.getByText("Rina Hartono").count()) throw new Error("owner name shown on the invoice");
+      await noOverflow(page, "printed invoice profile", 1280);
+    } finally {
+      // Two modals can be stacked here (detail, then print): close the top one first.
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.last().click().catch(() => {});
+      await page.waitForTimeout(300);
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+  });
+
   await check("desktop: payroll excludes an absent session, refreshes a draft run, and lists paid and unpaid sessions", async () => {
     try {
       // The run starts from the session marked present in the attendance check.
@@ -625,6 +671,16 @@ async function desktop(browser) {
     await page.locator('a[href="/en/"]').first().click();
     await page.waitForURL("**/en/**");
     await page.getByRole("button", { name: "Dashboard", exact: true }).first().waitFor();
+  });
+
+
+  await check("desktop: business profile section is first in Settings and keeps the saved name", async () => {
+    await nav(page, "Settings");
+    const headings = await page.locator("main h2").allTextContents();
+    if (headings[0] !== "Business profile") throw new Error(`first Settings section is ${headings[0]}, expected Business profile`);
+    const value = await page.getByLabel("Business name", { exact: true }).inputValue();
+    if (value !== "Melody Studio") throw new Error(`saved business name not shown in Settings: ${value}`);
+    await noOverflow(page, "settings profile", 1280);
   });
 
   await check("desktop: backup downloads a zip", async () => {
@@ -728,7 +784,8 @@ async function desktop(browser) {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Get to know the features" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
-    await page.getByRole("button", { name: "Next" }).click();
+    // Scope to the tour dialog: the dashboard pagination also has a "Next" button.
+    await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
     await page.getByText("Get to know Olaseena").waitFor();
     await page.getByRole("button", { name: "Skip tour" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
@@ -782,6 +839,20 @@ async function mobile(browser) {
     await page.getByRole("button", { name: "Skip tour" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
     await noOverflow(page, "mobile dashboard", 390);
+  });
+
+
+  await check("mobile: business profile reminder and quick setup", async () => {
+    await page.getByText("Set up your business profile").waitFor();
+    await page.getByRole("button", { name: "Quick setup" }).click();
+    const dlg = page.getByRole("dialog");
+    await dlg.getByRole("heading", { name: "Business profile" }).waitFor();
+    await dlg.getByLabel("Business name", { exact: true }).fill("Mobile Studio");
+    await dlg.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    if (await page.getByText("Set up your business profile").count()) throw new Error("profile reminder still shown after saving");
+    await noOverflow(page, "mobile profile reminder", 390);
   });
 
   await check("mobile: add a member through the bottom nav", async () => {
@@ -869,11 +940,11 @@ async function mobileTourSheet(browser) {
   page.setDefaultTimeout(10000);
   currentPage = page;
 
-  await check("mobile tour: sheet docks above the bottom nav on all 10 steps", async () => {
+  await check("mobile tour: sheet docks above the bottom nav on all 11 steps", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 11; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         const dr = dlg?.getBoundingClientRect();
@@ -928,7 +999,7 @@ async function mobileTourSheet(browser) {
       }
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-1.png` });
       if (i === 4) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-5.png` });
-      if (i < 9) {
+      if (i < 10) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -965,7 +1036,7 @@ async function mobileTourShortPhone(browser) {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 11; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         // Scroll the sheet to its end first: on a short phone the longest
@@ -990,7 +1061,7 @@ async function mobileTourShortPhone(browser) {
         if (b.h < 44) throw new Error(`step ${i + 1}: ${b.label} button ${b.h}px tall`);
       }
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-360x740-step-1.png` });
-      if (i < 9) {
+      if (i < 10) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -1820,14 +1891,14 @@ async function shortViewportTour(browser) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   currentPage = page;
-  await check("short viewport: tour tooltip stays inside the viewport on all 10 steps", async () => {
+  await check("short viewport: tour tooltip stays inside the viewport on all 11 steps", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
     // The steps in tour order: the overlay falls back to a centered tooltip
     // when its target is missing, so check each target is really on screen.
-    const targets = ["dashboard", "members", "trainers", "courses", "attendance", "invoices", "payroll", "trash", "settings", "drive"];
-    for (let i = 0; i < 10; i++) {
+    const targets = ["dashboard", "members", "trainers", "courses", "attendance", "invoices", "payroll", "trash", "settings", "drive", "profile"];
+    for (let i = 0; i < 11; i++) {
       const hasTarget = await page.evaluate((t) => !!document.querySelector(`[data-tour="${t}"]`), targets[i]);
       if (!hasTarget) throw new Error(`step ${i + 1}: no [data-tour="${targets[i]}"] target on screen`);
       const box = await page.evaluate(() => {
@@ -1845,7 +1916,7 @@ async function shortViewportTour(browser) {
       if (box.top === null || box.top < 0 || box.bottom > box.vh || !box.skipVisible) {
         throw new Error(`step ${i + 1}: tooltip top ${box.top} bottom ${box.bottom} vs viewport ${box.vh}, Skip visible ${box.skipVisible}`);
       }
-      if (i < 9) {
+      if (i < 10) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -1946,7 +2017,7 @@ async function backupV2Checks(browser) {
     if (await page.locator("tr", { hasText: "Backup V2" }).count()) throw new Error("deleted member still listed");
     await openBackupDialog(page);
     await page.getByRole("tab", { name: "Restore" }).click();
-    await page.locator('input[type="file"]').setInputFiles(V2_PATH);
+    await page.getByRole("dialog").locator('input[type="file"]').setInputFiles(V2_PATH);
     await applyRestore(page);
     await nav(page, "Members");
     await page.getByText("Backup V2", { exact: true }).waitFor({ timeout: 8000 });
@@ -1980,7 +2051,7 @@ async function backupV2Checks(browser) {
     await oldPage.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
     await openBackupDialog(oldPage);
     await oldPage.getByRole("tab", { name: "Restore" }).click();
-    await oldPage.locator('input[type="file"]').setInputFiles(V1_FIXTURE);
+    await oldPage.getByRole("dialog").locator('input[type="file"]').setInputFiles(V1_FIXTURE);
     await applyRestore(oldPage);
     await nav(oldPage, "Members");
     await oldPage.getByText("Ana", { exact: true }).waitFor({ timeout: 8000 });
@@ -2225,7 +2296,7 @@ async function attachmentChecks(browser) {
     if (await page.getByText("Attachment Ana").count()) throw new Error("deleted invoice still listed");
     await openBackupDialog(page);
     await page.getByRole("tab", { name: "Restore" }).click();
-    await page.locator('input[type="file"]').setInputFiles(ATT_BACKUP);
+    await page.getByRole("dialog").locator('input[type="file"]').setInputFiles(ATT_BACKUP);
     await applyRestore(page);
     await nav(page, "Invoices");
     await page.getByText("Attachment Ana", { exact: true }).waitFor({ timeout: 8000 });
@@ -2612,23 +2683,27 @@ async function capacityChecks(browser) {
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Trio" }).waitFor();
 
-    // The cap is already reached by the default marks (Ana present), so the
-    // second member cannot be marked present or late — only absent.
+    // The cap is already reached by the default marks, so the member without
+    // a place cannot be marked present or late — only absent. Which member
+    // holds the place depends on enrollment order (ids are random UUIDs), so
+    // read it from the UI instead of assuming Ana is first.
     await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();
-    const budiPresent = page.getByRole("radiogroup", { name: "Budi" }).getByRole("radio", { name: "Present" });
-    const budiLate = page.getByRole("radiogroup", { name: "Budi" }).getByRole("radio", { name: "Late" });
-    const budiAbsent = page.getByRole("radiogroup", { name: "Budi" }).getByRole("radio", { name: "Absent" });
-    if (!(await budiPresent.isDisabled())) throw new Error("Present is enabled for Budi past the cap");
-    if (!(await budiLate.isDisabled())) throw new Error("Late is enabled for Budi past the cap");
-    if (await budiAbsent.isDisabled()) throw new Error("Absent is disabled for Budi past the cap");
+    const holder = (await page.getByRole("radiogroup", { name: "Ana" }).getByRole("radio", { name: "Present" }).getAttribute("aria-checked")) === "true" ? "Ana" : "Budi";
+    const other = holder === "Ana" ? "Budi" : "Ana";
+    const otherPresent = page.getByRole("radiogroup", { name: other }).getByRole("radio", { name: "Present" });
+    const otherLate = page.getByRole("radiogroup", { name: other }).getByRole("radio", { name: "Late" });
+    const otherAbsent = page.getByRole("radiogroup", { name: other }).getByRole("radio", { name: "Absent" });
+    if (!(await otherPresent.isDisabled())) throw new Error(`Present is enabled for ${other} past the cap`);
+    if (!(await otherLate.isDisabled())) throw new Error(`Late is enabled for ${other} past the cap`);
+    if (await otherAbsent.isDisabled()) throw new Error(`Absent is disabled for ${other} past the cap`);
     await page.getByRole("button", { name: "Mark attendance" }).click();
     await toast(page, "Attendance saved");
 
-    // Freeing Ana's place lets Budi take it.
-    await page.getByRole("radiogroup", { name: "Ana" }).getByRole("radio", { name: "Absent" }).click();
+    // Freeing the holder's place lets the other member take it.
+    await page.getByRole("radiogroup", { name: holder }).getByRole("radio", { name: "Absent" }).click();
     await page.getByText("0 of 1 attending").waitFor();
-    if (await budiPresent.isDisabled()) throw new Error("Present is still disabled for Budi after a place freed up");
-    await budiPresent.click();
+    if (await otherPresent.isDisabled()) throw new Error(`Present is still disabled for ${other} after a place freed up`);
+    await otherPresent.click();
     await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();
     await page.getByRole("button", { name: "Mark attendance" }).click();
     await toast(page, "Attendance saved");

@@ -5,6 +5,7 @@ import { monthRange, todayIso } from "@/lib/dates";
 import { nextInvoiceNumber } from "@/lib/money";
 import { DAILY_SWITCH_LIMIT, convert, fetchRate, localDateString, setCurrency } from "@/lib/currency";
 import { PREFERENCE_KEYS } from "@/lib/storage/PreferenceService";
+import { actorForProfile, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import type { StorageService } from "@/lib/storage";
 import { getStorage } from "@/lib/storage";
 import type { Clock } from "@/lib/storage/types";
@@ -101,9 +102,15 @@ function assertDateOnSchedule(field: string, date: string, course: Course): void
 abstract class ServiceBase {
   constructor(
     protected readonly storage: StorageService,
-    protected readonly actor: Actor,
+    /** The actor new records and audit entries are stamped with. Mutable so the shared services can follow the business profile without a rebuild; a Services built directly with an explicit actor keeps that actor unless setActor is called on it. */
+    protected actor: Actor,
     protected readonly clock: Clock = Date.now,
   ) {}
+
+  /** Re-stamps this service with a new actor. New records and audit entries from here on use it; records already written keep theirs. */
+  setActor(actor: Actor): void {
+    this.actor = actor;
+  }
 
   protected get db(): Db {
     return this.storage.db;
@@ -1323,7 +1330,8 @@ export class Services {
 
   constructor(
     readonly storage: StorageService,
-    readonly actor: Actor = OWNER_ACTOR,
+    /** The actor new records are stamped with. Mutable so the shared services can follow the business profile; tests that build Services directly with an explicit actor keep that actor unless setActor is called. */
+    public actor: Actor = OWNER_ACTOR,
     clock: Clock = Date.now,
   ) {
     this.members = new MemberService(storage, actor, clock);
@@ -1338,11 +1346,13 @@ export class Services {
     // The attachment audit entries use the same shape as the other services.
     // The write runs inside the attachment transaction, so the audit row
     // joins that transaction and is never written without its attachment.
+    // The callback reads the current actor, so a profile change re-stamps
+    // attachment audit entries too, with no rebuild.
     this.attachments = new AttachmentService(storage.db, async (action, entity, entityId, detail) => {
       await storage.audit.add({
         id: createId(),
-        orgId: actor.orgId,
-        actorId: actor.id,
+        orgId: this.actor.orgId,
+        actorId: this.actor.id,
         actorName: "Owner",
         action,
         entity,
@@ -1351,6 +1361,19 @@ export class Services {
         at: clock(),
       });
     });
+  }
+
+  /**
+   * Re-stamps every service with a new actor. The next record any service
+   * creates carries the new org and owner ids, and audit entries follow the
+   * same actor, so the two never disagree. Records already written keep
+   * the ids they were stamped with.
+   */
+  setActor(actor: Actor): void {
+    this.actor = actor;
+    for (const service of [this.members, this.trainers, this.courses, this.attendance, this.invoices, this.payroll, this.dashboard, this.currency, this.trash]) {
+      service.setActor(actor);
+    }
   }
 }
 
@@ -1365,6 +1388,16 @@ export function getServices(): Services {
 /** Forgets the shared services. Used by tests alongside resetStorage. */
 export function resetServices(): void {
   shared = null;
+}
+
+/**
+ * Re-stamps the shared services with the actor the business profile implies,
+ * so the next record created carries the profile's business and owner names.
+ * Call it at boot after loading the profile, and again after every profile
+ * save: no restart is needed for the change to take effect.
+ */
+export function applyBusinessProfile(profile: BusinessProfile): void {
+  getServices().setActor(actorForProfile(profile));
 }
 
 /** Today in the user's local time, as YYYY-MM-DD. */

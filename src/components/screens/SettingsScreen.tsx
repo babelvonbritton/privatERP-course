@@ -8,6 +8,7 @@ import { APP_VERSION } from "@/lib/appInfo";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DB_SCHEMA_VERSION } from "@/lib/backup/constants";
 import { BackupDialog } from "../backup/BackupDialog";
 import { GuideDialog } from "../GuideDialog";
+import { BusinessProfileSection } from "../settings/BusinessProfileSection";
 import { CurrencySection } from "../settings/CurrencySection";
 import { DriveSection } from "../settings/DriveSection";
 import { RetentionSection } from "../settings/RetentionSection";
@@ -62,6 +63,8 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
         </button>
       </div>
       <GuideDialog open={guideOpen} section="settings" onClose={() => setGuideOpen(false)} />
+
+      <BusinessProfileSection />
 
       <SectionCard label={t("settings.language")} hint={t("settings.languageHint")}>
         <div className="flex flex-wrap gap-2">

@@ -107,7 +107,10 @@
     "revenueMonth": "Pendapatan bulan ini",
     "title": "Dasbor",
     "upcoming": "Sesi mendatang",
-    "viewAll": "Lihat semua"
+    "viewAll": "Lihat semua",
+    "profileReminderTitle": "Siapkan profil bisnis Anda",
+    "profileReminderBody": "Tambahkan nama bisnis, logo, dan detail kontak agar tampil di tagihan Anda.",
+    "quickSetup": "Pengaturan cepat"
   },
   "date": {
     "clear": "Hapus",
@@ -479,7 +482,9 @@
       "moneyDesc": "Pendapatan yang terkumpul bulan ini dan total tagihan yang belum dibayar. Tagihan jatuh tempo ditampilkan terpisah.",
       "next": "Apa selanjutnya",
       "nextDesc": "Sesi mendatang dan tagihan terbaru, agar Anda selalu tahu apa yang perlu diperhatikan.",
-      "title": "Yang bisa Anda lakukan di dasbor"
+      "title": "Yang bisa Anda lakukan di dasbor",
+      "profile": "Siapkan profil bisnis Anda",
+      "profileDesc": "Selama nama bisnis Anda kosong, pengingat di bagian atas dasbor membuka pengaturan cepat. Nama, logo, slogan, alamat, dan kontak yang Anda atur muncul di tagihan Anda."
     },
     "invoices": {
       "intro": "Tagihan adalah penagihan untuk member. Setiap tagihan memiliki nomor, biaya, tanggal jatuh tempo, dan status.",
@@ -516,7 +521,9 @@
       "languageDesc": "Seluruh aplikasi berganti bahasa, termasuk tanggal. Nama dan catatan tetap memakai teks yang Anda ketik.",
       "title": "Yang bisa Anda lakukan di pengaturan",
       "tour": "Ulangi tur",
-      "tourDesc": "Jelajahi lagi layar-layar utama dengan penjelasan singkat."
+      "tourDesc": "Jelajahi lagi layar-layar utama dengan penjelasan singkat.",
+      "profile": "Profil bisnis",
+      "profileDesc": "Bagian pertama di Pengaturan. Atur nama bisnis, logo, slogan, alamat, dan kontak Anda; nama bisnis wajib diisi, sisanya opsional."
     },
     "trainers": {
       "add": "Tambah pengajar",
@@ -898,7 +905,7 @@
         "title": "Kursus"
       },
       "dashboard": {
-        "body": "Ini adalah ringkasan Anda (dasbor). Di sini terlihat uang yang terkumpul bulan ini, tagihan yang belum dibayar, seberapa sering member hadir, dan apa yang akan datang.",
+        "body": "Ini adalah ringkasan Anda (dasbor). Di sini terlihat uang yang terkumpul bulan ini, tagihan yang belum dibayar, seberapa sering member hadir, dan apa yang akan datang. Selama nama bisnis Anda kosong, pengingat di sini membuka pengaturan cepat untuk profil bisnis Anda.",
         "title": "Dasbor"
       },
       "drive": {
@@ -918,7 +925,7 @@
         "title": "Penggajian"
       },
       "settings": {
-        "body": "Di sinilah Anda mengganti bahasa, membuat cadangan, dan mengulang tur ini (pengaturan). Cadangan adalah berkas ZIP yang Anda simpan di perangkat sendiri.",
+        "body": "Di sinilah Anda mengganti bahasa, membuat cadangan, dan mengulang tur ini (pengaturan). Profil bisnis Anda ada di paling atas: nama, logo, dan kontaknya tampil di tagihan Anda. Cadangan adalah berkas ZIP yang Anda simpan di perangkat sendiri.",
         "title": "Pengaturan"
       },
       "trainers": {
@@ -928,6 +935,10 @@
       "trash": {
         "title": "Tempat sampah",
         "body": "Di sinilah catatan yang dihapus menunggu (tempat sampah). Catatan tetap di sini sampai waktu hapus otomatis habis, jadi kesalahan masih bisa dibatalkan. Pulihkan satu item, atau hapus permanen."
+      },
+      "profile": {
+        "title": "Profil bisnis",
+        "body": "Ini adalah profil bisnis Anda (profil bisnis). Atur nama bisnis, logo, slogan, alamat, dan kontak di sini. Nama bisnis dan nama pemilik juga menjadi identitas catatan baru, dan nama serta kontak muncul di setiap tagihan."
       }
     },
     "title": "Kenali Olaseena"
@@ -1043,5 +1054,28 @@
     "restored": "{label} dipulihkan",
     "movedToTrash": "{label} dipindahkan ke tempat sampah",
     "retentionHint": "Berlaku juga untuk semua yang sudah ada di tempat sampah. Item dihapus permanen setelah waktunya habis."
+  },
+  "profile": {
+    "title": "Profil bisnis",
+    "hint": "Nama bisnis, logo, dan detail kontak Anda. Semuanya tampil di tagihan, dan nama bisnis serta nama pemilik menjadi identitas catatan baru.",
+    "logo": "Logo bisnis",
+    "logoHint": "Ditampilkan di tagihan Anda. JPG, PNG, WebP, atau GIF, maksimal 4 MB.",
+    "uploadLogo": "Unggah logo",
+    "changeLogo": "Ganti logo",
+    "removeLogo": "Hapus logo",
+    "businessName": "Nama bisnis",
+    "businessNameHint": "Ditampilkan di tagihan dan dipakai untuk mengidentifikasi catatan baru.",
+    "businessNamePlaceholder": "mis. Melody Studio",
+    "ownerName": "Nama pemilik",
+    "ownerNameHint": "Dipakai untuk mengidentifikasi catatan baru. Tidak pernah tampil di tagihan.",
+    "ownerNamePlaceholder": "mis. Ayu Lestari",
+    "address": "Alamat bisnis",
+    "addressPlaceholder": "Jalan, kota, dan kode pos",
+    "contacts": "Kontak bisnis",
+    "contactsHint": "Nomor telepon, email, atau tautan — satu per kontak. Ditampilkan di tagihan Anda.",
+    "contactsPlaceholder": "Ketik kontak, lalu tekan Enter…",
+    "tagline": "Slogan bisnis",
+    "taglinePlaceholder": "mis. Les musik untuk segala usia",
+    "nameRequired": "Masukkan nama bisnis untuk menyimpan profil."
   }
 }
