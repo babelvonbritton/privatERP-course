@@ -63,7 +63,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, courseWeekdays, dateWeekday, dedupeSkills, sessionDurationHours } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionDurationHours, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -556,6 +556,14 @@ export class AttendanceService extends ServiceBase {
     if (!course) throw new ValidationError("courseId", "course does not exist", "invalid");
     if (!trainer) throw new ValidationError("trainerId", "trainer does not exist", "invalid");
     assertDateOnSchedule("date", data.date, course);
+    // A session trainer must have at least one of the course's required
+    // skills; a course with no required skills accepts any trainer.
+    const required = courseRequiredSkills(course);
+    if (required.length > 0 && trainerSkillMatchCount(trainer, required) === 0) {
+      throw new ValidationError("trainerId", "trainer does not teach any of the course's required skills", "unqualifiedTrainer", undefined, {
+        skills: required.join(", "),
+      });
+    }
     return this.db.transaction("rw", [this.db.sessions, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "session");
       if (seenId) {

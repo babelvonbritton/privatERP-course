@@ -763,11 +763,13 @@
   },
   "session": {
     "add": "New session",
+    "chooseCourseFirst": "Choose a course first to see which trainers qualify.",
     "delete": "Delete session",
     "deleteBody": "Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.",
     "edit": "Edit session",
     "empty": "No sessions yet",
     "noQualifiedTrainer": "No trainer teaches any of the skills this course requires. Add the skill to a trainer first.",
+    "noRequiredSkills": "No required skills — any trainer can teach this session.",
     "title": "Sessions",
     "trainerMatches": "Matches {count} of {required} required skills"
   },
@@ -954,7 +956,8 @@
     "positive": "{field} must be more than zero.",
     "required": "{field} is required.",
     "time": "{field} must be a time like 09:00.",
-    "tooLong": "{field} can have at most {limit} characters."
+    "tooLong": "{field} can have at most {limit} characters.",
+    "unqualifiedTrainer": "{field} does not teach any of the skills this course requires: {skills}."
   },
   "warn": {
     "unknownFields": "{count, plural, one {Unknown fields in # record were ignored} other {Unknown fields in # records were ignored}}",

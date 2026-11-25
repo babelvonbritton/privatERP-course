@@ -101,6 +101,12 @@ async function pickSelect(page, label, option) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+/** TagInput: type a skill into the tagged field and confirm it with Enter. */
+async function addRequiredSkill(page, skill) {
+  await page.getByLabel("Required skills", { exact: true }).fill(skill);
+  await page.keyboard.press("Enter");
+}
+
 /** The Attendance session picker shares its "Course" label with the dashboard filter below it; the picker is the first of the two. */
 async function pickSessionCourse(page, option) {
   await page.getByRole("combobox", { name: "Course", exact: true }).first().click();
@@ -116,6 +122,32 @@ async function pickTime(page, label, time) {
   await panel.getByRole("group", { name: "Hour" }).getByRole("button", { name: hour, exact: true }).click();
   await panel.getByRole("group", { name: "Minute" }).getByRole("button", { name: minute, exact: true }).click();
   // Picking a minute closes the panel; wait until it is gone so the next pick sees only one panel.
+  await panel.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+}
+
+async function pickDate(page, date) {
+  // The DatePicker is a popover calendar with no text input: open it, step
+  // to the target month, then click the in-month day button. Out-of-month
+  // spillover days share the number, so the in-month class disambiguates.
+  await page.getByLabel("Date", { exact: true }).click();
+  const panel = page.locator(".anim-pop[data-state='open']");
+  await panel.waitFor();
+  const targetMonth = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date);
+  for (let i = 0; i < 12; i++) {
+    const label = (await panel.locator("span.capitalize").first().textContent())?.trim();
+    if (label === targetMonth) break;
+    await panel.getByRole("button", { name: "Next month" }).click();
+  }
+  const day = date.getDate();
+  const clicked = await panel.evaluate((el, d) => {
+    const btns = [...el.querySelectorAll("button")].filter(
+      (b) => b.textContent.trim() === String(d) && b.className.includes("text-ink"),
+    );
+    if (btns.length !== 1) return btns.length;
+    btns[0].click();
+    return 1;
+  }, day);
+  if (clicked !== 1) throw new Error(`expected 1 in-month day button for ${day}, got ${clicked}`);
   await panel.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
 }
 
@@ -216,6 +248,7 @@ async function desktop(browser) {
     await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
     await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
     await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.keyboard.press("Enter");
     await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
@@ -231,7 +264,7 @@ async function desktop(browser) {
       await page.getByLabel("Level", { exact: true }).fill("Beginner");
       await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
       await page.getByLabel("Capacity", { exact: true }).fill("10");
-      await pickSelect(page, "Trainer", "Budi Santoso");
+      await addRequiredSkill(page, "Piano");
       await page.getByRole("checkbox", { name: "Mon" }).check();
       await page.getByRole("checkbox", { name: "Wed" }).check();
       await page.getByRole("checkbox", { name: "Fri" }).check();
@@ -261,6 +294,7 @@ async function desktop(browser) {
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:30");
+    await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Scales" }).waitFor();
@@ -880,6 +914,7 @@ async function mobileScreensWithData(browser) {
     await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
     await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
     await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.keyboard.press("Enter");
     await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
@@ -889,7 +924,7 @@ async function mobileScreensWithData(browser) {
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     await page.getByLabel("Capacity", { exact: true }).fill("10");
-    await pickSelect(page, "Trainer", "Budi Santoso");
+    await addRequiredSkill(page, "Piano");
     await page.getByRole("checkbox", { name: "Mon" }).check();
     await page.getByRole("checkbox", { name: "Wed" }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -908,6 +943,7 @@ async function mobileScreensWithData(browser) {
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:30");
+    await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Scales" }).waitFor();
@@ -1297,6 +1333,7 @@ async function weeklySlotChecks(browser) {
     await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
     await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
     await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.keyboard.press("Enter");
     await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
@@ -1309,7 +1346,7 @@ async function weeklySlotChecks(browser) {
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     await page.getByLabel("Capacity", { exact: true }).fill("10");
-    await pickSelect(page, "Trainer", "Budi Santoso");
+    await addRequiredSkill(page, "Piano");
     // The form starts with Monday checked, so clear it first: the slot must be exactly the days asked for.
     await page.getByRole("checkbox", { name: "Mon" }).uncheck();
     for (const d of days) await page.getByRole("checkbox", { name: short[d] }).check();
@@ -1350,6 +1387,7 @@ async function weeklySlotChecks(browser) {
     await page.getByLabel("Topic", { exact: true }).fill("On-slot scales");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:00");
+    await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.getByText("On-slot scales").waitFor();
@@ -1399,6 +1437,7 @@ async function timePickerChecks(browser) {
     await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
     await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
     await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.keyboard.press("Enter");
     await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
@@ -1408,7 +1447,7 @@ async function timePickerChecks(browser) {
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     await page.getByLabel("Capacity", { exact: true }).fill("10");
-    await pickSelect(page, "Trainer", "Budi Santoso");
+    await addRequiredSkill(page, "Piano");
     await page.getByRole("checkbox", { name: todayShort }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
@@ -1434,6 +1473,7 @@ async function timePickerChecks(browser) {
     await pickTime(page, "End time", "11:30");
     await expectTrigger(page, "Start time", "10:00");
     await expectTrigger(page, "End time", "11:30");
+    await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
@@ -2169,11 +2209,208 @@ async function trashChecks(browser) {
   await context.close();
 }
 
+/** v0.9.0 skills: tag input suggestions and create-new, ranked trainer picker, none-qualified message, standalone session form. */
+async function skillsSessionChecks(browser) {
+  const todayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date().getDay()];
+  // Same weekday next week: always on-slot for a course that meets today,
+  // and a different date from any session created for today.
+  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  async function addTrainer(page, name, subjects) {
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill(name);
+    await page.getByLabel("Email", { exact: true }).fill(`${name.split(" ")[0].toLowerCase()}@example.com`);
+    for (const skill of subjects) {
+      await page.getByLabel("Subjects", { exact: true }).fill(skill);
+      await page.keyboard.press("Enter");
+    }
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+  }
+
+  async function addCourse(page, title, skills) {
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill(title);
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await page.getByLabel("Capacity", { exact: true }).fill("10");
+    for (const skill of skills) await addRequiredSkill(page, skill);
+    await page.getByRole("checkbox", { name: todayShort }).check();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+  }
+
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("skills: tag input suggests an existing skill and creates a new one", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await nav(page, "Trainers");
+    await addTrainer(page, "Budi Santoso", ["Piano", "Guitar"]);
+    await addTrainer(page, "Siti Rahma", ["Guitar"]);
+    await addTrainer(page, "Dewi Lestari", ["Drums"]);
+
+    await nav(page, "Courses");
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Music Skills");
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await page.getByLabel("Capacity", { exact: true }).fill("10");
+    // Suggestion drawn from the trainers' subjects: typing "Pia" offers Piano.
+    await page.getByLabel("Required skills", { exact: true }).fill("Pia");
+    await page.getByRole("option", { name: "Piano", exact: true }).click();
+    await page.getByRole("button", { name: "Remove Piano" }).waitFor();
+    // A skill nobody uses yet is offered as a create row instead.
+    await page.getByLabel("Required skills", { exact: true }).fill("Cello");
+    await page.getByRole("option", { name: "Add “Cello”", exact: true }).waitFor();
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Remove Cello" }).waitFor();
+    // The new skill is removable too: drop it again, then add the second
+    // skill the trainers teach via a suggestion, so the course requires
+    // Piano and Guitar.
+    await page.getByRole("button", { name: "Remove Cello" }).click();
+    await page.getByRole("button", { name: "Remove Cello" }).waitFor({ state: "detached" });
+    await page.getByLabel("Required skills", { exact: true }).fill("Gui");
+    await page.getByRole("option", { name: "Guitar", exact: true }).click();
+    await page.getByRole("button", { name: "Remove Guitar" }).waitFor();
+    await page.getByRole("checkbox", { name: todayShort }).check();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Music Skills" }).waitFor();
+    await page.getByText("Piano, Guitar").waitFor();
+    await noOverflow(page, "courses with skills", 1280);
+  });
+
+  await check("skills: standalone session ranks trainers by match count and excludes zero-match", async () => {
+    await page.getByRole("button", { name: "New session", exact: true }).first().click();
+    await page.getByText("Choose a course first to see which trainers qualify.").waitFor();
+    await pickSelect(page, "Course", "Music Skills");
+    await page.getByText("Required skills: Piano, Guitar").waitFor();
+    const order = await page.evaluate(() => {
+      const group = document.querySelector('[role="radiogroup"]');
+      return [...(group?.querySelectorAll("label") ?? [])].map((l) => l.textContent ?? "");
+    });
+    if (order.length !== 2) throw new Error(`expected 2 qualified trainers, got ${order.length}: ${order.join(" | ")}`);
+    if (!order[0].includes("Budi Santoso") || !order[0].includes("Matches 2 of 2 required skills")) {
+      throw new Error(`richer trainer should be first with 2 matches, got: ${order[0]}`);
+    }
+    if (!order[1].includes("Siti Rahma") || !order[1].includes("Matches 1 of 2 required skills")) {
+      throw new Error(`second trainer should be Siti with 1 match, got: ${order[1]}`);
+    }
+    if (order.join(" ").includes("Dewi")) throw new Error("zero-match trainer Dewi is listed");
+    await page.getByLabel("Topic", { exact: true }).fill("Ranked session");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:00");
+    await page.getByRole("radio", { name: "Budi Santoso" }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await noOverflow(page, "standalone session", 1280);
+  });
+
+  await check("skills: none-qualified message shows and the session cannot be submitted", async () => {
+    // Close any modal a previous check left open, so this check starts on the list screen.
+    const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+    if (await cancel.count()) await cancel.first().click().catch(() => {});
+    await addCourse(page, "Harp Basics", ["Harp"]);
+    await page.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(page, "Course", "Harp Basics");
+    await page.getByText("No trainer teaches any of the skills this course requires.").waitFor();
+    if (!(await page.getByRole("button", { name: "Add", exact: true }).last().isDisabled())) {
+      throw new Error("Add is enabled with no qualified trainer");
+    }
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
+
+  await check("skills: course-detail session form picks a qualified trainer too", async () => {
+    const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+    if (await cancel.count()) await cancel.first().click().catch(() => {});
+    await page.locator("tr", { hasText: "Music Skills" }).click();
+    await page.getByText("Enrollments").first().waitFor();
+    await page.getByRole("button", { name: "New session" }).click();
+    // Today already has the standalone session for this course (one session
+    // per course per date), so use the same weekday next week instead.
+    await pickDate(page, nextWeek);
+    await page.getByLabel("Topic", { exact: true }).fill("Detail session");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:00");
+    await page.getByRole("radio", { name: "Siti Rahma" }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.getByText("Detail session").waitFor();
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("skills: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+
+  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const mobilePage = await mobileContext.newPage();
+  mobilePage.setDefaultTimeout(10000);
+  currentPage = mobilePage;
+  const mobileErrors = [];
+  mobilePage.on("pageerror", (e) => mobileErrors.push(`pageerror: ${e.message}`));
+  mobilePage.on("console", (m) => {
+    if (m.type() === "error") mobileErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("skills mobile: standalone session form fits 390px and saves", async () => {
+    await mobilePage.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(mobilePage);
+    await mobilePage.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await mobilePage.getByRole("button", { name: "Skip tour" }).click();
+    const go = async (name) => {
+      if (name === "Trainers") {
+        await mobilePage.getByRole("button", { name: "More", exact: true }).click();
+        await mobilePage.getByRole("button", { name, exact: true }).click();
+      } else {
+        await nav(mobilePage, name);
+      }
+    };
+    await go("Trainers");
+    await addTrainer(mobilePage, "Budi Santoso", ["Piano"]);
+    await nav(mobilePage, "Courses");
+    await addCourse(mobilePage, "Piano Basics", ["Piano"]);
+    await mobilePage.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(mobilePage, "Course", "Piano Basics");
+    await mobilePage.getByLabel("Topic", { exact: true }).fill("Mobile session");
+    await pickTime(mobilePage, "Start time", "10:00");
+    await pickTime(mobilePage, "End time", "11:00");
+    await mobilePage.getByRole("radio", { name: "Budi Santoso" }).click();
+    await noOverflow(mobilePage, "standalone session mobile", 390);
+    await mobilePage.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(mobilePage, "Saved");
+    await noOverflow(mobilePage, "courses mobile after session", 390);
+  });
+
+  await check("skills mobile: no console errors or page errors", async () => {
+    if (mobileErrors.length) throw new Error(mobileErrors.slice(0, 3).join(" | "));
+    const alerts = await mobilePage.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await mobileContext.close();
+}
+
 const browser = await chromium.launch(launchOptions());
 try {
   await desktop(browser);
   await weeklySlotChecks(browser);
   await timePickerChecks(browser);
+  await skillsSessionChecks(browser);
   await printChecks(browser);
   await darkDesktop(browser);
   await currencyChecks(browser);

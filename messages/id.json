@@ -763,11 +763,13 @@
   },
   "session": {
     "add": "Sesi baru",
+    "chooseCourseFirst": "Pilih kursus dulu untuk melihat pengajar yang memenuhi syarat.",
     "delete": "Hapus sesi",
     "deleteBody": "Hapus sesi ini? Sesi akan dipindahkan ke tempat sampah. Anda bisa memulihkannya dari sana. Catatan kehadirannya juga ikut terhapus.",
     "edit": "Ubah sesi",
     "empty": "Belum ada sesi",
     "noQualifiedTrainer": "Tidak ada pengajar yang mengajar satu pun keterampilan yang dibutuhkan kursus ini. Tambahkan keterampilan itu ke seorang pengajar terlebih dahulu.",
+    "noRequiredSkills": "Tidak ada keterampilan wajib — pengajar mana pun bisa mengajar sesi ini.",
     "title": "Sesi",
     "trainerMatches": "Cocok {count} dari {required} keterampilan wajib"
   },
@@ -954,7 +956,8 @@
     "positive": "{field} harus lebih dari nol.",
     "required": "{field} wajib diisi.",
     "time": "{field} harus berupa jam seperti 09:00.",
-    "tooLong": "{field} maksimal {limit} karakter."
+    "tooLong": "{field} maksimal {limit} karakter.",
+    "unqualifiedTrainer": "{field} tidak mengajar satu pun keterampilan yang dibutuhkan kursus ini: {skills}."
   },
   "warn": {
     "unknownFields": "{count, plural, one {Kolom tak dikenal pada # catatan diabaikan} other {Kolom tak dikenal pada # catatan diabaikan}}",

@@ -83,6 +83,15 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
 
+  const [standaloneOpen, setStandaloneOpen] = useState(false);
+  const [standaloneCourseId, setStandaloneCourseId] = useState(NONE);
+  const [standaloneDate, setStandaloneDate] = useState<string | null>(today());
+  const [standaloneTopic, setStandaloneTopic] = useState("");
+  const [standaloneStart, setStandaloneStart] = useState("09:00");
+  const [standaloneEnd, setStandaloneEnd] = useState("10:00");
+  const [standaloneTrainerId, setStandaloneTrainerId] = useState("");
+  const [standaloneError, setStandaloneError] = useState<string | null>(null);
+
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // The price label follows the current currency setting.
@@ -134,6 +143,73 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     () => (selected ? rankTrainersForCourse(trainers, courseRequiredSkills(selected)) : []),
     [selected, trainers],
   );
+
+  const standaloneCourse = useMemo(() => courses.find((c) => c.id === standaloneCourseId) ?? null, [courses, standaloneCourseId]);
+  /** Trainers qualified for a standalone session, ranked by matching required skills. */
+  const rankedStandaloneTrainers = useMemo(
+    () => (standaloneCourse ? rankTrainersForCourse(trainers, courseRequiredSkills(standaloneCourse)) : []),
+    [standaloneCourse, trainers],
+  );
+
+  const openStandalone = () => {
+    setStandaloneCourseId(NONE);
+    setStandaloneDate(today());
+    setStandaloneTopic("");
+    setStandaloneStart("09:00");
+    setStandaloneEnd("10:00");
+    setStandaloneTrainerId("");
+    setStandaloneError(null);
+    setStandaloneOpen(true);
+  };
+
+  const submitStandaloneSession = async () => {
+    if (!standaloneCourse || !standaloneDate || !standaloneTopic.trim()) return;
+    const dayError = scheduledDayError(standaloneDate, standaloneCourse, "field.date");
+    if (dayError) {
+      setStandaloneError(dayError);
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(standaloneStart) || !/^\d{2}:\d{2}$/.test(standaloneEnd)) {
+      setStandaloneError(t("validation.time", { field: t("field.startTime") }));
+      return;
+    }
+    const startMinutes = timeToMinutes(standaloneStart);
+    const endMinutes = timeToMinutes(standaloneEnd);
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+      setStandaloneError(t("validation.endAfterStart"));
+      return;
+    }
+    if (rankedStandaloneTrainers.length === 0) {
+      setStandaloneError(t("session.noQualifiedTrainer"));
+      return;
+    }
+    if (!standaloneTrainerId) {
+      setStandaloneError(t("validation.required", { field: t("field.trainer") }));
+      return;
+    }
+    try {
+      await getServices().attendance.createSession({
+        courseId: standaloneCourse.id,
+        date: standaloneDate,
+        topic: standaloneTopic.trim(),
+        trainerId: standaloneTrainerId,
+        trainerPresent: false,
+        startTime: standaloneStart,
+        endTime: standaloneEnd,
+        idempotencyKey: createId(),
+      });
+      errorCenter.notify({ key: "toast.saved" });
+      setStandaloneOpen(false);
+      setStandaloneTopic("");
+      setStandaloneDate(today());
+      setStandaloneTrainerId("");
+      setStandaloneError(null);
+      await load(query);
+      if (selected?.id === standaloneCourse.id) await loadDetail(selected.id);
+    } catch (e) {
+      errorCenter.report(e, { action: "session.create" });
+    }
+  };
 
   const openDetail = (course: Course) => {
     setSelected(course);
@@ -369,9 +445,14 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <Icon name="help" size={18} />
           </button>
         </div>
-        <Button className="max-sm:min-h-11" icon="plus" onClick={openAdd}>
-          {t("course.add")}
-        </Button>
+        <div className="flex gap-2">
+          <Button className="max-sm:min-h-11" variant="soft" icon="plus" onClick={openStandalone}>
+            {t("session.add")}
+          </Button>
+          <Button className="max-sm:min-h-11" icon="plus" onClick={openAdd}>
+            {t("course.add")}
+          </Button>
+        </div>
       </div>
 
       <SearchField value={query} onChange={setQuery} placeholder={t("course.search")} clearLabel={t("search.clear")} className="w-full md:max-w-sm" />
@@ -516,6 +597,79 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <Button className="max-sm:min-h-11" type="submit">{t("action.save")}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={standaloneOpen} onOpenChange={setStandaloneOpen} title={t("session.add")}>
+        <div className="flex flex-col gap-4">
+          <Field label={t("field.course")} htmlFor="standalone-course">
+            <Select
+              value={standaloneCourseId}
+              onChange={(v) => {
+                setStandaloneCourseId(v);
+                setStandaloneTrainerId("");
+                setStandaloneError(null);
+              }}
+              ariaLabel={t("field.course")}
+              className="w-full"
+              options={[
+                { value: NONE, label: t("field.course") },
+                ...courses
+                  .filter((c) => c.status === "active")
+                  .map((c) => ({ value: c.id, label: c.title })),
+              ]}
+            />
+          </Field>
+          {standaloneCourse && (
+            <p className="text-sm text-muted">
+              {t("field.requiredSkills")}:{" "}
+              {courseRequiredSkills(standaloneCourse).length > 0 ? courseRequiredSkills(standaloneCourse).join(", ") : t("session.noRequiredSkills")}
+            </p>
+          )}
+          <Field label={t("field.date")} htmlFor="standalone-date">
+            <DatePicker id="standalone-date" value={standaloneDate} onChange={setStandaloneDate} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("field.startTime")} htmlFor="standalone-start">
+              <TimePicker id="standalone-start" ariaLabel={t("field.startTime")} value={standaloneStart} onChange={setStandaloneStart} />
+            </Field>
+            <Field label={t("field.endTime")} htmlFor="standalone-end">
+              <TimePicker id="standalone-end" ariaLabel={t("field.endTime")} value={standaloneEnd} onChange={setStandaloneEnd} />
+            </Field>
+          </div>
+          <Field label={t("field.topic")} htmlFor="standalone-topic">
+            <input id="standalone-topic" className={inputClass} value={standaloneTopic} onChange={(e) => setStandaloneTopic(e.target.value)} />
+          </Field>
+          <Field label={t("field.trainer")}>
+            <TrainerPicker
+              name="standalone-trainer"
+              trainers={rankedStandaloneTrainers}
+              requiredSkills={standaloneCourse ? courseRequiredSkills(standaloneCourse) : []}
+              value={standaloneTrainerId}
+              onChange={setStandaloneTrainerId}
+              label={t("field.trainer")}
+              disabled={!standaloneCourse}
+              disabledHint={t("session.chooseCourseFirst")}
+              emptyMessage={t("session.noQualifiedTrainer")}
+            />
+          </Field>
+          {standaloneError && (
+            <p role="alert" className="text-sm text-danger">
+              {standaloneError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setStandaloneOpen(false)}>
+              {t("action.cancel")}
+            </Button>
+            <Button
+              className="max-sm:min-h-11"
+              onClick={() => void submitStandaloneSession()}
+              disabled={!standaloneCourse || !standaloneDate || !standaloneTopic.trim() || !/^\d{2}:\d{2}$/.test(standaloneStart) || !/^\d{2}:\d{2}$/.test(standaloneEnd) || rankedStandaloneTrainers.length === 0}
+            >
+              {t("action.add")}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Modal
