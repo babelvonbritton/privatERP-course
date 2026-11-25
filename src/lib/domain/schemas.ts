@@ -64,7 +64,6 @@ export const courseInput = z.object({
   capacity: z.number().int().min(1).max(10_000),
   trainerId: id,
   scheduleWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
-  scheduleTime: timeString,
   status: z.enum(COURSE_STATUSES),
   idempotencyKey: idemKey,
 });

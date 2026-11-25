@@ -336,7 +336,7 @@ export class CourseService extends ServiceBase {
         if (existing) return existing;
       }
       const now = this.now();
-      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, trainerId: data.trainerId, scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), scheduleTime: data.scheduleTime, status: data.status };
+      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, trainerId: data.trainerId, scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), status: data.status };
       await this.storage.courses.put(course);
       await this.recordKey(data.idempotencyKey, "course", course.id);
       await this.audit("course.create", "course", course.id, course.title);
@@ -369,7 +369,6 @@ export class CourseService extends ServiceBase {
         capacity: data.capacity ?? current.capacity,
         trainerId: data.trainerId ?? current.trainerId,
         scheduleWeekdays: data.scheduleWeekdays ? normalizeWeekdays(data.scheduleWeekdays) : current.scheduleWeekdays,
-        scheduleTime: data.scheduleTime ?? current.scheduleTime,
         status: data.status ?? current.status,
       };
       await this.storage.courses.put(updated);
@@ -504,6 +503,36 @@ export interface AttendanceDashboardSummary {
   rows: AttendanceDashboardRow[];
   totalSessions: number;
   totalAttendedHours: number;
+  overallRate: number;
+}
+
+/** One row of the trainer dashboard: one trainer in one course, with every session they taught there. */
+export interface TrainerDashboardRow {
+  trainerId: string;
+  trainerName: string;
+  courseId: string;
+  courseTitle: string;
+  /** Sessions of this trainer in this course. */
+  sessions: number;
+  /** Sessions where the trainer was marked present. */
+  present: number;
+  /** Sessions where the trainer was marked absent. */
+  absent: number;
+  /** Present as a share of all sessions, 0-100. */
+  rate: number;
+  /** Hours taught in this course, from the time ranges of present sessions. */
+  hoursTaught: number;
+}
+
+export interface TrainerDashboardFilter {
+  trainerId?: string;
+  courseId?: string;
+}
+
+export interface TrainerDashboardSummary {
+  rows: TrainerDashboardRow[];
+  totalSessions: number;
+  totalHoursTaught: number;
   overallRate: number;
 }
 
@@ -696,6 +725,69 @@ export class AttendanceService extends ServiceBase {
       totalSessions,
       totalAttendedHours,
       overallRate: totalSessions === 0 ? 0 : Math.round((totalAttended / totalSessions) * 100),
+    };
+  }
+
+  /** Sessions in a date range, for the pay-run review. */
+  listSessionsInRange(start: string, end: string): Promise<Session[]> {
+    return this.storage.sessions.listInRange(start, end);
+  }
+
+  async trainerDashboardSummary(filter: TrainerDashboardFilter = {}): Promise<TrainerDashboardSummary> {
+    const [sessions, courses, trainers] = await Promise.all([
+      this.storage.sessions.all(),
+      this.storage.courses.all(),
+      this.storage.trainers.all(),
+    ]);
+    const courseById = new Map(courses.map((c) => [c.id, c]));
+    const trainerById = new Map(trainers.map((t) => [t.id, t]));
+    const byPair = new Map<string, TrainerDashboardRow>();
+    let totalSessions = 0;
+    let totalPresent = 0;
+    let totalHoursTaught = 0;
+    for (const session of sessions) {
+      if (filter.trainerId && session.trainerId !== filter.trainerId) continue;
+      if (filter.courseId && session.courseId !== filter.courseId) continue;
+      const key = `${session.trainerId}|${session.courseId}`;
+      let pair = byPair.get(key);
+      if (!pair) {
+        pair = {
+          trainerId: session.trainerId,
+          trainerName: trainerById.get(session.trainerId)?.name ?? "",
+          courseId: session.courseId,
+          courseTitle: courseById.get(session.courseId)?.title ?? "",
+          sessions: 0,
+          present: 0,
+          absent: 0,
+          rate: 0,
+          hoursTaught: 0,
+        };
+        byPair.set(key, pair);
+      }
+      pair.sessions += 1;
+      totalSessions += 1;
+      if (session.trainerPresent) {
+        pair.present += 1;
+        totalPresent += 1;
+        const hours = sessionDurationHours(session);
+        if (hours !== null) {
+          pair.hoursTaught = Math.round((pair.hoursTaught + hours) * 100) / 100;
+          totalHoursTaught = Math.round((totalHoursTaught + hours) * 100) / 100;
+        }
+      } else {
+        pair.absent += 1;
+      }
+    }
+    const rows = [...byPair.values()].map((r) => ({
+      ...r,
+      rate: r.sessions === 0 ? 0 : Math.round((r.present / r.sessions) * 100),
+    }));
+    rows.sort((a, b) => a.trainerName.localeCompare(b.trainerName) || a.courseTitle.localeCompare(b.courseTitle));
+    return {
+      rows,
+      totalSessions,
+      totalHoursTaught,
+      overallRate: totalSessions === 0 ? 0 : Math.round((totalPresent / totalSessions) * 100),
     };
   }
 }
@@ -892,7 +984,9 @@ export class PayrollService extends ServiceBase {
   /**
    * Builds a pay run from the trainer's attended sessions in the period: every session
    * in range where the trainer was marked present counts once, at the trainer's rate.
-   * One run per trainer per period: generating twice returns the same run.
+   * One run per trainer per period: generating again refreshes a draft run from the
+   * current attendance, so a session later corrected to absent stops being paid.
+   * A paid run never changes.
    */
   async generate(input: PayrollInput): Promise<PayrollRun> {
     requireCan(this.actor, "payroll.generate");
@@ -908,10 +1002,29 @@ export class PayrollService extends ServiceBase {
       }
       // Checked inside the transaction: a second generate racing the first sees the run once it lands.
       const existing = await this.storage.payrollRuns.findByTrainerAndPeriod(data.trainerId, data.periodStart);
-      if (existing) return existing;
-      const sessions = await this.storage.sessions.listInRange(data.periodStart, data.periodEnd);
+      // A refresh always counts the run's own period, not the caller's range.
+      const periodStart = existing?.periodStart ?? data.periodStart;
+      const periodEnd = existing?.periodEnd ?? data.periodEnd;
+      const sessions = await this.storage.sessions.listInRange(periodStart, periodEnd);
       const attended = sessions.filter((s) => s.trainerId === data.trainerId && s.trainerPresent);
       const now = this.now();
+      if (existing) {
+        // A paid run is a permanent record and never changes. A draft run is
+        // refreshed from the current attendance, so a session corrected to
+        // absent after the first generate stops being paid.
+        if (existing.status === "paid") return existing;
+        const refreshed: PayrollRun = {
+          ...touched(existing, now),
+          sessionIds: attended.map((s) => s.id),
+          sessionCount: attended.length,
+          ratePerSession: trainer.ratePerSession,
+          total: attended.length * trainer.ratePerSession,
+        };
+        await this.storage.payrollRuns.put(refreshed);
+        await this.recordKey(data.idempotencyKey, "payrollRun", refreshed.id);
+        await this.audit("payroll.generate", "payrollRun", refreshed.id, `${trainer.name} · ${refreshed.sessionCount} sessions`);
+        return refreshed;
+      }
       const run: PayrollRun = {
         ...baseFields(this.actor, now),
         trainerId: data.trainerId,

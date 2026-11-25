@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseWeekdays, plusOneHour, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { courseWeekdays, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
 import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
@@ -33,7 +33,6 @@ interface CourseForm {
   capacity: string;
   trainerId: string;
   scheduleWeekdays: number[];
-  scheduleTime: string;
   status: CourseStatus;
 }
 
@@ -45,7 +44,6 @@ const emptyForm = (): CourseForm => ({
   capacity: "",
   trainerId: NONE,
   scheduleWeekdays: [1],
-  scheduleTime: "09:00",
   status: "active",
 });
 
@@ -152,7 +150,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       capacity: String(course.capacity),
       trainerId: course.trainerId,
       scheduleWeekdays: courseWeekdays(course),
-      scheduleTime: course.scheduleTime,
       status: course.status,
     });
     setFormError(null);
@@ -182,10 +179,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setFormError(t("validation.positive", { field: t("field.capacity") }));
       return;
     }
-    if (!/^\d{2}:\d{2}$/.test(form.scheduleTime)) {
-      setFormError(t("validation.time", { field: t("field.scheduleTime") }));
-      return;
-    }
     if (form.scheduleWeekdays.length === 0) {
       setFormError(t("validation.required", { field: t("field.scheduleWeekdays") }));
       return;
@@ -201,7 +194,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           capacity,
           trainerId: form.trainerId,
           scheduleWeekdays: form.scheduleWeekdays,
-          scheduleTime: form.scheduleTime,
           status: form.status,
           idempotencyKey: createId(),
         });
@@ -216,7 +208,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           capacity,
           trainerId: form.trainerId,
           scheduleWeekdays: form.scheduleWeekdays,
-          scheduleTime: form.scheduleTime,
           status: form.status,
           idempotencyKey: createId(),
         });
@@ -467,9 +458,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               })}
             </div>
           </Field>
-          <Field label={t("field.scheduleTime")} htmlFor="course-time">
-            <input id="course-time" type="time" className={inputClass} value={form.scheduleTime} onChange={(e) => setForm((f) => ({ ...f, scheduleTime: e.target.value }))} />
-          </Field>
           <Field label={t("field.status")} htmlFor="course-status">
             <Select
               value={form.status}
@@ -509,7 +497,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
             <div>
               {selected.description && <p className="text-sm text-ink/90">{selected.description}</p>}
               <p className="mt-1 text-sm text-muted">
-                {courseWeekdays(selected).map((d) => t(`weekday.short.${d}` as MessageKey)).join(", ")} {selected.scheduleTime} - {trainerName(selected.trainerId)} - {formatMoney(selected.price, locale)}
+                {courseWeekdays(selected).map((d) => t(`weekday.short.${d}` as MessageKey)).join(", ")} - {trainerName(selected.trainerId)} - {formatMoney(selected.price, locale)}
               </p>
               <div className="mt-3 flex gap-2">
                 <Button className="max-sm:min-h-11" variant="soft" icon="pencil" onClick={() => openEdit(selected)}>
@@ -557,7 +545,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               {enrollments.length === 0 ? (
                 <p className="mt-2 text-sm text-muted">{t("enrollment.empty")}</p>
               ) : (
-                <ul className="mt-3 flex flex-col divide-y divide-line rounded-card border border-line bg-surface">
+                <ul className="mt-3 flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-card border border-line bg-surface">
                   {enrollments.map((e) => (
                     <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                       <div className="min-w-0">
@@ -585,8 +573,8 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                   icon="plus"
                   onClick={() => {
                     if (!showSessionForm && selected) {
-                      setSessionStart(selected.scheduleTime);
-                      setSessionEnd(plusOneHour(selected.scheduleTime));
+                      setSessionStart("09:00");
+                      setSessionEnd("10:00");
                       setSessionError(null);
                     }
                     setShowSessionForm((v) => !v);
@@ -633,7 +621,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               {sessions.length === 0 ? (
                 <p className="mt-2 text-sm text-muted">{t("session.empty")}</p>
               ) : (
-                <ul className="mt-3 flex flex-col divide-y divide-line rounded-card border border-line bg-surface">
+                <ul className="mt-3 flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-card border border-line bg-surface">
                   {sessions.map((s) => {
                     const hours = sessionDurationHours(s);
                     return (

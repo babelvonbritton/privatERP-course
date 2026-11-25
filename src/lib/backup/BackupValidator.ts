@@ -392,7 +392,6 @@ class DataValidation {
     capacity: this.read.int(o, "capacity", p, 1, 10_000),
     trainerId: this.read.id(o, "trainerId", p),
     scheduleWeekdays: this.weekdays(o, p),
-    scheduleTime: this.read.time(o, "scheduleTime", p),
     status: this.read.oneOf(o, "status", p, COURSE_STATUSES),
   });
 

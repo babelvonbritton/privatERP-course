@@ -20,7 +20,6 @@ const FIELD_KEYS: Record<string, MessageKey> = {
   capacity: "field.capacity",
   trainerId: "field.trainer",
   scheduleWeekdays: "field.scheduleWeekdays",
-  scheduleTime: "field.scheduleTime",
   startTime: "field.startTime",
   endTime: "field.endTime",
   memberId: "field.member",

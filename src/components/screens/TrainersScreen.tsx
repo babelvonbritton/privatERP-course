@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
-import { getServices } from "@/lib/domain/services";
+import { getServices, type TrainerDashboardRow } from "@/lib/domain/services";
 import type { Course, PayrollRun, Trainer, TrainerStatus } from "@/lib/domain/types";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -53,6 +53,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [detail, setDetail] = useState<Trainer | null>(null);
   const [detailCourses, setDetailCourses] = useState<Course[]>([]);
   const [detailPayRuns, setDetailPayRuns] = useState<PayrollRun[]>([]);
+  const [detailTaught, setDetailTaught] = useState<TrainerDashboardRow[]>([]);
 
   const [deleteTarget, setDeleteTarget] = useState<Trainer | null>(null);
 
@@ -105,12 +106,14 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   async function openDetail(trainer: Trainer): Promise<void> {
     try {
-      const [courses, runs] = await Promise.all([
+      const [courses, runs, taught] = await Promise.all([
         services.courses.listByTrainer(trainer.id),
         services.payroll.listByTrainer(trainer.id),
+        services.attendance.trainerDashboardSummary({ trainerId: trainer.id }),
       ]);
       setDetailCourses(courses);
       setDetailPayRuns(runs);
+      setDetailTaught(taught.rows);
       setDetail(trainer);
     } catch (e) {
       errorCenter.report(e, { action: "trainer.detail" });
@@ -357,16 +360,33 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
             {detailCourses.length === 0 ? (
               <p className="mt-2 text-sm text-muted">{t("course.empty")}</p>
             ) : (
-              <ul className="mt-2 divide-y divide-line">
-                {detailCourses.map((course) => (
-                  <li key={course.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm">
-                    <span className="font-medium text-ink">{course.title}</span>
-                    <span className="text-muted">
-                      {course.level} · {formatMoney(course.price, locale)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-2 divide-y divide-line">
+                  {detailCourses.map((course) => {
+                    const taught = detailTaught.find((r) => r.courseId === course.id) ?? { sessions: 0, hoursTaught: 0 };
+                    return (
+                      <li key={course.id} className="flex flex-col gap-0.5 py-2 text-sm">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-medium text-ink">{course.title}</span>
+                          <span className="text-muted">
+                            {course.level} · {formatMoney(course.price, locale)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted">
+                          {t("trainer.detail.taught", { count: taught.sessions, hours: t("duration.hours", { hours: taught.hoursTaught }) })}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-2 border-t border-line pt-2 text-sm text-muted">
+                  {t("payroll.total")}:{" "}
+                  {t("trainer.detail.taught", {
+                    count: detailTaught.reduce((n, r) => n + r.sessions, 0),
+                    hours: t("duration.hours", { hours: Math.round(detailTaught.reduce((n, r) => n + r.hoursTaught, 0) * 100) / 100 }),
+                  })}
+                </p>
+              </>
             )}
           </section>
           <section>

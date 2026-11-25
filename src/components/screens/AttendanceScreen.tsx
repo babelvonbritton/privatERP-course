@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
-import { getServices, today, type AttendanceDashboardSummary } from "@/lib/domain/services";
+import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { plusOneHour, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -52,6 +52,8 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [newSessionError, setNewSessionError] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
+  const [trainerSummary, setTrainerSummary] = useState<TrainerDashboardSummary | null>(null);
+  const [dashboardTab, setDashboardTab] = useState<"members" | "trainers">("members");
   const [filterTrainer, setFilterTrainer] = useState(ALL);
   const [filterMember, setFilterMember] = useState(ALL);
   const [filterCourse, setFilterCourse] = useState(ALL);
@@ -67,12 +69,20 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const loadDashboard = useCallback(
     async (trainerId: string, memberId: string, courseIdValue: string) => {
       try {
-        const data = await getServices().attendance.dashboardSummary({
-          trainerId: trainerId === ALL ? undefined : trainerId,
-          memberId: memberId === ALL ? undefined : memberId,
-          courseId: courseIdValue === ALL ? undefined : courseIdValue,
-        });
-        setSummary(data);
+        const s = getServices();
+        const [memberData, trainerData] = await Promise.all([
+          s.attendance.dashboardSummary({
+            trainerId: trainerId === ALL ? undefined : trainerId,
+            memberId: memberId === ALL ? undefined : memberId,
+            courseId: courseIdValue === ALL ? undefined : courseIdValue,
+          }),
+          s.attendance.trainerDashboardSummary({
+            trainerId: trainerId === ALL ? undefined : trainerId,
+            courseId: courseIdValue === ALL ? undefined : courseIdValue,
+          }),
+        ]);
+        setSummary(memberData);
+        setTrainerSummary(trainerData);
       } catch (e) {
         errorCenter.report(e, { action: "attendance.dashboard" });
       }
@@ -222,9 +232,17 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     }
   };
 
-  const pageCount = Math.max(1, Math.ceil((summary?.rows.length ?? 0) / PAGE_SIZE));
+  const switchDashboardTab = (tab: "members" | "trainers") => {
+    setDashboardTab(tab);
+    setDashboardPage(1);
+  };
+
+  const memberPageCount = Math.max(1, Math.ceil((summary?.rows.length ?? 0) / PAGE_SIZE));
+  const trainerPageCount = Math.max(1, Math.ceil((trainerSummary?.rows.length ?? 0) / PAGE_SIZE));
+  const pageCount = dashboardTab === "trainers" ? trainerPageCount : memberPageCount;
   const currentPage = Math.min(dashboardPage, pageCount);
-  const pageRows = (summary?.rows ?? []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const memberPageRows = (summary?.rows ?? []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const trainerPageRows = (trainerSummary?.rows ?? []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div data-tour="attendance" className="flex flex-col gap-4">
@@ -274,8 +292,8 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
           disabled={courseId === NONE}
           onClick={() => {
             if (selectedCourse) {
-              setNewStartTime(selectedCourse.scheduleTime);
-              setNewEndTime(plusOneHour(selectedCourse.scheduleTime));
+              setNewStartTime("09:00");
+              setNewEndTime("10:00");
               setNewSessionError(null);
             }
             setNewSessionOpen(true);
@@ -340,6 +358,26 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
 
       <section aria-label={t("attendance.dashboard")} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         <h2 className="text-base font-semibold text-plum-900">{t("attendance.dashboard")}</h2>
+        <div role="tablist" aria-label={t("attendance.dashboard")} className="relative flex w-fit rounded-control bg-plum-100 p-1">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={dashboardTab === "members"}
+            onClick={() => switchDashboardTab("members")}
+            className={`relative flex h-8 items-center rounded-[8px] px-3 text-sm transition-colors duration-200 max-sm:min-h-11 ${dashboardTab === "members" ? "font-medium text-plum-900" : "text-muted hover:text-ink"}`}
+          >
+            {t("attendance.tabMembers")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={dashboardTab === "trainers"}
+            onClick={() => switchDashboardTab("trainers")}
+            className={`relative flex h-8 items-center rounded-[8px] px-3 text-sm transition-colors duration-200 max-sm:min-h-11 ${dashboardTab === "trainers" ? "font-medium text-plum-900" : "text-muted hover:text-ink"}`}
+          >
+            {t("attendance.tabTrainers")}
+          </button>
+        </div>
         <div className="flex flex-col gap-3 md:flex-row">
           <div className="min-w-0 flex-1">
             <Field label={t("field.trainer")} htmlFor="dashboard-trainer">
@@ -352,17 +390,19 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               />
             </Field>
           </div>
-          <div className="min-w-0 flex-1">
-            <Field label={t("field.member")} htmlFor="dashboard-member">
-              <Select
-                value={filterMember}
-                onChange={(v) => applyDashboardFilter("member", v)}
-                ariaLabel={t("field.member")}
-                className="w-full"
-                options={[{ value: ALL, label: t("attendance.all") }, ...members.map((m) => ({ value: m.id, label: m.name }))]}
-              />
-            </Field>
-          </div>
+          {dashboardTab === "members" && (
+            <div className="min-w-0 flex-1">
+              <Field label={t("field.member")} htmlFor="dashboard-member">
+                <Select
+                  value={filterMember}
+                  onChange={(v) => applyDashboardFilter("member", v)}
+                  ariaLabel={t("field.member")}
+                  className="w-full"
+                  options={[{ value: ALL, label: t("attendance.all") }, ...members.map((m) => ({ value: m.id, label: m.name }))]}
+                />
+              </Field>
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <Field label={t("field.course")} htmlFor="dashboard-course">
               <Select
@@ -375,7 +415,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
             </Field>
           </div>
         </div>
-        {summary && (
+        {dashboardTab === "members" && summary && (
           <>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <p>
@@ -408,7 +448,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
                       </tr>
                     </thead>
                     <tbody>
-                      {pageRows.map((row) => (
+                      {memberPageRows.map((row) => (
                           <tr key={`${row.memberId}|${row.courseId}`} className="border-b border-line last:border-b-0">
                             <td className="px-4 py-3 font-medium text-ink">{row.memberName}</td>
                             <td className="px-4 py-3 text-ink">{row.courseTitle}</td>
@@ -420,6 +460,67 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
                             <td className="px-4 py-3 whitespace-nowrap text-ink">{t("duration.hours", { hours: row.attendedHours })}</td>
                           </tr>
                         ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-muted">{t("attendance.page", { page: currentPage, pages: pageCount })}</p>
+                  <div className="flex gap-2">
+                    <Button className="max-sm:min-h-11" variant="soft" disabled={currentPage <= 1} onClick={() => setDashboardPage((p) => Math.max(1, p - 1))}>
+                      {t("attendance.prevPage")}
+                    </Button>
+                    <Button className="max-sm:min-h-11" variant="soft" disabled={currentPage >= pageCount} onClick={() => setDashboardPage((p) => Math.min(pageCount, p + 1))}>
+                      {t("attendance.nextPage")}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+        {dashboardTab === "trainers" && trainerSummary && (
+          <>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <p>
+                <span className="font-semibold text-ink">{trainerSummary.totalSessions}</span> <span className="text-muted">{t("session.title")}</span>
+              </p>
+              <p>
+                <span className="font-semibold text-ink">{trainerSummary.overallRate}%</span> <span className="text-muted">{t("dashboard.attendanceRate")}</span>
+              </p>
+              <p>
+                <span className="font-semibold text-ink">{t("duration.hours", { hours: trainerSummary.totalHoursTaught })}</span>{" "}
+                <span className="text-muted">{t("field.duration")}</span>
+              </p>
+            </div>
+            {trainerSummary.rows.length === 0 ? (
+              <p className="text-sm text-muted">{t("attendance.noData")}</p>
+            ) : (
+              <>
+                <div role="region" tabIndex={0} aria-label={t("attendance.dashboard")} className="relative overflow-x-auto rounded-card border border-line bg-surface">
+                  <table className="w-full min-w-[44rem] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-left text-muted">
+                        <th scope="col" className="px-4 py-3 font-medium">{t("field.trainer")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("field.course")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("session.title")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("status.present")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("status.absent")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("dashboard.attendanceRate")}</th>
+                        <th scope="col" className="px-4 py-3 font-medium">{t("field.duration")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trainerPageRows.map((row) => (
+                        <tr key={`${row.trainerId}|${row.courseId}`} className="border-b border-line last:border-b-0">
+                          <td className="px-4 py-3 font-medium text-ink">{row.trainerName}</td>
+                          <td className="px-4 py-3 text-ink">{row.courseTitle}</td>
+                          <td className="px-4 py-3 text-ink">{row.sessions}</td>
+                          <td className="px-4 py-3 text-ink">{row.present}</td>
+                          <td className="px-4 py-3 text-ink">{row.absent}</td>
+                          <td className="px-4 py-3 text-ink">{row.rate}%</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-ink">{t("duration.hours", { hours: row.hoursTaught })}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

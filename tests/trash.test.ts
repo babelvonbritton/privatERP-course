@@ -62,7 +62,6 @@ const courseInput = (trainerId: string, title = "Piano Basics") => ({
   capacity: 10,
   trainerId,
   scheduleWeekdays: [1],
-  scheduleTime: "09:00",
   status: "active" as const,
   idempotencyKey: createId(),
 });

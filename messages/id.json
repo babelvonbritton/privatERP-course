@@ -49,6 +49,8 @@
     "pickSession": "Pilih sesi",
     "prevPage": "Sebelumnya",
     "saved": "Kehadiran tersimpan",
+    "tabMembers": "Member",
+    "tabTrainers": "Pengajar",
     "title": "Kehadiran",
     "trainerPresent": "Pengajar hadir"
   },
@@ -373,7 +375,6 @@
     "phone": "Telepon",
     "price": "Harga ({currency})",
     "ratePerSession": "Tarif per sesi (IDR)",
-    "scheduleTime": "Jam",
     "scheduleWeekdays": "Hari",
     "startDate": "Tanggal mulai",
     "startTime": "Waktu mulai",
@@ -387,7 +388,7 @@
   "guide": {
     "attendance": {
       "dashboard": "Ringkasan kehadiran",
-      "dashboardDesc": "Di bawah formulir penandaan, total per member dan kursus, difilter berdasarkan pengajar, member, atau kursus.",
+      "dashboardDesc": "Di bawah formulir penandaan, total per member dan kursus, plus tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar. Saring berdasarkan pengajar, member, atau kursus.",
       "intro": "Kehadiran adalah catatan siapa yang datang. Data ini menjadi dasar penggajian, jadi tandai dengan teliti.",
       "mark": "Tandai yang hadir",
       "markDesc": "Untuk setiap member yang terdaftar, pilih Hadir, Tidak Hadir, atau Terlambat. Tandai juga apakah pengajar hadir.",
@@ -474,7 +475,7 @@
   "hint": {
     "courseCapacity": "Berapa banyak member yang bisa mendaftar sekaligus.",
     "coursePrice": "Harga kursus. Dipakai pada tagihan.",
-    "courseSchedule": "Hari dan jam mulai rutin tiap minggu untuk kursus ini.",
+    "courseSchedule": "Hari rutin tiap minggu untuk kursus ini.",
     "invoiceDueDate": "Kapan member harus membayar. Jatuh Tempo ditampilkan otomatis setelah tanggal ini.",
     "invoiceCharges": "Satu biaya per baris. Total adalah jumlah semua biaya.",
     "memberEmail": "Opsional. Dipakai untuk pencarian dan menghubungi member.",
@@ -484,7 +485,7 @@
     "moreAbout": "Selengkapnya tentang {field}",
     "paymentAmount": "Jangan pernah melebihi sisa yang masih harus dibayar pada tagihan ini.",
     "paymentDetails": "Tempat pelanggan membayar, misalnya nomor rekening bank atau e-wallet.",
-    "payrollPeriod": "Satu run penggajian mencakup satu pengajar untuk satu periode. Membuat dua kali akan menghasilkan run yang sama.",
+    "payrollPeriod": "Satu run penggajian mencakup satu pengajar untuk satu periode. Membuat lagi akan menyegarkan run draf dari data kehadiran terbaru.",
     "trainerRate": "Upah pengajar ini per sesi. Penggajian mengalikannya dengan jumlah sesi yang dihadiri.",
     "trainerSubjects": "Mata pelajaran yang diajarkan pengajar ini, satu per baris atau dipisah koma."
   },
@@ -613,13 +614,16 @@
     "generate": "Buat run penggajian",
     "markPaid": "Tandai sudah dibayar",
     "paidAt": "Dibayar pada",
+    "paidSessions": "Sesi yang dibayar",
     "period": "Periode",
     "pickTrainer": "Pilih pengajar",
     "rate": "Tarif per sesi",
     "review": "Tinjau run penggajian",
     "sessionCount": "Sesi",
     "title": "Penggajian",
-    "total": "Total"
+    "total": "Total",
+    "unpaidHint": "Sesi di mana pengajar tidak hadir tidak dibayar.",
+    "unpaidSessions": "Sesi yang tidak dibayar"
   },
   "privacy": {
     "backups": {
@@ -820,7 +824,8 @@
     "deleteBody": "Hapus {name}? Kursus dan run penggajian mereka tetap ada. Catatan pengajar akan dipindahkan ke tempat sampah, dan Anda bisa memulihkannya dari sana.",
     "detail": {
       "courses": "Kursus",
-      "payRuns": "Run penggajian"
+      "payRuns": "Run penggajian",
+      "taught": "{count, plural, one {# sesi} other {# sesi}} · {hours}"
     },
     "edit": "Ubah pengajar",
     "empty": "Belum ada pengajar",

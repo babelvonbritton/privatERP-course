@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { getServices, today } from "@/lib/domain/services";
-import type { PayrollRun, Trainer } from "@/lib/domain/types";
+import type { Course, PayrollRun, Session, Trainer } from "@/lib/domain/types";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
@@ -47,6 +47,7 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const { t, locale } = useI18n();
   const s = getServices();
   const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -57,9 +58,21 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [generateError, setGenerateError] = useState("");
 
   const [detail, setDetail] = useState<PayrollRun | null>(null);
+  const [detailSessions, setDetailSessions] = useState<Session[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<PayrollRun | null>(null);
 
   const trainerById = useMemo(() => new Map(trainers.map((tr) => [tr.id, tr])), [trainers]);
+  const courseById = useMemo(() => new Map(courses.map((c) => [c.id, c])), [courses]);
+
+  /** Sessions of the reviewed trainer inside the run's period, split into paid and not paid. */
+  const detailPaidSessions = useMemo(
+    () => (detail ? detailSessions.filter((s) => detail.sessionIds.includes(s.id)) : []),
+    [detail, detailSessions],
+  );
+  const detailUnpaidSessions = useMemo(
+    () => (detail ? detailSessions.filter((s) => !detail.sessionIds.includes(s.id)) : []),
+    [detail, detailSessions],
+  );
 
   /** Reloads the pay run list. */
   async function reloadRuns() {
@@ -70,9 +83,10 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     let cancelled = false;
     (async () => {
       try {
-        const [ts, rs] = await Promise.all([s.trainers.list(), s.payroll.list()]);
+        const [ts, cs, rs] = await Promise.all([s.trainers.list(), s.courses.list(), s.payroll.list()]);
         if (cancelled) return;
         setTrainers(ts);
+        setCourses(cs);
         setRuns(rs);
       } catch (e) {
         errorCenter.report(e, { action: "payroll.list" });
@@ -85,6 +99,25 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!detail) {
+      setDetailSessions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await getServices().attendance.listSessionsInRange(detail.periodStart, detail.periodEnd);
+        if (!cancelled) setDetailSessions(rows.filter((s) => s.trainerId === detail.trainerId));
+      } catch (e) {
+        errorCenter.report(e, { action: "payroll.detail" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [detail]);
 
   const sortedRuns = useMemo(
     () =>
@@ -283,6 +316,42 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                 </div>
               )}
             </dl>
+
+            {detailPaidSessions.length > 0 && (
+              <div className="border-t border-line pt-4">
+                <h3 className="text-sm font-semibold text-plum-900">{t("payroll.paidSessions")}</h3>
+                <ul className="mt-2 divide-y divide-line">
+                  {detailPaidSessions.map((s) => (
+                    <li key={s.id} className="py-2 text-sm">
+                      <p className="font-medium text-ink">
+                        {formatDate(s.date, locale)}
+                        {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
+                      </p>
+                      <p className="text-xs text-muted">{courseById.get(s.courseId)?.title ?? ""}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {detailUnpaidSessions.length > 0 && (
+              <div className="border-t border-line pt-4">
+                <h3 className="text-sm font-semibold text-plum-900">{t("payroll.unpaidSessions")}</h3>
+                <p className="mt-1 text-xs text-muted">{t("payroll.unpaidHint")}</p>
+                <ul className="mt-2 divide-y divide-line">
+                  {detailUnpaidSessions.map((s) => (
+                    <li key={s.id} className="py-2 text-sm">
+                      <p className="font-medium text-ink">
+                        {formatDate(s.date, locale)}
+                        {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
+                      </p>
+                      <p className="text-xs text-muted">
+                        {courseById.get(s.courseId)?.title ?? ""} · {t(s.trainerPresent ? "status.present" : "status.absent")}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
               <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setDetail(null)}>{t("action.close")}</Button>

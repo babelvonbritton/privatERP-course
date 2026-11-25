@@ -144,7 +144,7 @@ describe("schema upgrade", () => {
     // Opening the real database runs the version 3 upgrade: new stores appear, old rows survive.
     const s = getServices();
     await getStorage().init();
-    expect(getStorage().schemaVersion).toBe(4);
+    expect(getStorage().schemaVersion).toBe(5);
     expect((await s.members.list()).map((m) => m.name)).toEqual(["Legacy Ana"]);
     expect(await s.attachments.list("invoice", "nothing")).toHaveLength(0);
     const report = await getStorage().snapshots.readAll();

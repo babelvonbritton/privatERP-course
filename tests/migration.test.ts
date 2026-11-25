@@ -49,8 +49,8 @@ function deleteDatabase(name: string): Promise<void> {
   });
 }
 
-describe("version 4 migration", () => {
-  it("converts a legacy course and a timeless session on open", async () => {
+describe("version 4 and 5 migrations", () => {
+  it("converts a legacy course and a timeless session on open, and drops the course time", async () => {
     const raw = await createV3Database(DB_NAME);
     const now = Date.now();
     await putRow(raw, "courses", {
@@ -85,6 +85,7 @@ describe("version 4 migration", () => {
       const course = await db.courses.get("c1");
       expect(course?.scheduleWeekdays).toEqual([1]);
       expect(course).not.toHaveProperty("scheduleWeekday");
+      expect(course).not.toHaveProperty("scheduleTime");
       const session = await db.sessions.get("s1");
       expect(session?.startTime).toBe("");
       expect(session?.endTime).toBe("");

@@ -30,7 +30,7 @@ async function seed() {
   const m = await s.members.create({ name: "Ana", email: "ana@example.com", phone: "0812000000", notes: "", status: "active", idempotencyKey: createId() });
   const m2 = await s.members.create({ name: "Citra", email: "citra@example.com", phone: "0812000002", notes: "", status: "active", idempotencyKey: createId() });
   const t = await s.trainers.create({ name: "Budi", email: "budi@example.com", phone: "0812000001", subjects: ["Piano"], ratePerSession: 150000, status: "active", idempotencyKey: createId() });
-  const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], scheduleTime: "09:00", status: "active", idempotencyKey: createId() });
+  const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
   return { s, m, m2, t, c };
 }
 
@@ -201,7 +201,7 @@ describe("backup format 2", () => {
     expect((await getServices().members.list()).map((x) => x.name)).toEqual(["Ana"]);
   });
 
-  it("restores a legacy backup: a single weekday becomes a list and a session without times gets empty times", async () => {
+  it("restores a legacy backup: a single weekday becomes a list, a course time is dropped, and a session without times gets empty times", async () => {
     const { s, c } = await seed();
     const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-10", topic: "Scales", trainerId: c.trainerId, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
@@ -213,7 +213,7 @@ describe("backup format 2", () => {
     const legacyCourses = courseLines.map((line) => {
       const row = JSON.parse(line) as Record<string, unknown>;
       const { scheduleWeekdays, ...rest } = row;
-      return { ...rest, scheduleWeekday: (scheduleWeekdays as number[])[0] };
+      return { ...rest, scheduleWeekday: (scheduleWeekdays as number[])[0], scheduleTime: "09:00" };
     });
     const legacyCourseBytes = encodeNdjson(legacyCourses);
     files.set("database/courses.ndjson", legacyCourseBytes);
@@ -248,6 +248,7 @@ describe("backup format 2", () => {
     expect(restored.ok).toBe(true);
     const restoredCourse = (await getServices().courses.list()).find((x) => x.id === c.id)!;
     expect(restoredCourse.scheduleWeekdays).toEqual([1]);
+    expect(restoredCourse).not.toHaveProperty("scheduleTime");
     const restoredSession = (await getServices().attendance.listSessionsByCourse(c.id)).find((x) => x.id === session.id)!;
     expect(restoredSession.startTime).toBe("");
     expect(restoredSession.endTime).toBe("");

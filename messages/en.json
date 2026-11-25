@@ -49,6 +49,8 @@
     "pickSession": "Choose a session",
     "prevPage": "Previous",
     "saved": "Attendance saved",
+    "tabMembers": "Members",
+    "tabTrainers": "Trainers",
     "title": "Attendance",
     "trainerPresent": "Trainer present"
   },
@@ -373,7 +375,6 @@
     "phone": "Phone",
     "price": "Price ({currency})",
     "ratePerSession": "Rate per session (IDR)",
-    "scheduleTime": "Time",
     "scheduleWeekdays": "Days",
     "startDate": "Start date",
     "startTime": "Start time",
@@ -387,7 +388,7 @@
   "guide": {
     "attendance": {
       "dashboard": "Attendance summary",
-      "dashboardDesc": "Below the marking form, totals per member and course, filtered by trainer, member, or course.",
+      "dashboardDesc": "Below the marking form, totals per member and course, plus a Trainers tab for how much each trainer taught. Filter by trainer, member, or course.",
       "intro": "Attendance is the record of who showed up. It feeds the payroll, so mark it carefully.",
       "mark": "Mark who came",
       "markDesc": "For each enrolled member, choose Present, Absent, or Late. Also mark whether the trainer was there.",
@@ -474,7 +475,7 @@
   "hint": {
     "courseCapacity": "How many members can enroll at once.",
     "coursePrice": "The price of the course. Used on invoices.",
-    "courseSchedule": "The regular weekly days and start time for this course.",
+    "courseSchedule": "The regular weekly days for this course.",
     "invoiceDueDate": "When the member should pay by. Overdue is shown automatically after this date.",
     "invoiceCharges": "One charge per row. The total is the sum of the charges.",
     "memberEmail": "Optional. Used for search and for contacting the member.",
@@ -484,7 +485,7 @@
     "moreAbout": "More about {field}",
     "paymentAmount": "Never more than the amount still owed on this invoice.",
     "paymentDetails": "Where the customer should pay, for example a bank account or e-wallet number.",
-    "payrollPeriod": "A pay run covers one trainer for one period. Generating twice returns the same run.",
+    "payrollPeriod": "A pay run covers one trainer for one period. Generating again refreshes a draft run from the latest attendance.",
     "trainerRate": "What this trainer is paid per session. Payroll multiplies it by the sessions attended.",
     "trainerSubjects": "What this trainer teaches, one per line or separated by commas."
   },
@@ -613,13 +614,16 @@
     "generate": "Generate pay run",
     "markPaid": "Mark as paid",
     "paidAt": "Paid on",
+    "paidSessions": "Paid sessions",
     "period": "Period",
     "pickTrainer": "Choose a trainer",
     "rate": "Rate per session",
     "review": "Review pay run",
     "sessionCount": "Sessions",
     "title": "Payroll",
-    "total": "Total"
+    "total": "Total",
+    "unpaidHint": "Sessions where the trainer was absent are not paid.",
+    "unpaidSessions": "Unpaid sessions"
   },
   "privacy": {
     "backups": {
@@ -820,7 +824,8 @@
     "deleteBody": "Delete {name}? Their courses and pay runs stay. The trainer record will move to the trash bin, and you can restore it from there.",
     "detail": {
       "courses": "Courses",
-      "payRuns": "Pay runs"
+      "payRuns": "Pay runs",
+      "taught": "{count, plural, one {# session} other {# sessions}} · {hours}"
     },
     "edit": "Edit trainer",
     "empty": "No trainers yet",

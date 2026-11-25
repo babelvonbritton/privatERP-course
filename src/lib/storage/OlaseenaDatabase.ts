@@ -136,5 +136,33 @@ export class OlaseenaDatabase extends Dexie {
             if (typeof row.endTime !== "string") row.endTime = "";
           });
       });
+    // Version 5 drops the course start time. A course keeps only its weekly
+    // days; the time lives on each session instead.
+    this.version(5)
+      .stores({
+        members: "id, name, email, phone, status, updatedAt",
+        trainers: "id, name, email, phone, status, updatedAt",
+        courses: "id, title, trainerId, status, updatedAt",
+        enrollments: "id, memberId, courseId, status, [memberId+courseId], [memberId+courseId+status], updatedAt",
+        sessions: "id, courseId, date, [courseId+date], updatedAt",
+        attendance: "id, sessionId, memberId, [sessionId+memberId], updatedAt",
+        invoices: "id, number, memberId, status, dueDate, updatedAt",
+        payments: "id, invoiceId, at, updatedAt",
+        payrollRuns: "id, trainerId, periodStart, status, [trainerId+periodStart], updatedAt",
+        auditLog: "id, at, entity, [entity+at]",
+        writeKeys: "key, entity, createdAt",
+        settings: "key",
+        attachments: "id, [entityType+entityId], createdAt",
+        attachmentBlobs: "id",
+        trash: "id, kind, originalId, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("courses")
+          .toCollection()
+          .modify((row: Record<string, unknown>) => {
+            delete row.scheduleTime;
+          });
+      });
   }
 }

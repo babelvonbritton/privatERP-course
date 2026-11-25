@@ -169,7 +169,7 @@ export class MergePlanner {
       { field: "price", kind: "money", get: (v) => v.price },
       { field: "capacity", kind: "text", get: (v) => String(v.capacity) },
       { field: "trainer", kind: "text", get: (v) => v.trainerId },
-      { field: "schedule", kind: "text", get: (v) => `${courseWeekdays(v).join(", ")} ${v.scheduleTime}` },
+      { field: "schedule", kind: "text", get: (v) => courseWeekdays(v).join(", ") },
       { field: "status", kind: "status", get: (v) => v.status },
     ], current.courses, incoming.courses);
 

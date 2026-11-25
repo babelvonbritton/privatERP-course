@@ -92,8 +92,6 @@ export interface Course extends BaseRecord {
   trainerId: string;
   /** Weekdays the course meets, 0 = Sunday … 6 = Saturday, matching Date.getDay(). A course can meet on several days. */
   scheduleWeekdays: number[];
-  /** Start time as HH:MM. */
-  scheduleTime: string;
   status: CourseStatus;
 }
 
@@ -123,18 +121,6 @@ export function timeToMinutes(time: string): number | null {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
-}
-
-/** HH:MM for minutes after midnight, wrapping past midnight. */
-export function minutesToTime(minutes: number): string {
-  const total = ((minutes % 1440) + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-/** One hour after the given HH:MM time, for prefilling a session end time. */
-export function plusOneHour(time: string): string {
-  const start = timeToMinutes(time);
-  return start === null ? "" : minutesToTime(start + 60);
 }
 
 /** Duration of a session in hours, derived from its time range. Null when either time is missing or the end is not after the start. */
