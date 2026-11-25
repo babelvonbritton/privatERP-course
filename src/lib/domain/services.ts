@@ -551,6 +551,22 @@ export class AttendanceService extends ServiceBase {
     return this.storage.sessions.listByCourse(courseId);
   }
 
+  /**
+   * Sessions whose attendance has not been checked yet, soonest first.
+   * "Checked" means at least one attendance row exists for the session: the
+   * Attendance screen always saves the full batch in one call, so a checked
+   * session normally carries a row per listed member, but the service also
+   * accepts partial marks, so a single row is enough to leave this list.
+   * Sessions of any date appear until they are marked.
+   */
+  async listUnmarkedSessions(): Promise<Session[]> {
+    const [sessions, attendance] = await Promise.all([this.storage.sessions.all(), this.storage.attendance.all()]);
+    const marked = new Set(attendance.map((r) => r.sessionId));
+    return sessions
+      .filter((s) => !marked.has(s.id))
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || "") || a.topic.localeCompare(b.topic));
+  }
+
   getSession(id: string): Promise<Session | undefined> {
     return this.storage.sessions.get(id);
   }

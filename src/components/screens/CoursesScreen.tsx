@@ -66,6 +66,11 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
 
+  /** Sessions whose attendance has not been checked yet, across all courses, soonest first. */
+  const [pendingSessions, setPendingSessions] = useState<Session[]>([]);
+  /** Active enrollments per course, for the assign picker of each pending session. */
+  const [pendingEnrollments, setPendingEnrollments] = useState<Map<string, Enrollment[]>>(new Map());
+
   const [showEnrollForm, setShowEnrollForm] = useState(false);
   const [enrollMemberId, setEnrollMemberId] = useState(NONE);
   const [enrollStart, setEnrollStart] = useState<string | null>(today());
@@ -133,6 +138,25 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       errorCenter.report(e, { action: "course.detail" });
     }
   }, []);
+
+  const loadPending = useCallback(async () => {
+    try {
+      const s = getServices();
+      const found = await s.attendance.listUnmarkedSessions();
+      setPendingSessions(found);
+      const byCourse = new Map<string, Enrollment[]>();
+      for (const courseId of [...new Set(found.map((session) => session.courseId))]) {
+        byCourse.set(courseId, await s.courses.listEnrollmentsByCourse(courseId));
+      }
+      setPendingEnrollments(byCourse);
+    } catch (e) {
+      errorCenter.report(e, { action: "session.pending" });
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPending();
+  }, [loadPending]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -216,6 +240,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setStandaloneTrainerId("");
       setStandaloneError(null);
       await load(query);
+      await loadPending();
       if (selected?.id === standaloneCourse.id) await loadDetail(selected.id);
     } catch (e) {
       errorCenter.report(e, { action: "session.create" });
@@ -325,15 +350,18 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     return members.filter((m) => !activeIds.has(m.id));
   }, [enrollments, members]);
 
-  /** Members currently enrolled in the open course, for the session attendee picker. */
-  const enrolledMembers = useMemo(() => {
-    const byId = new Map(members.map((m) => [m.id, m]));
-    return enrollments
-      .filter((e) => e.status === "active")
-      .map((e) => byId.get(e.memberId))
-      .filter((m): m is Member => m !== undefined)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [enrollments, members]);
+  /** Members actively enrolled in one course, for that course's session assign picker. */
+  const enrolledForCourse = useCallback(
+    (courseId: string) => {
+      const byId = new Map(members.map((m) => [m.id, m]));
+      return (pendingEnrollments.get(courseId) ?? [])
+        .filter((e) => e.status === "active")
+        .map((e) => byId.get(e.memberId))
+        .filter((m): m is Member => m !== undefined)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+    [pendingEnrollments, members],
+  );
 
   const openAssign = (session: Session) => {
     if (assignSessionId === session.id) {
@@ -350,6 +378,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       errorCenter.notify({ key: "toast.saved" });
       setAssignSessionId(null);
       setAssignChecked([]);
+      await loadPending();
       if (selected) await loadDetail(selected.id);
     } catch (e) {
       errorCenter.report(e, { action: "session.assign" });
@@ -454,6 +483,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setSessionTrainerId("");
       setSessionError(null);
       await loadDetail(selected.id);
+      await loadPending();
     } catch (e) {
       errorCenter.report(e, { action: "session.create" });
     }
@@ -467,6 +497,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
       setPendingSession(null);
       await loadDetail(selected.id);
+      await loadPending();
     } catch (e) {
       errorCenter.report(e, { action: "session.delete" });
     }
@@ -544,6 +575,95 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           </table>
         </div>
       )}
+
+      {/* Always rendered, even with no courses yet: the tour points at this
+          section, and its empty text says what will appear here. */}
+      <section data-tour="course-sessions" aria-labelledby="pending-sessions-heading" className="flex flex-col gap-3">
+          <h2 id="pending-sessions-heading" className="text-base font-semibold text-plum-900">{t("session.pending")}</h2>
+          {pendingSessions.length === 0 ? (
+            <p className="text-sm text-muted">{t("session.pendingEmpty")}</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-surface">
+              {pendingSessions.map((s) => {
+                const course = courses.find((c) => c.id === s.courseId);
+                const hours = sessionDurationHours(s);
+                const assigned = sessionAttendees(s);
+                const assignedNames = (assigned ?? []).map((id) => memberName(id)).filter((n) => n !== "");
+                const enrolled = enrolledForCourse(s.courseId);
+                const assignOpen = assignSessionId === s.id;
+                return (
+                  <li key={s.id} className="flex flex-col gap-2 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink">
+                          {formatDate(s.date, locale)}
+                          {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {hours !== null ? `${t("duration.hours", { hours })} · ` : ""}
+                          {t("field.trainerPresent")}: {t(s.trainerPresent ? "status.present" : "status.absent")}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {assigned === null
+                            ? t("session.allEnrolled")
+                            : assignedNames.length > 0
+                              ? t("session.assigned", { names: assignedNames.join(", ") })
+                              : t("session.assignedCount", { count: assigned.length })}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {course && (
+                          <span className="inline-block rounded-full bg-plum-100 px-2.5 py-1 text-xs font-medium text-plum-900">{course.title}</span>
+                        )}
+                        {enrolled.length > 0 && (
+                          <Button
+                            className="max-sm:min-h-11"
+                            variant="soft"
+                            aria-expanded={assignOpen}
+                            aria-controls={`assign-${s.id}`}
+                            onClick={() => openAssign(s)}
+                          >
+                            {t("session.assign")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {assignOpen && (
+                      <fieldset id={`assign-${s.id}`} className="rounded-card border border-line bg-canvas p-3">
+                        <legend className="px-1 text-sm font-medium text-ink">{t("session.assignTitle")}</legend>
+                        <p className="text-xs text-muted">{t("session.assignHint")}</p>
+                        <div className="mt-1 flex flex-col">
+                          {enrolled.map((m) => {
+                            const checked = assignChecked.includes(m.id);
+                            return (
+                              <label key={m.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => setAssignChecked((prev) => (checked ? prev.filter((id) => id !== m.id) : [...prev, m.id]))}
+                                  className="size-4 shrink-0 accent-plum-600"
+                                />
+                                {m.name}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 flex justify-end gap-2">
+                          <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setAssignSessionId(null)}>
+                            {t("action.cancel")}
+                          </Button>
+                          <Button className="max-sm:min-h-11" onClick={() => void saveAssign(s)}>
+                            {t("action.save")}
+                          </Button>
+                        </div>
+                      </fieldset>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
       <GuideDialog open={guideOpen} section="courses" onClose={() => setGuideOpen(false)} />
 
@@ -872,7 +992,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                     const hours = sessionDurationHours(s);
                     const assigned = sessionAttendees(s);
                     const assignedNames = (assigned ?? []).map((id) => memberName(id)).filter((n) => n !== "");
-                    const assignOpen = assignSessionId === s.id;
                     return (
                       <li key={s.id} className="flex flex-col gap-2 px-4 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -894,52 +1013,11 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                             </p>
                           </div>
                           <div className="flex gap-2">
-                            {enrolledMembers.length > 0 && (
-                              <Button
-                                className="max-sm:min-h-11"
-                                variant="soft"
-                                aria-expanded={assignOpen}
-                                aria-controls={`assign-${s.id}`}
-                                onClick={() => openAssign(s)}
-                              >
-                                {t("session.assign")}
-                              </Button>
-                            )}
                             <Button className="max-sm:min-h-11" variant="dangerSoft" onClick={() => setPendingSession(s)}>
                               {t("session.delete")}
                             </Button>
                           </div>
                         </div>
-                        {assignOpen && (
-                          <fieldset id={`assign-${s.id}`} className="rounded-card border border-line bg-canvas p-3">
-                            <legend className="px-1 text-sm font-medium text-ink">{t("session.assignTitle")}</legend>
-                            <p className="text-xs text-muted">{t("session.assignHint")}</p>
-                            <div className="mt-1 flex flex-col">
-                              {enrolledMembers.map((m) => {
-                                const checked = assignChecked.includes(m.id);
-                                return (
-                                  <label key={m.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => setAssignChecked((prev) => (checked ? prev.filter((id) => id !== m.id) : [...prev, m.id]))}
-                                      className="size-4 shrink-0 accent-plum-600"
-                                    />
-                                    {m.name}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                            <div className="mt-2 flex justify-end gap-2">
-                              <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setAssignSessionId(null)}>
-                                {t("action.cancel")}
-                              </Button>
-                              <Button className="max-sm:min-h-11" onClick={() => void saveAssign(s)}>
-                                {t("action.save")}
-                              </Button>
-                            </div>
-                          </fieldset>
-                        )}
                       </li>
                     );
                   })}

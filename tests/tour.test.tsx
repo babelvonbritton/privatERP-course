@@ -112,19 +112,41 @@ describe("tour", () => {
     expect(idMessages.tour.step.attendance.body).toContain("yang tercantum");
   });
 
-  it("does not navigate again for the Drive step on the same Settings screen", async () => {
+  it("does not navigate again for the course-sessions step on the same Courses screen", async () => {
     const onNavigate = vi.fn();
     render(<Harness onNavigate={onNavigate} />);
     await screen.findByRole("dialog", {}, { timeout: 3000 });
-    // Walk to the settings step (8 Next taps from the dashboard).
-    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Settings");
+    // Walk to the courses step (3 Next taps from the dashboard).
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Courses");
+    const calls = onNavigate.mock.calls.length;
+    // The Sessions section sits below the course table on the same screen:
+    // no further navigation (a redundant navigate would scroll back to the
+    // top after the overlay scrolled the section into view).
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Sessions to mark");
+    expect(onNavigate.mock.calls.length).toBe(calls);
+    // End the tour so this harness leaves no open dialog behind for later tests.
+    fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));
+  });
+
+  it("does not navigate again for the Drive step on the same Settings screen", async () => {
+    const onNavigate = vi.fn();
+    // Scope every query to this render: earlier tests in this file leave
+    // their trees mounted (no auto-cleanup in this suite), so a global
+    // getByRole could hit another test's dialog.
+    const { container } = render(<Harness onNavigate={onNavigate} />);
+    const scope = within(container);
+    await scope.findByRole("dialog", {}, { timeout: 3000 });
+    // Walk to the settings step (9 Next taps from the dashboard).
+    for (let i = 0; i < 9; i++) fireEvent.click(scope.getByRole("button", { name: "Next" }));
+    expect((await scope.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Settings");
     const calls = onNavigate.mock.calls.length;
     // The Drive step stays on Settings: no further navigation (a redundant
     // navigate would scroll back to the top after the overlay scrolled the
     // Drive section into view, pushing the tooltip off-screen).
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Google Drive");
+    fireEvent.click(scope.getByRole("button", { name: "Next" }));
+    expect((await scope.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Google Drive");
     expect(onNavigate.mock.calls.length).toBe(calls);
   });
 

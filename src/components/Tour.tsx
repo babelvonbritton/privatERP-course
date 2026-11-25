@@ -21,6 +21,9 @@ export const TOUR_STEPS: TourStep[] = [
   { nav: "members", target: "members", step: "members" },
   { nav: "trainers", target: "trainers", step: "trainers" },
   { nav: "courses", target: "courses", step: "courses" },
+  // Same screen as the courses step, so the tour does not navigate again
+  // here: the section sits below the course table on the same screen.
+  { nav: "courses", target: "course-sessions", step: "courseSessions" },
   { nav: "attendance", target: "attendance", step: "attendance" },
   { nav: "invoices", target: "invoices", step: "invoices" },
   { nav: "payroll", target: "payroll", step: "payroll" },

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BackupValidator } from "@/lib/backup/BackupValidator";
 import { getServices, resetServices } from "@/lib/domain/services";
@@ -285,32 +285,109 @@ describe("session attendees in backups", () => {
   });
 });
 
-describe("course menu attendee picker", () => {
-  it("assigns members from the session list and returns to all enrolled when all are unchecked", async () => {
+describe("unmarked sessions", () => {
+  it("lists only unmarked sessions, any date, soonest first; a marked session leaves the list", async () => {
+    const { s, t, course, members } = await seed();
+    const past = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-10-26", "Past"));
+    const later = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-16", "Later"));
+    const soon = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Soon"));
+    // A past session that was never marked still waits to be marked.
+    let pending = await s.attendance.listUnmarkedSessions();
+    expect(pending.map((x) => x.topic)).toEqual(["Past", "Soon", "Later"]);
+    // One mark is enough: the service accepts partial marks, so done means
+    // at least one attendance row, not a full batch.
+    await s.attendance.mark(soon.id, [{ memberId: members[0].id, status: "present" }], createId());
+    pending = await s.attendance.listUnmarkedSessions();
+    expect(pending.map((x) => x.topic)).toEqual(["Past", "Later"]);
+    await s.attendance.mark(
+      past.id,
+      members.map((m) => ({ memberId: m.id, status: "present" as const })),
+      createId(),
+    );
+    pending = await s.attendance.listUnmarkedSessions();
+    expect(pending.map((x) => x.topic)).toEqual(["Later"]);
+  });
+});
+
+describe("course menu session list", () => {
+  it("assigns members from the Sessions section below the course table and returns to all enrolled when all are unchecked", async () => {
     const { s, t, course } = await seed();
     await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
-    render(
+    const { container } = render(
       <Providers>
         <CoursesScreen navigate={() => {}} />
       </Providers>,
     );
-    await screen.findByText("Piano", {}, { timeout: 3000 });
-    fireEvent.click(screen.getByText("Piano"));
-    await screen.findByText(/Scales/, {}, { timeout: 3000 });
-    // A fresh session lists every enrolled member.
-    expect(screen.getByText("All enrolled members")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Assign members" }));
-    expect(screen.getByRole("checkbox", { name: "Ana" })).toBeTruthy();
-    expect(screen.getByRole("checkbox", { name: "Budi" })).toBeTruthy();
-    expect(screen.getByRole("checkbox", { name: "Cici" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Ana" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await screen.findByText("Assigned: Ana", {}, { timeout: 3000 });
+    const scope = within(container);
+    await scope.findByRole("region", { name: "Courses" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    // The row names the course it belongs to, and a fresh session lists every enrolled member.
+    await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
+    expect(within(pending).getByText("Piano")).toBeTruthy();
+    expect(within(pending).getByText("All enrolled members")).toBeTruthy();
+    fireEvent.click(within(pending).getByRole("button", { name: "Assign members" }));
+    expect(within(pending).getByRole("checkbox", { name: "Ana" })).toBeTruthy();
+    expect(within(pending).getByRole("checkbox", { name: "Budi" })).toBeTruthy();
+    expect(within(pending).getByRole("checkbox", { name: "Cici" })).toBeTruthy();
+    fireEvent.click(within(pending).getByRole("checkbox", { name: "Ana" }));
+    fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
+    await within(pending).findByText("Assigned: Ana", {}, { timeout: 3000 });
     // Unchecking the only assigned member returns the session to unassigned.
-    fireEvent.click(screen.getByRole("button", { name: "Assign members" }));
-    expect((screen.getByRole("checkbox", { name: "Ana" }) as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Ana" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await screen.findByText("All enrolled members", {}, { timeout: 3000 });
+    fireEvent.click(within(pending).getByRole("button", { name: "Assign members" }));
+    expect((within(pending).getByRole("checkbox", { name: "Ana" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(within(pending).getByRole("checkbox", { name: "Ana" }));
+    fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
+    await within(pending).findByText("All enrolled members", {}, { timeout: 3000 });
+  });
+
+  it("a marked session leaves the section and an unmarked one stays, in date order", async () => {
+    const { s, t, course, members } = await seed();
+    const marked = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Marked"));
+    await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-16", "Waiting"));
+    await s.attendance.mark(
+      marked.id,
+      members.map((m) => ({ memberId: m.id, status: "present" as const })),
+      createId(),
+    );
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    await within(pending).findByText(/Waiting/, {}, { timeout: 3000 });
+    expect(within(pending).queryByText(/Marked/)).toBeNull();
+  });
+
+  it("the section renders even with no courses, so the tour target always exists", async () => {
+    await freshServices();
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    expect(within(pending).getByText("No sessions waiting to be marked. Once a session is marked, it leaves this list.")).toBeTruthy();
+  });
+
+  it("the course-detail session list no longer offers assignment", async () => {
+    const { s, t, course } = await seed();
+    await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const table = await scope.findByRole("region", { name: "Courses" }, { timeout: 3000 });
+    fireEvent.click(within(table).getByText("Piano"));
+    // The detail is a Radix dialog, portaled to the body outside the render container.
+    const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
+    // The detail still lists the course's sessions, with the assigned status, but no assign control.
+    await within(dialog).findByText(/Scales/, {}, { timeout: 3000 });
+    expect(within(dialog).getByText("All enrolled members")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Assign members" })).toBeNull();
   });
 });

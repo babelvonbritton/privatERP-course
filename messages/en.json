@@ -479,7 +479,7 @@
       "intro": "Courses are what you teach. Each one has required skills, a schedule, and a price.",
       "title": "What you can do with courses",
       "assign": "Assign who attends a session",
-      "assignDesc": "Open a session in a course and tick the members who will attend. Leave everyone unticked for all enrolled members. Attendance then only checks the listed members."
+      "assignDesc": "In the Sessions section below the course table, tick the members who will attend a session. Leave everyone unticked for all enrolled members. Attendance then only checks the listed members."
     },
     "dashboard": {
       "intro": "The dashboard is your overview. It shows money, attendance, and what is coming next, all computed from your data.",
@@ -790,7 +790,9 @@
     "assignHint": "Leave everyone unchecked for all enrolled members.",
     "allEnrolled": "All enrolled members",
     "assigned": "Assigned: {names}",
-    "assignedCount": "{count} members assigned"
+    "assignedCount": "{count} members assigned",
+    "pending": "Sessions to mark",
+    "pendingEmpty": "No sessions waiting to be marked. Once a session is marked, it leaves this list."
   },
   "settings": {
     "about": "About",
@@ -912,7 +914,7 @@
         "title": "Attendance"
       },
       "courses": {
-        "body": "This is where your classes live (courses). Each course has required skills, weekly days, and a price. Open one to enroll members and see its sessions. Each session has a start and end time, and its length is worked out from them. A session can also list exactly which members will attend, and attendance then only checks those members.",
+        "body": "This is where your classes live (courses). Each course has required skills, weekly days, and a price. Open one to enroll members and see its sessions. Each session has a start and end time, and its length is worked out from them. Below the course table, the Sessions section lists the sessions not yet marked done, so you can see which members will attend each one and assign them there.",
         "title": "Courses"
       },
       "dashboard": {
@@ -950,6 +952,10 @@
       "profile": {
         "title": "Business profile",
         "body": "This is your business profile (business profile). Set your business name, logo, tagline, address, and contacts here. The business name and owner's name also identify new records, and the name and contacts appear on every invoice."
+      },
+      "courseSessions": {
+        "title": "Sessions to mark",
+        "body": "This section lists every session whose attendance has not been checked yet, soonest first, with the course each session belongs to. Once a session is marked, it leaves this list. Open a session here to choose exactly which members will attend it."
       }
     },
     "title": "Get to know Olaseena"

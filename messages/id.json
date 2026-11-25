@@ -479,7 +479,7 @@
       "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki keterampilan wajib, jadwal, dan harga.",
       "title": "Yang bisa Anda lakukan dengan kursus",
       "assign": "Tentukan siapa yang hadir di sesi",
-      "assignDesc": "Buka sebuah sesi di kursus lalu centang anggota yang akan hadir. Kosongkan semua pilihan untuk semua anggota terdaftar. Kehadiran kemudian hanya memeriksa anggota yang tercantum."
+      "assignDesc": "Di bagian Sesi di bawah tabel kursus, centang anggota yang akan hadir di sebuah sesi. Kosongkan semua pilihan untuk semua anggota terdaftar. Kehadiran kemudian hanya memeriksa anggota yang tercantum."
     },
     "dashboard": {
       "intro": "Dasbor adalah ringkasan Anda. Di sini terlihat uang, kehadiran, dan apa yang akan datang, semuanya dihitung dari data Anda.",
@@ -790,7 +790,9 @@
     "assignHint": "Kosongkan semua pilihan untuk semua anggota terdaftar.",
     "allEnrolled": "Semua anggota terdaftar",
     "assigned": "Ditentukan: {names}",
-    "assignedCount": "{count} anggota ditentukan"
+    "assignedCount": "{count} anggota ditentukan",
+    "pending": "Sesi yang belum ditandai",
+    "pendingEmpty": "Tidak ada sesi yang menunggu ditandai. Setelah sebuah sesi ditandai, sesi itu keluar dari daftar ini."
   },
   "settings": {
     "about": "Tentang",
@@ -912,7 +914,7 @@
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut. Sebuah sesi juga bisa mencantumkan dengan tepat anggota mana saja yang akan hadir, dan kehadiran kemudian hanya memeriksa anggota tersebut.",
+        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut. Di bawah tabel kursus, bagian Sesi menampilkan sesi yang belum ditandai selesai, agar Anda bisa melihat anggota mana saja yang akan hadir di setiap sesi dan menentukannya di sana.",
         "title": "Kursus"
       },
       "dashboard": {
@@ -950,6 +952,10 @@
       "profile": {
         "title": "Profil bisnis",
         "body": "Ini adalah profil bisnis Anda (profil bisnis). Atur nama bisnis, logo, slogan, alamat, dan kontak di sini. Nama bisnis dan nama pemilik juga menjadi identitas catatan baru, dan nama serta kontak muncul di setiap tagihan."
+      },
+      "courseSessions": {
+        "title": "Sesi yang belum ditandai",
+        "body": "Bagian ini menampilkan semua sesi yang kehadirannya belum diperiksa, dari yang paling dekat, beserta kursus masing-masing. Setelah sebuah sesi ditandai, sesi itu keluar dari daftar ini. Buka sesi di sini untuk memilih anggota mana saja yang akan hadir."
       }
     },
     "title": "Kenali Olaseena"
