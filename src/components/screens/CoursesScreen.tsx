@@ -17,6 +17,7 @@ import { Field, inputClass } from "../ui/Field";
 import { Select } from "../ui/Select";
 import { SearchField } from "../ui/SearchField";
 import { DatePicker } from "../ui/DatePicker";
+import { TimePicker } from "../ui/TimePicker";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
@@ -618,10 +619,10 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label={t("field.startTime")} htmlFor="session-start">
-                      <input id="session-start" type="time" className={inputClass} value={sessionStart} onChange={(e) => setSessionStart(e.target.value)} />
+                      <TimePicker id="session-start" ariaLabel={t("field.startTime")} value={sessionStart} onChange={setSessionStart} />
                     </Field>
                     <Field label={t("field.endTime")} htmlFor="session-end">
-                      <input id="session-end" type="time" className={inputClass} value={sessionEnd} onChange={(e) => setSessionEnd(e.target.value)} />
+                      <TimePicker id="session-end" ariaLabel={t("field.endTime")} value={sessionEnd} onChange={setSessionEnd} />
                     </Field>
                   </div>
                   {sessionError && (

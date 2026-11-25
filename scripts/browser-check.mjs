@@ -107,6 +107,18 @@ async function pickSessionCourse(page, option) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+/** TimePicker: open the picker by its field label, then pick the hour and the minute. */
+async function pickTime(page, label, time) {
+  const [hour, minute] = time.split(":");
+  await page.getByRole("button", { name: label, exact: true }).click();
+  // Scope to the open panel: a closing panel stays mounted for its exit animation, so an unscoped query can match two.
+  const panel = page.locator(".anim-pop[data-state='open']");
+  await panel.getByRole("group", { name: "Hour" }).getByRole("button", { name: hour, exact: true }).click();
+  await panel.getByRole("group", { name: "Minute" }).getByRole("button", { name: minute, exact: true }).click();
+  // Picking a minute closes the panel; wait until it is gone so the next pick sees only one panel.
+  await panel.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+}
+
 async function nav(page, name) {
   await page.getByRole("button", { name, exact: true }).first().click();
 }
@@ -247,8 +259,8 @@ async function desktop(browser) {
     await pickSessionCourse(page, "Piano Basics");
     await page.getByRole("button", { name: "New session" }).click();
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
-    await page.getByLabel("Start time", { exact: true }).fill("10:00");
-    await page.getByLabel("End time", { exact: true }).fill("11:30");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:30");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Scales" }).waitFor();
@@ -894,8 +906,8 @@ async function mobileScreensWithData(browser) {
     await pickSessionCourse(page, "Piano Basics");
     await page.getByRole("button", { name: "New session" }).click();
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
-    await page.getByLabel("Start time", { exact: true }).fill("10:00");
-    await page.getByLabel("End time", { exact: true }).fill("11:30");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:30");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Scales" }).waitFor();
@@ -1298,6 +1310,8 @@ async function weeklySlotChecks(browser) {
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     await page.getByLabel("Capacity", { exact: true }).fill("10");
     await pickSelect(page, "Trainer", "Budi Santoso");
+    // The form starts with Monday checked, so clear it first: the slot must be exactly the days asked for.
+    await page.getByRole("checkbox", { name: "Mon" }).uncheck();
     for (const d of days) await page.getByRole("checkbox", { name: short[d] }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
@@ -1311,7 +1325,7 @@ async function weeklySlotChecks(browser) {
     await page.getByRole("button", { name: "Enroll member" }).click();
     await pickSelect(page, "Member", "Ayu Lestari");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
-    await page.getByText(`Start date must be on a day this course meets: ${offNames}.`).waitFor({ timeout: 5000 });
+    await page.getByText(`Start date must be on a day this course meets: ${offNames}.`, { exact: true }).waitFor({ timeout: 5000 });
     if (await page.locator("ul li", { hasText: "Ayu Lestari" }).count()) throw new Error("off-slot enrollment was listed anyway");
   });
 
@@ -1319,7 +1333,7 @@ async function weeklySlotChecks(browser) {
     await page.getByRole("button", { name: "New session" }).click();
     await page.getByLabel("Topic", { exact: true }).fill("Off-slot scales");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
-    await page.getByText(`Date must be on a day this course meets: ${offNames}.`).waitFor({ timeout: 5000 });
+    await page.getByText(`Date must be on a day this course meets: ${offNames}.`, { exact: true }).waitFor({ timeout: 5000 });
     if (await page.locator("ul li", { hasText: "Off-slot scales" }).count()) throw new Error("off-slot session was listed anyway");
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
   });
@@ -1334,9 +1348,12 @@ async function weeklySlotChecks(browser) {
     await toast(page, "Saved");
     await page.getByRole("button", { name: "New session" }).click();
     await page.getByLabel("Topic", { exact: true }).fill("On-slot scales");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:00");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
     await page.getByText("On-slot scales").waitFor();
+    await page.getByText("10:00–11:00").first().waitFor();
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
     await noOverflow(page, "weekly slot", 1280);
   });
@@ -1344,9 +1361,149 @@ async function weeklySlotChecks(browser) {
   await check("weekly slot: no console errors or page errors", async () => {
     if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
     const alerts = await page.evaluate(() => window.__alerts ?? []);
-    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+    // The two slot errors above are the expected outcome of those checks, not stray toasts.
+    const unexpected = alerts.filter((a) => !a.includes("must be on a day this course meets"));
+    if (unexpected.length) throw new Error(`error toasts shown: ${unexpected.slice(0, 3).join(" | ")}`);
   });
   await context.close();
+}
+
+/** v0.8.0 time picker: opens, picks a time the form keeps, rejects end at or before start, and fits a 390px phone. */
+async function timePickerChecks(browser) {
+  const short = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const todayShort = short[new Date().getDay()];
+
+  async function seed(page, onMobile = false) {
+    // On a phone Trainers and Attendance live under the More menu, not the bottom nav.
+    const go = async (name) => {
+      if (onMobile && (name === "Trainers" || name === "Attendance")) {
+        await page.getByRole("button", { name: "More", exact: true }).click();
+        await page.getByRole("button", { name, exact: true }).click();
+      } else {
+        await nav(page, name);
+      }
+    };
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await go("Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Ayu Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("ayu@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await go("Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
+    await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
+    await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await go("Courses");
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await page.getByLabel("Capacity", { exact: true }).fill("10");
+    await pickSelect(page, "Trainer", "Budi Santoso");
+    await page.getByRole("checkbox", { name: todayShort }).check();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+  }
+
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("time picker: opens, picks a time, and the form keeps the value", async () => {
+    await seed(page);
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Piano Basics");
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("Picker scales");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:30");
+    await expectTrigger(page, "Start time", "10:00");
+    await expectTrigger(page, "End time", "11:30");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
+  });
+
+  await check("time picker: end at or before start still shows the error", async () => {
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("Bad range");
+    await pickTime(page, "Start time", "11:00");
+    await pickTime(page, "End time", "10:00");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await page.getByText("End time must be after the start time.").waitFor({ timeout: 5000 });
+    if (await page.locator("p", { hasText: "Bad range" }).count()) throw new Error("invalid time range was listed anyway");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
+
+  await check("time picker: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    // The end-before-start error above is the expected outcome of that check, not a stray toast.
+    const unexpected = alerts.filter((a) => !a.includes("End time must be after the start time"));
+    if (unexpected.length) throw new Error(`error toasts shown: ${unexpected.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+
+  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const mobilePage = await mobileContext.newPage();
+  mobilePage.setDefaultTimeout(10000);
+  currentPage = mobilePage;
+  const mobileErrors = [];
+  mobilePage.on("pageerror", (e) => mobileErrors.push(`pageerror: ${e.message}`));
+  mobilePage.on("console", (m) => {
+    if (m.type() === "error") mobileErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("time picker mobile: opens at 390px without overflow and picks a time", async () => {
+    await seed(mobilePage, true);
+    await mobilePage.getByRole("button", { name: "More", exact: true }).click();
+    await mobilePage.getByRole("button", { name: "Attendance", exact: true }).click();
+    await pickSessionCourse(mobilePage, "Piano Basics");
+    await mobilePage.getByRole("button", { name: "New session" }).click();
+    await mobilePage.getByLabel("Topic", { exact: true }).fill("Mobile scales");
+    await mobilePage.getByRole("button", { name: "Start time", exact: true }).click();
+    await mobilePage.getByRole("group", { name: "Hour" }).waitFor();
+    await noOverflow(mobilePage, "time picker open", 390);
+    await mobilePage.getByRole("group", { name: "Hour" }).getByRole("button", { name: "09", exact: true }).click();
+    await mobilePage.getByRole("group", { name: "Minute" }).getByRole("button", { name: "30", exact: true }).click();
+    await expectTrigger(mobilePage, "Start time", "09:30");
+    await noOverflow(mobilePage, "time picker picked", 390);
+    await mobilePage.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
+
+  await check("time picker mobile: no console errors or page errors", async () => {
+    if (mobileErrors.length) throw new Error(mobileErrors.slice(0, 3).join(" | "));
+    const alerts = await mobilePage.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await mobileContext.close();
+}
+
+/** Reads a TimePicker trigger's shown value; the accessible name is the field label, the value is its text. */
+function expectTrigger(page, label, value) {
+  return page.evaluate(
+    ([label, value]) => {
+      const trigger = [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === label);
+      if (!trigger) throw new Error(`no time picker trigger for ${label}`);
+      if (!trigger.textContent.includes(value)) throw new Error(`${label} shows ${trigger.textContent.trim()}, expected ${value}`);
+    },
+    [label, value],
+  );
 }
 
 async function currencyChecks(browser) {
@@ -1422,6 +1579,13 @@ async function currencyChecks(browser) {
     await toast(page, "Currency switched to EUR");
     await nav(page, "Invoices");
     await page.getByText("€50.00").first().waitFor({ timeout: 5000 });
+  });
+
+  await check("currency: trainer rate label follows the switch to EUR", async () => {
+    await nav(page, "Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Rate per session (EUR)", { exact: true }).waitFor({ timeout: 5000 });
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 
   await check("currency: 10 switches allowed, 11th shows the limit and changes nothing", async () => {
@@ -2009,6 +2173,7 @@ const browser = await chromium.launch(launchOptions());
 try {
   await desktop(browser);
   await weeklySlotChecks(browser);
+  await timePickerChecks(browser);
   await printChecks(browser);
   await darkDesktop(browser);
   await currencyChecks(browser);

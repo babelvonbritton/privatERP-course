@@ -855,6 +855,12 @@
     "light": "Light",
     "system": "Follow system"
   },
+  "time": {
+    "done": "Done",
+    "hour": "Hour",
+    "minute": "Minute",
+    "pick": "Pick a time"
+  },
   "toast": {
     "deleted": "Deleted",
     "currencySwitched": "Currency switched to {to}",

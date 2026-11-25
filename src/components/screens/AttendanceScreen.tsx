@@ -14,6 +14,7 @@ import { Modal } from "../ui/Modal";
 import { Field, inputClass } from "../ui/Field";
 import { Select } from "../ui/Select";
 import { DatePicker } from "../ui/DatePicker";
+import { TimePicker } from "../ui/TimePicker";
 import { Switch } from "../ui/Switch";
 import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
@@ -559,10 +560,10 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("field.startTime")} htmlFor="new-session-start">
-              <input id="new-session-start" type="time" className={inputClass} value={newStartTime} onChange={(e) => setNewStartTime(e.target.value)} />
+              <TimePicker id="new-session-start" ariaLabel={t("field.startTime")} value={newStartTime} onChange={setNewStartTime} />
             </Field>
             <Field label={t("field.endTime")} htmlFor="new-session-end">
-              <input id="new-session-end" type="time" className={inputClass} value={newEndTime} onChange={(e) => setNewEndTime(e.target.value)} />
+              <TimePicker id="new-session-end" ariaLabel={t("field.endTime")} value={newEndTime} onChange={setNewEndTime} />
             </Field>
           </div>
           {newSessionError && (

@@ -855,6 +855,12 @@
     "light": "Terang",
     "system": "Ikuti sistem"
   },
+  "time": {
+    "done": "Selesai",
+    "hour": "Jam",
+    "minute": "Menit",
+    "pick": "Pilih waktu"
+  },
   "toast": {
     "deleted": "Dihapus",
     "currencySwitched": "Mata uang beralih ke {to}",
