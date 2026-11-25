@@ -88,7 +88,6 @@ export interface Course extends BaseRecord {
   level: string;
   /** Price per enrollment, in the current currency. */
   price: number;
-  capacity: number;
   /** Skills a session trainer must have at least one of to teach this course. Empty means any trainer qualifies. */
   requiredSkills: string[];
   /** Weekdays the course meets, 0 = Sunday … 6 = Saturday, matching Date.getDay(). A course can meet on several days. */
@@ -115,6 +114,12 @@ export interface Session extends BaseRecord {
   startTime: string;
   /** End time as HH:MM. Empty on rows created before time ranges existed. */
   endTime: string;
+  /**
+   * Optional cap on attending members (present or late) for this session.
+   * Null or missing means no limit; sessions written before capacity existed
+   * have no cap. Absent does not count toward the cap.
+   */
+  capacity?: number | null;
 }
 
 /** Minutes after midnight for an HH:MM string, or null when it is not a valid time. */
@@ -130,6 +135,29 @@ export function sessionDurationHours(session: Pick<Session, "startTime" | "endTi
   const end = timeToMinutes(session.endTime);
   if (start === null || end === null || end <= start) return null;
   return Math.round(((end - start) / 60) * 100) / 100;
+}
+
+/** A member counts toward the session cap only when present or late; absent does not. */
+export function isAttendingStatus(status: AttendanceStatus): boolean {
+  return status === "present" || status === "late";
+}
+
+/** A session's attendance cap, or null when it has none. Tolerates rows written before capacity existed. */
+export function sessionCapacity(session: Pick<Session, "capacity"> & { capacity?: unknown }): number | null {
+  const cap = session.capacity;
+  return typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null;
+}
+
+/**
+ * Parses a session capacity field: blank means no limit, otherwise a whole
+ * number of at least 1. Returns undefined when the text is not a usable cap,
+ * so the caller can show the form error instead of guessing.
+ */
+export function parseSessionCapacity(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  return Number.isInteger(n) && n >= 1 ? n : undefined;
 }
 
 /** Weekdays a course meets, tolerating a legacy row that still carries a single scheduleWeekday. */

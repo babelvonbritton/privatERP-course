@@ -61,7 +61,6 @@ export const courseInput = z.object({
   description: z.string().max(LIMITS.description),
   level: z.string().trim().min(1).max(LIMITS.level),
   price: money(0, 1_000_000_000),
-  capacity: z.number().int().min(1).max(10_000),
   requiredSkills: z.array(z.string().trim().min(1).max(LIMITS.subject)).max(LIMITS.requiredSkills),
   scheduleWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
   status: z.enum(COURSE_STATUSES),
@@ -94,6 +93,8 @@ export const sessionInput = z
     trainerPresent: z.boolean(),
     startTime: timeString,
     endTime: timeString,
+    /** Blank (null) means no limit; the forms send null for a blank field. */
+    capacity: z.number().int().min(1).max(10_000).nullish(),
     idempotencyKey: idemKey,
   })
   .superRefine((data, ctx) => {

@@ -465,12 +465,12 @@
     },
     "courses": {
       "add": "Tambah kursus",
-      "addDesc": "Beri judul, keterampilan wajib, jadwal mingguan, harga, dan kapasitas.",
+      "addDesc": "Beri judul, keterampilan wajib, jadwal mingguan, dan harga.",
       "detail": "Buka kursus",
       "detailDesc": "Lihat siapa saja yang terdaftar dan sesi apa saja yang sudah berjalan.",
       "enroll": "Daftarkan member",
       "enrollDesc": "Dari sebuah kursus, daftarkan member yang mendaftar. Satu member hanya bisa terdaftar sekali per kursus dalam satu waktu.",
-      "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki keterampilan wajib, jadwal, harga, dan kapasitas.",
+      "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki keterampilan wajib, jadwal, dan harga.",
       "title": "Yang bisa Anda lakukan dengan kursus"
     },
     "dashboard": {
@@ -538,7 +538,6 @@
     }
   },
   "hint": {
-    "courseCapacity": "Berapa banyak member yang bisa mendaftar sekaligus.",
     "coursePrice": "Harga kursus. Dipakai pada tagihan.",
     "courseRequiredSkills": "Keterampilan yang harus dimiliki pengajar, minimal satu, untuk mengajar sesi kursus ini. Biarkan kosong dan pengajar mana pun bisa mengajar.",
     "courseSchedule": "Hari rutin tiap minggu untuk kursus ini.",
@@ -553,7 +552,8 @@
     "paymentDetails": "Tempat pelanggan membayar, misalnya nomor rekening bank atau e-wallet.",
     "payrollPeriod": "Satu run penggajian mencakup satu pengajar untuk satu periode. Membuat lagi akan menyegarkan run draf dari data kehadiran terbaru.",
     "trainerRate": "Upah pengajar ini per sesi. Penggajian mengalikannya dengan jumlah sesi yang dihadiri.",
-    "trainerSubjects": "Ketik keterampilan lalu tekan Enter untuk menambahkannya. Saran berasal dari keterampilan yang sudah dipakai."
+    "trainerSubjects": "Ketik keterampilan lalu tekan Enter untuk menambahkannya. Saran berasal dari keterampilan yang sudah dipakai.",
+    "sessionCapacity": "Kosongkan bila tanpa batas."
   },
   "invoice": {
     "add": "Tagihan baru",
@@ -769,9 +769,10 @@
     "edit": "Ubah sesi",
     "empty": "Belum ada sesi",
     "noQualifiedTrainer": "Tidak ada pengajar yang mengajar satu pun keterampilan yang dibutuhkan kursus ini. Tambahkan keterampilan itu ke seorang pengajar terlebih dahulu.",
-    "noRequiredSkills": "Tidak ada keterampilan wajib — pengajar mana pun bisa mengajar sesi ini.",
+    "noRequiredSkills": "Tidak ada keterampilan wajib. Pengajar mana pun bisa mengajar sesi ini.",
     "title": "Sesi",
-    "trainerMatches": "Cocok {count} dari {required} keterampilan wajib"
+    "trainerMatches": "Cocok {count} dari {required} keterampilan wajib",
+    "attendingCount": "{attending} dari {capacity} hadir"
   },
   "settings": {
     "about": "Tentang",
@@ -893,7 +894,7 @@
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, harga, dan kapasitas. Buka satu kursus untuk mendaftarkan member dan melihat sesinya — setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut.",
+        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut.",
         "title": "Kursus"
       },
       "dashboard": {
@@ -957,7 +958,8 @@
     "required": "{field} wajib diisi.",
     "time": "{field} harus berupa jam seperti 09:00.",
     "tooLong": "{field} maksimal {limit} karakter.",
-    "unqualifiedTrainer": "{field} tidak mengajar satu pun keterampilan yang dibutuhkan kursus ini: {skills}."
+    "unqualifiedTrainer": "{field} tidak mengajar satu pun keterampilan yang dibutuhkan kursus ini: {skills}.",
+    "sessionFull": "Sesi ini sudah penuh: {attending} dari {capacity} tempat sudah terisi."
   },
   "warn": {
     "unknownFields": "{count, plural, one {Kolom tak dikenal pada # catatan diabaikan} other {Kolom tak dikenal pada # catatan diabaikan}}",

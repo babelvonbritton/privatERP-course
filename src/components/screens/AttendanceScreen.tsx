@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseRequiredSkills, courseWeekdays, isDateOnSchedule, rankTrainersForCourse, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { courseRequiredSkills, courseWeekdays, isAttendingStatus, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionCapacity, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -52,6 +52,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [newTopic, setNewTopic] = useState("");
   const [newStartTime, setNewStartTime] = useState("09:00");
   const [newEndTime, setNewEndTime] = useState("10:00");
+  const [newCapacity, setNewCapacity] = useState("");
   const [newTrainerId, setNewTrainerId] = useState("");
   const [newSessionError, setNewSessionError] = useState<string | null>(null);
 
@@ -69,6 +70,11 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     const hours = sessionDurationHours(s);
     return hours === null ? ` ${s.startTime}–${s.endTime}` : ` ${s.startTime}–${s.endTime} (${t("duration.hours", { hours })})`;
   };
+
+  /** Pending attending count against the open session's cap, for the marking UI. */
+  const markingCap = session ? sessionCapacity(session) : null;
+  const attendingCount = useMemo(() => Object.values(marks).filter(isAttendingStatus).length, [marks]);
+  const capReached = markingCap !== null && attendingCount >= markingCap;
 
   const loadDashboard = useCallback(
     async (trainerId: string, memberId: string, courseIdValue: string) => {
@@ -172,7 +178,22 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       setEnrollments(active);
       const saved = new Map(rows.map((r) => [r.memberId, r.status]));
       const next: Record<string, AttendanceStatus> = {};
-      for (const e of active) next[e.memberId] = saved.get(e.memberId) ?? "present";
+      // Unmarked members default to present, but only up to the session cap:
+      // the rest start absent, so the form never opens already over the cap.
+      const cap = found ? sessionCapacity(found) : null;
+      let attending = 0;
+      for (const e of active) {
+        const savedMark = saved.get(e.memberId);
+        if (savedMark) {
+          next[e.memberId] = savedMark;
+          if (isAttendingStatus(savedMark)) attending++;
+        } else if (cap === null || attending < cap) {
+          next[e.memberId] = "present";
+          attending++;
+        } else {
+          next[e.memberId] = "absent";
+        }
+      }
       setMarks(next);
     } catch (e) {
       errorCenter.report(e, { action: "attendance.load" });
@@ -230,6 +251,11 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       setNewSessionError(t("validation.required", { field: t("field.trainer") }));
       return;
     }
+    const capacity = parseSessionCapacity(newCapacity);
+    if (capacity === undefined) {
+      setNewSessionError(t("validation.positive", { field: t("field.capacity") }));
+      return;
+    }
     try {
       const created = await getServices().attendance.createSession({
         courseId: selectedCourse.id,
@@ -239,12 +265,14 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         trainerPresent: false,
         startTime: newStartTime,
         endTime: newEndTime,
+        capacity,
         idempotencyKey: createId(),
       });
       errorCenter.notify({ key: "toast.saved" });
       setNewSessionOpen(false);
       setNewTopic("");
       setNewDate(today());
+      setNewCapacity("");
       setNewTrainerId("");
       setNewSessionError(null);
       const found = await getServices().attendance.listSessionsByCourse(selectedCourse.id);
@@ -318,6 +346,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
             if (selectedCourse) {
               setNewStartTime("09:00");
               setNewEndTime("10:00");
+              setNewCapacity("");
               setNewTrainerId("");
               setNewSessionError(null);
             }
@@ -346,6 +375,13 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               {timeLabel(session)} - {session.topic}
             </p>
             <p className="text-xs text-muted">{selectedCourse?.title ?? ""}</p>
+            {markingCap !== null && (
+              <p role="status" className="mt-1 text-xs text-muted">
+                {capReached
+                  ? t("validation.sessionFull", { attending: attendingCount, capacity: markingCap })
+                  : t("session.attendingCount", { attending: attendingCount, capacity: markingCap })}
+              </p>
+            )}
           </div>
           <div className="border-b border-line px-4 py-2">
             <Switch checked={trainerPresent} onChange={(v) => void toggleTrainer(v)} label={t("attendance.trainerPresent")} />
@@ -361,8 +397,12 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
                       type="button"
                       role="radio"
                       aria-checked={marks[e.memberId] === status}
+                      // At the cap, present/late are unavailable for members
+                      // not already attending; absent stays open so a place
+                      // can be freed, and the reason is shown above the list.
+                      disabled={capReached && isAttendingStatus(status) && marks[e.memberId] !== status}
                       onClick={() => setMarks((prev) => ({ ...prev, [e.memberId]: status }))}
-                      className={`px-3 py-2 text-sm transition-colors duration-200 max-sm:min-h-11 max-sm:px-4 ${
+                      className={`px-3 py-2 text-sm transition-colors duration-200 max-sm:min-h-11 max-sm:px-4 disabled:cursor-not-allowed disabled:opacity-50 ${
                         marks[e.memberId] === status ? "bg-plum-600 text-white" : "bg-surface text-ink hover:bg-plum-50"
                       }`}
                     >
@@ -584,6 +624,9 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               <TimePicker id="new-session-end" ariaLabel={t("field.endTime")} value={newEndTime} onChange={setNewEndTime} />
             </Field>
           </div>
+          <Field label={t("field.capacity")} htmlFor="new-session-capacity" hint={t("hint.sessionCapacity")}>
+            <input id="new-session-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={newCapacity} onChange={(e) => setNewCapacity(e.target.value)} />
+          </Field>
           <Field label={t("field.trainer")}>
             <TrainerPicker
               name="new-session-trainer"

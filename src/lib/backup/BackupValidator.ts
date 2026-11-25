@@ -193,7 +193,7 @@ const FIELDS = {
   trainer: ["id", "orgId", "ownerId", "name", "email", "phone", "subjects", "ratePerSession", "status", "createdAt", "updatedAt", "rev"],
   course: ["id", "orgId", "ownerId", "title", "description", "level", "price", "capacity", "trainerId", "requiredSkills", "scheduleWeekdays", "scheduleWeekday", "scheduleTime", "status", "createdAt", "updatedAt", "rev"],
   enrollment: ["id", "orgId", "ownerId", "memberId", "courseId", "startDate", "endDate", "status", "createdAt", "updatedAt", "rev"],
-  session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "startTime", "endTime", "createdAt", "updatedAt", "rev"],
+  session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "startTime", "endTime", "capacity", "createdAt", "updatedAt", "rev"],
   attendance: ["id", "orgId", "ownerId", "sessionId", "memberId", "status", "createdAt", "updatedAt", "rev"],
   invoice: ["id", "orgId", "ownerId", "number", "memberId", "enrollmentId", "lineItems", "total", "paidAmount", "dueDate", "status", "paymentMethod", "paymentDetails", "createdAt", "updatedAt", "rev"],
   payment: ["id", "orgId", "ownerId", "invoiceId", "amount", "at", "method", "createdAt", "updatedAt", "rev"],
@@ -389,10 +389,10 @@ class DataValidation {
     description: this.read.text(o, "description", p, LIMITS.description),
     level: this.read.text(o, "level", p, LIMITS.level, { required: true, trim: true }),
     price: this.read.money(o, "price", p, 0, 1_000_000_000, this.currency),
-    capacity: this.read.int(o, "capacity", p, 1, 10_000),
     // A backup written before required skills existed carries none, and one
-    // written before v0.9.0 carries a trainerId instead: both are dropped
-    // silently, so the course restores with no required skills and no trainer.
+    // written before v0.9.0 carries a trainerId and a capacity instead: both
+    // are dropped silently, so the course restores with no required skills,
+    // no trainer, and no cap (the cap now lives on the session).
     requiredSkills: o.requiredSkills === undefined ? [] : dedupeSkills(this.read.stringList(o, "requiredSkills", p, LIMITS.requiredSkills, LIMITS.subject)),
     scheduleWeekdays: this.weekdays(o, p),
     status: this.read.oneOf(o, "status", p, COURSE_STATUSES),
@@ -425,6 +425,8 @@ class DataValidation {
     trainerPresent: this.read.bool(o, "trainerPresent", p),
     startTime: this.read.timeOptional(o, "startTime", p),
     endTime: this.read.timeOptional(o, "endTime", p),
+    // A backup written before session capacity existed carries none: null means no limit.
+    capacity: o.capacity === undefined || o.capacity === null ? null : this.read.int(o, "capacity", p, 1, 10_000),
   });
 
   private attendance = (o: Raw, p: string): Attendance => ({

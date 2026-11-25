@@ -123,9 +123,10 @@ export class TrashService {
       case "course": {
         const course = snapshot as unknown as Course;
         await this.noLive("course", entry.originalId);
-        // A snapshot written before v0.9.0 still carries a trainerId: drop it, since the course no longer has a trainer.
-        const { trainerId: _droppedTrainer, ...rest } = course as unknown as Course & { trainerId?: string };
+        // A snapshot written before v0.9.0 still carries a trainerId and a capacity: drop both, since the course no longer has either.
+        const { trainerId: _droppedTrainer, capacity: _droppedCapacity, ...rest } = course as unknown as Course & { trainerId?: string; capacity?: number };
         void _droppedTrainer;
+        void _droppedCapacity;
         await this.storage.courses.put({ ...rest, requiredSkills: Array.isArray(rest.requiredSkills) ? rest.requiredSkills : [] });
         return;
       }

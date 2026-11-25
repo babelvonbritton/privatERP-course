@@ -465,12 +465,12 @@
     },
     "courses": {
       "add": "Add a course",
-      "addDesc": "Give it a title, required skills, a weekly schedule, a price, and a capacity.",
+      "addDesc": "Give it a title, required skills, a weekly schedule, and a price.",
       "detail": "Open a course",
       "detailDesc": "See who is enrolled and which sessions already happened.",
       "enroll": "Enroll members",
       "enrollDesc": "From a course, enroll members who signed up. A member can only be enrolled once per course at a time.",
-      "intro": "Courses are what you teach. Each one has required skills, a schedule, a price, and a capacity.",
+      "intro": "Courses are what you teach. Each one has required skills, a schedule, and a price.",
       "title": "What you can do with courses"
     },
     "dashboard": {
@@ -538,7 +538,6 @@
     }
   },
   "hint": {
-    "courseCapacity": "How many members can enroll at once.",
     "coursePrice": "The price of the course. Used on invoices.",
     "courseRequiredSkills": "Skills a trainer must have at least one of to teach a session of this course. Leave empty and any trainer can teach it.",
     "courseSchedule": "The regular weekly days for this course.",
@@ -553,7 +552,8 @@
     "paymentDetails": "Where the customer should pay, for example a bank account or e-wallet number.",
     "payrollPeriod": "A pay run covers one trainer for one period. Generating again refreshes a draft run from the latest attendance.",
     "trainerRate": "What this trainer is paid per session. Payroll multiplies it by the sessions attended.",
-    "trainerSubjects": "Type a skill and press Enter to add it. Suggestions come from skills already used."
+    "trainerSubjects": "Type a skill and press Enter to add it. Suggestions come from skills already used.",
+    "sessionCapacity": "Leave blank for no limit."
   },
   "invoice": {
     "add": "New invoice",
@@ -769,9 +769,10 @@
     "edit": "Edit session",
     "empty": "No sessions yet",
     "noQualifiedTrainer": "No trainer teaches any of the skills this course requires. Add the skill to a trainer first.",
-    "noRequiredSkills": "No required skills — any trainer can teach this session.",
+    "noRequiredSkills": "No required skills. Any trainer can teach this session.",
     "title": "Sessions",
-    "trainerMatches": "Matches {count} of {required} required skills"
+    "trainerMatches": "Matches {count} of {required} required skills",
+    "attendingCount": "{attending} of {capacity} attending"
   },
   "settings": {
     "about": "About",
@@ -893,7 +894,7 @@
         "title": "Attendance"
       },
       "courses": {
-        "body": "This is where your classes live (courses). Each course has required skills, weekly days, a price, and a capacity. Open one to enroll members and see its sessions — each session has a start and end time, and its length is worked out from them.",
+        "body": "This is where your classes live (courses). Each course has required skills, weekly days, and a price. Open one to enroll members and see its sessions. Each session has a start and end time, and its length is worked out from them.",
         "title": "Courses"
       },
       "dashboard": {
@@ -957,7 +958,8 @@
     "required": "{field} is required.",
     "time": "{field} must be a time like 09:00.",
     "tooLong": "{field} can have at most {limit} characters.",
-    "unqualifiedTrainer": "{field} does not teach any of the skills this course requires: {skills}."
+    "unqualifiedTrainer": "{field} does not teach any of the skills this course requires: {skills}.",
+    "sessionFull": "This session is full: {attending} of {capacity} places are already taken."
   },
   "warn": {
     "unknownFields": "{count, plural, one {Unknown fields in # record were ignored} other {Unknown fields in # records were ignored}}",

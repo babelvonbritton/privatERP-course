@@ -30,7 +30,7 @@ async function seed() {
   const m = await s.members.create({ name: "Ana", email: "ana@example.com", phone: "0812000000", notes: "", status: "active", idempotencyKey: createId() });
   const m2 = await s.members.create({ name: "Citra", email: "citra@example.com", phone: "0812000002", notes: "", status: "active", idempotencyKey: createId() });
   const t = await s.trainers.create({ name: "Budi", email: "budi@example.com", phone: "0812000001", subjects: ["Piano"], ratePerSession: 150000, status: "active", idempotencyKey: createId() });
-  const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
+  const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
   return { s, m, m2, t, c };
 }
 
@@ -254,7 +254,7 @@ describe("backup format 2", () => {
     expect(restoredSession.endTime).toBe("");
   });
 
-  it("restores a pre-v0.9.0 backup: a course carrying a trainerId loses it and gains no required skills", async () => {
+  it("restores a pre-v0.9.0 backup: a course carrying a trainerId and a capacity loses both and gains no required skills", async () => {
     const { c } = await seed();
     const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
     const created = await service.createBackup(noop);
@@ -265,7 +265,7 @@ describe("backup format 2", () => {
     const oldCourses = courseLines.map((line) => {
       const row = JSON.parse(line) as Record<string, unknown>;
       delete row.requiredSkills;
-      return { ...row, trainerId: "t-old" };
+      return { ...row, trainerId: "t-old", capacity: 10 };
     });
     const oldCourseBytes = encodeNdjson(oldCourses);
     files.set("database/courses.ndjson", oldCourseBytes);
@@ -286,7 +286,29 @@ describe("backup format 2", () => {
     expect(restored.ok).toBe(true);
     const restoredCourse = (await getServices().courses.list()).find((x) => x.id === c.id)!;
     expect(restoredCourse).not.toHaveProperty("trainerId");
+    expect(restoredCourse).not.toHaveProperty("capacity");
     expect(restoredCourse.requiredSkills).toEqual([]);
+  });
+
+  it("round-trips session capacity through backup and restore: a capped session keeps its cap, an uncapped one stays uncapped", async () => {
+    const { s, c, t } = await seed();
+    const capped = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Capped", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:00", capacity: 2, idempotencyKey: createId() });
+    const uncapped = await s.attendance.createSession({ courseId: c.id, date: "2026-11-16", topic: "Open", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:00", idempotencyKey: createId() });
+    const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
+    const created = await service.createBackup(noop);
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    await freshServices();
+    const freshService = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
+    const inspected = await freshService.inspect(toFile(created.value.zip, "capacity.zip"), noop);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    const restored = await freshService.restore(inspected.value, { safetyBackup: false, decisions: new Map(), onRestored: async () => {} }, noop);
+    expect(restored.ok).toBe(true);
+    const sessions = await getServices().attendance.listSessionsByCourse(c.id);
+    expect(sessions.find((x) => x.id === capped.id)?.capacity).toBe(2);
+    expect(sessions.find((x) => x.id === uncapped.id)?.capacity ?? null).toBeNull();
   });
 
   it("refuses a backup whose manifest checksum does not match a store file", async () => {

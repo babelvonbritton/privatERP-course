@@ -164,10 +164,11 @@ export class OlaseenaDatabase extends Dexie {
             delete row.scheduleTime;
           });
       });
-    // Version 6 moves the trainer off the course: a course keeps required
-    // skills instead, and each session names its own trainer. Rows written
-    // before then lose their trainerId and gain an empty skill list, so they
-    // stay usable with any trainer.
+    // Version 6 moves the trainer off the course and the capacity onto the
+    // session: a course keeps required skills instead, and each session names
+    // its own trainer and optional cap. Rows written before then lose their
+    // trainerId and capacity and gain an empty skill list, so they stay
+    // usable with any trainer and no cap.
     this.version(6)
       .stores({
         members: "id, name, email, phone, status, updatedAt",
@@ -192,6 +193,7 @@ export class OlaseenaDatabase extends Dexie {
           .toCollection()
           .modify((row: Record<string, unknown>) => {
             delete row.trainerId;
+            delete row.capacity;
             if (!Array.isArray(row.requiredSkills)) row.requiredSkills = [];
           });
       });

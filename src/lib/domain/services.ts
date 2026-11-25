@@ -63,7 +63,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionDurationHours, trainerSkillMatchCount } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, isAttendingStatus, sessionCapacity, sessionDurationHours, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -333,7 +333,7 @@ export class CourseService extends ServiceBase {
         if (existing) return existing;
       }
       const now = this.now();
-      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, capacity: data.capacity, requiredSkills: dedupeSkills(data.requiredSkills), scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), status: data.status };
+      const course: Course = { ...baseFields(this.actor, now), title: data.title, description: data.description, level: data.level, price: data.price, requiredSkills: dedupeSkills(data.requiredSkills), scheduleWeekdays: normalizeWeekdays(data.scheduleWeekdays), status: data.status };
       await this.storage.courses.put(course);
       await this.recordKey(data.idempotencyKey, "course", course.id);
       await this.audit("course.create", "course", course.id, course.title);
@@ -359,7 +359,6 @@ export class CourseService extends ServiceBase {
         description: data.description ?? current.description,
         level: data.level ?? current.level,
         price: data.price ?? current.price,
-        capacity: data.capacity ?? current.capacity,
         requiredSkills: data.requiredSkills ? dedupeSkills(data.requiredSkills) : current.requiredSkills ?? [],
         scheduleWeekdays: data.scheduleWeekdays ? normalizeWeekdays(data.scheduleWeekdays) : current.scheduleWeekdays,
         status: data.status ?? current.status,
@@ -574,7 +573,7 @@ export class AttendanceService extends ServiceBase {
       const duplicate = await this.storage.sessions.findByCourseAndDate(data.courseId, data.date);
       if (duplicate) throw new ValidationError("date", "a session already exists for this course on this date", "invalid");
       const now = this.now();
-      const session: Session = { ...baseFields(this.actor, now), courseId: data.courseId, date: data.date, topic: data.topic, trainerId: data.trainerId, trainerPresent: data.trainerPresent, startTime: data.startTime, endTime: data.endTime };
+      const session: Session = { ...baseFields(this.actor, now), courseId: data.courseId, date: data.date, topic: data.topic, trainerId: data.trainerId, trainerPresent: data.trainerPresent, startTime: data.startTime, endTime: data.endTime, capacity: data.capacity ?? null };
       await this.storage.sessions.put(session);
       await this.recordKey(data.idempotencyKey, "session", session.id);
       await this.audit("session.create", "session", session.id, `${course.title} · ${session.date}`);
@@ -632,6 +631,19 @@ export class AttendanceService extends ServiceBase {
       if (seenId) {
         const existing = await this.storage.attendance.listBySession(sessionId);
         if (existing.length > 0) return existing;
+      }
+      // A capped session counts present + late marks only: absent never takes
+      // a place. The check runs on the marks as they would land, so switching
+      // a member to absent frees their place, and a batch that would overflow
+      // is rejected whole instead of half-applied.
+      const cap = sessionCapacity(session);
+      if (cap !== null) {
+        const byMember = new Map((await this.storage.attendance.listBySession(sessionId)).map((r) => [r.memberId, r.status]));
+        for (const m of marks) byMember.set(m.memberId, m.status);
+        const attending = [...byMember.values()].filter(isAttendingStatus).length;
+        if (attending > cap) {
+          throw new ValidationError("capacity", "session is full", "sessionFull", undefined, { attending, capacity: cap });
+        }
       }
       const now = this.now();
       const out: Attendance[] = [];

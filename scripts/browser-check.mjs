@@ -263,7 +263,6 @@ async function desktop(browser) {
       await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
       await page.getByLabel("Level", { exact: true }).fill("Beginner");
       await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-      await page.getByLabel("Capacity", { exact: true }).fill("10");
       await addRequiredSkill(page, "Piano");
       await page.getByRole("checkbox", { name: "Mon" }).check();
       await page.getByRole("checkbox", { name: "Wed" }).check();
@@ -923,7 +922,6 @@ async function mobileScreensWithData(browser) {
     await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    await page.getByLabel("Capacity", { exact: true }).fill("10");
     await addRequiredSkill(page, "Piano");
     await page.getByRole("checkbox", { name: "Mon" }).check();
     await page.getByRole("checkbox", { name: "Wed" }).check();
@@ -1345,7 +1343,6 @@ async function weeklySlotChecks(browser) {
     await page.getByLabel("Title", { exact: true }).fill(title);
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    await page.getByLabel("Capacity", { exact: true }).fill("10");
     await addRequiredSkill(page, "Piano");
     // The form starts with Monday checked, so clear it first: the slot must be exactly the days asked for.
     await page.getByRole("checkbox", { name: "Mon" }).uncheck();
@@ -1446,7 +1443,6 @@ async function timePickerChecks(browser) {
     await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    await page.getByLabel("Capacity", { exact: true }).fill("10");
     await addRequiredSkill(page, "Piano");
     await page.getByRole("checkbox", { name: todayShort }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -2234,7 +2230,6 @@ async function skillsSessionChecks(browser) {
     await page.getByLabel("Title", { exact: true }).fill(title);
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    await page.getByLabel("Capacity", { exact: true }).fill("10");
     for (const skill of skills) await addRequiredSkill(page, skill);
     await page.getByRole("checkbox", { name: todayShort }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -2266,7 +2261,6 @@ async function skillsSessionChecks(browser) {
     await page.getByLabel("Title", { exact: true }).fill("Music Skills");
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    await page.getByLabel("Capacity", { exact: true }).fill("10");
     // Suggestion drawn from the trainers' subjects: typing "Pia" offers Piano.
     await page.getByLabel("Required skills", { exact: true }).fill("Pia");
     await page.getByRole("option", { name: "Piano", exact: true }).click();
@@ -2405,12 +2399,185 @@ async function skillsSessionChecks(browser) {
   await mobileContext.close();
 }
 
+async function capacityChecks(browser) {
+  const todayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date().getDay()];
+
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("capacity: capped session refuses the next attending mark and frees the place", async () => {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+
+    await nav(page, "Members");
+    for (const name of ["Ana", "Budi"]) {
+      await page.getByRole("button", { name: "Add member" }).click();
+      await page.getByLabel("Name", { exact: true }).fill(name);
+      await page.getByLabel("Email", { exact: true }).fill(`${name.toLowerCase()}@example.com`);
+      await page.getByLabel("Phone", { exact: true }).fill("081234567890");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.getByText(name, { exact: true }).waitFor();
+    }
+
+    await nav(page, "Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Dewi Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("dewi@example.com");
+    await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.keyboard.press("Enter");
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+
+    await nav(page, "Courses");
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Small Group");
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    // No required skills: any trainer qualifies. The course form no longer
+    // has a capacity field — the cap lives on the session instead.
+    if (await page.getByLabel("Capacity", { exact: true }).count()) throw new Error("course form still has a capacity field");
+    await page.getByRole("checkbox", { name: todayShort }).check();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Small Group" }).click();
+    await page.getByText("Enrollments").first().waitFor();
+    for (const name of ["Ana", "Budi"]) {
+      await page.getByRole("button", { name: "Enroll member" }).click();
+      await pickSelect(page, "Member", name);
+      await page.getByRole("button", { name: "Add", exact: true }).last().click();
+      await toast(page, "Saved");
+      await page.getByText(name, { exact: true }).waitFor();
+    }
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+
+    // The session form's capacity field starts blank (no limit); set it to 1.
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Small Group");
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("Trio");
+    const capInput = page.getByLabel("Capacity", { exact: true });
+    await capInput.waitFor();
+    if ((await capInput.inputValue()) !== "") throw new Error("session capacity field is not blank by default");
+    // The hint lives behind the field's "?" toggletip, like every other hint.
+    await page.getByRole("button", { name: "More about Capacity" }).click();
+    await page.getByText("Leave blank for no limit.").waitFor();
+    await capInput.fill("1");
+    await pickTime(page, "Start time", "10:00");
+    await pickTime(page, "End time", "11:00");
+    await page.getByRole("radio", { name: "Dewi Lestari" }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.locator("p", { hasText: "Trio" }).waitFor();
+
+    // The cap is already reached by the default marks (Ana present), so the
+    // second member cannot be marked present or late — only absent.
+    await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();
+    const budiPresent = page.getByRole("radiogroup", { name: "Budi" }).getByRole("radio", { name: "Present" });
+    const budiLate = page.getByRole("radiogroup", { name: "Budi" }).getByRole("radio", { name: "Late" });
+    const budiAbsent = page.getByRole("radiogroup", { name: "Budi" }).getByRole("radio", { name: "Absent" });
+    if (!(await budiPresent.isDisabled())) throw new Error("Present is enabled for Budi past the cap");
+    if (!(await budiLate.isDisabled())) throw new Error("Late is enabled for Budi past the cap");
+    if (await budiAbsent.isDisabled()) throw new Error("Absent is disabled for Budi past the cap");
+    await page.getByRole("button", { name: "Mark attendance" }).click();
+    await toast(page, "Attendance saved");
+
+    // Freeing Ana's place lets Budi take it.
+    await page.getByRole("radiogroup", { name: "Ana" }).getByRole("radio", { name: "Absent" }).click();
+    await page.getByText("0 of 1 attending").waitFor();
+    if (await budiPresent.isDisabled()) throw new Error("Present is still disabled for Budi after a place freed up");
+    await budiPresent.click();
+    await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();
+    await page.getByRole("button", { name: "Mark attendance" }).click();
+    await toast(page, "Attendance saved");
+    await noOverflow(page, "attendance capped", 1280);
+  });
+
+  await check("capacity: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+
+  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const mobilePage = await mobileContext.newPage();
+  mobilePage.setDefaultTimeout(10000);
+  currentPage = mobilePage;
+  const mobileErrors = [];
+  mobilePage.on("pageerror", (e) => mobileErrors.push(`pageerror: ${e.message}`));
+  mobilePage.on("console", (m) => {
+    if (m.type() === "error") mobileErrors.push(`console: ${m.text()}`);
+  });
+
+  await check("capacity mobile: session capacity field fits 390px and saves", async () => {
+    await mobilePage.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(mobilePage);
+    await mobilePage.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await mobilePage.getByRole("button", { name: "Skip tour" }).click();
+    const go = async (name) => {
+      if (name === "Trainers") {
+        await mobilePage.getByRole("button", { name: "More", exact: true }).click();
+        await mobilePage.getByRole("button", { name, exact: true }).click();
+      } else {
+        await nav(mobilePage, name);
+      }
+    };
+    await go("Trainers");
+    await mobilePage.getByRole("button", { name: "Add trainer" }).click();
+    await mobilePage.getByLabel("Name", { exact: true }).fill("Dewi Lestari");
+    await mobilePage.getByLabel("Email", { exact: true }).fill("dewi@example.com");
+    await mobilePage.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await mobilePage.keyboard.press("Enter");
+    await mobilePage.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await mobilePage.getByRole("button", { name: "Save changes" }).click();
+    await toast(mobilePage, "Saved");
+    await nav(mobilePage, "Courses");
+    await mobilePage.getByRole("button", { name: "Add course" }).click();
+    await mobilePage.getByLabel("Title", { exact: true }).fill("Small Group");
+    await mobilePage.getByLabel("Level", { exact: true }).fill("Beginner");
+    await mobilePage.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await mobilePage.getByRole("checkbox", { name: todayShort }).check();
+    await mobilePage.getByRole("button", { name: "Save changes" }).click();
+    await toast(mobilePage, "Saved");
+    await mobilePage.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(mobilePage, "Course", "Small Group");
+    await mobilePage.getByLabel("Topic", { exact: true }).fill("Mobile trio");
+    await mobilePage.getByLabel("Capacity", { exact: true }).fill("2");
+    await pickTime(mobilePage, "Start time", "10:00");
+    await pickTime(mobilePage, "End time", "11:00");
+    await mobilePage.getByRole("radio", { name: "Dewi Lestari" }).click();
+    await noOverflow(mobilePage, "standalone session with capacity mobile", 390);
+    await mobilePage.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(mobilePage, "Saved");
+    await noOverflow(mobilePage, "courses mobile after capped session", 390);
+  });
+
+  await check("capacity mobile: no console errors or page errors", async () => {
+    if (mobileErrors.length) throw new Error(mobileErrors.slice(0, 3).join(" | "));
+    const alerts = await mobilePage.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await mobileContext.close();
+}
+
 const browser = await chromium.launch(launchOptions());
 try {
   await desktop(browser);
   await weeklySlotChecks(browser);
   await timePickerChecks(browser);
   await skillsSessionChecks(browser);
+  await capacityChecks(browser);
   await printChecks(browser);
   await darkDesktop(browser);
   await currencyChecks(browser);

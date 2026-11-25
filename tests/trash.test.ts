@@ -59,7 +59,6 @@ const courseInput = (title = "Piano Basics") => ({
   description: "",
   level: "Beginner",
   price: 500000,
-  capacity: 10,
   requiredSkills: ["Piano"],
   scheduleWeekdays: [1],
   status: "active" as const,
