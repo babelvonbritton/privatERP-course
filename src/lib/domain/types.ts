@@ -120,6 +120,12 @@ export interface Session extends BaseRecord {
    * have no cap. Absent does not count toward the cap.
    */
   capacity?: number | null;
+  /**
+   * Members assigned to attend this session. Null or missing means
+   * unassigned: every enrolled member of the course attends. A session
+   * created before attendee assignment existed has no list.
+   */
+  attendeeMemberIds?: string[] | null;
 }
 
 /** Minutes after midnight for an HH:MM string, or null when it is not a valid time. */
@@ -146,6 +152,25 @@ export function isAttendingStatus(status: AttendanceStatus): boolean {
 export function sessionCapacity(session: Pick<Session, "capacity"> & { capacity?: unknown }): number | null {
   const cap = session.capacity;
   return typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null;
+}
+
+/** Assigned members of a session, or null when it is unassigned. Tolerates rows written before assignment existed. */
+export function sessionAttendees(session: Pick<Session, "attendeeMemberIds"> & { attendeeMemberIds?: unknown }): string[] | null {
+  const list = session.attendeeMemberIds;
+  if (!Array.isArray(list)) return null;
+  return [...new Set(list.filter((id): id is string => typeof id === "string" && id !== ""))];
+}
+
+/**
+ * The members a session's attendance covers: its assigned members who are
+ * still enrolled, or every enrolled member when the session is unassigned.
+ * An assigned member who left the course drops out of the list.
+ */
+export function sessionEffectiveAttendees(session: Pick<Session, "attendeeMemberIds"> & { attendeeMemberIds?: unknown }, enrolledMemberIds: string[]): string[] {
+  const assigned = sessionAttendees(session);
+  if (assigned === null) return [...enrolledMemberIds];
+  const enrolled = new Set(enrolledMemberIds);
+  return assigned.filter((id) => enrolled.has(id));
 }
 
 /**

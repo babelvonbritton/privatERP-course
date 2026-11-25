@@ -52,7 +52,9 @@
     "tabMembers": "Member",
     "tabTrainers": "Pengajar",
     "title": "Kehadiran",
-    "trainerPresent": "Pengajar hadir"
+    "trainerPresent": "Pengajar hadir",
+    "assignedOnly": "Hanya anggota yang ditentukan yang tercantum di sini.",
+    "noListedMembers": "Tidak ada anggota yang ditentukan yang masih terdaftar."
   },
   "backup": {
     "another": "Buat cadangan lain",
@@ -176,7 +178,8 @@
     "topic": "Topik",
     "total": "Total",
     "trainer": "Pengajar",
-    "value": "Nilai"
+    "value": "Nilai",
+    "attendees": "Peserta hadir"
   },
   "drive": {
     "backup": "Cadangkan ke Drive",
@@ -459,7 +462,7 @@
       "dashboardDesc": "Di bawah formulir penandaan, total per member dan kursus, plus tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar. Saring berdasarkan pengajar, member, atau kursus.",
       "intro": "Kehadiran adalah catatan siapa yang datang. Data ini menjadi dasar penggajian, jadi tandai dengan teliti.",
       "mark": "Tandai yang hadir",
-      "markDesc": "Untuk setiap member yang terdaftar, pilih Hadir, Tidak Hadir, atau Terlambat. Tandai juga apakah pengajar hadir.",
+      "markDesc": "Untuk setiap anggota yang tercantum pada sesi — anggota yang ditentukan, atau semua anggota terdaftar bila tidak ada yang ditentukan — pilih Hadir, Tidak Hadir, atau Terlambat. Tandai juga apakah pengajar hadir.",
       "sessions": "Pilih atau buat sesi",
       "sessionsDesc": "Pilih kursus, lalu tanggal dan rentang waktu sesi. Jika sesi belum ada, buat dulu.",
       "title": "Yang bisa Anda lakukan dengan kehadiran",
@@ -474,7 +477,9 @@
       "enroll": "Daftarkan member",
       "enrollDesc": "Dari sebuah kursus, daftarkan member yang mendaftar. Satu member hanya bisa terdaftar sekali per kursus dalam satu waktu.",
       "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki keterampilan wajib, jadwal, dan harga.",
-      "title": "Yang bisa Anda lakukan dengan kursus"
+      "title": "Yang bisa Anda lakukan dengan kursus",
+      "assign": "Tentukan siapa yang hadir di sesi",
+      "assignDesc": "Buka sebuah sesi di kursus lalu centang anggota yang akan hadir. Kosongkan semua pilihan untuk semua anggota terdaftar. Kehadiran kemudian hanya memeriksa anggota yang tercantum."
     },
     "dashboard": {
       "intro": "Dasbor adalah ringkasan Anda. Di sini terlihat uang, kehadiran, dan apa yang akan datang, semuanya dihitung dari data Anda.",
@@ -779,7 +784,13 @@
     "noRequiredSkills": "Tidak ada keterampilan wajib. Pengajar mana pun bisa mengajar sesi ini.",
     "title": "Sesi",
     "trainerMatches": "Cocok {count} dari {required} keterampilan wajib",
-    "attendingCount": "{attending} dari {capacity} hadir"
+    "attendingCount": "{attending} dari {capacity} hadir",
+    "assign": "Tentukan anggota",
+    "assignTitle": "Siapa yang hadir di sesi ini",
+    "assignHint": "Kosongkan semua pilihan untuk semua anggota terdaftar.",
+    "allEnrolled": "Semua anggota terdaftar",
+    "assigned": "Ditentukan: {names}",
+    "assignedCount": "{count} anggota ditentukan"
   },
   "settings": {
     "about": "Tentang",
@@ -897,11 +908,11 @@
     "skip": "Lewati tur",
     "step": {
       "attendance": {
-        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap member Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi di mana pengajar hadir dihitung untuk gaji mereka. Di bawah formulir penandaan, dasbor merangkum kehadiran per member dan kursus, dengan tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar.",
+        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap member yang tercantum — anggota yang ditentukan untuk sesi tersebut, atau semua anggota terdaftar bila tidak ada yang ditentukan — Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi di mana pengajar hadir dihitung untuk gaji mereka. Di bawah formulir penandaan, dasbor merangkum kehadiran per member dan kursus, dengan tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar.",
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut.",
+        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut. Sebuah sesi juga bisa mencantumkan dengan tepat anggota mana saja yang akan hadir, dan kehadiran kemudian hanya memeriksa anggota tersebut.",
         "title": "Kursus"
       },
       "dashboard": {
@@ -970,7 +981,9 @@
     "time": "{field} harus berupa jam seperti 09:00.",
     "tooLong": "{field} maksimal {limit} karakter.",
     "unqualifiedTrainer": "{field} tidak mengajar satu pun keterampilan yang dibutuhkan kursus ini: {skills}.",
-    "sessionFull": "Sesi ini sudah penuh: {attending} dari {capacity} tempat sudah terisi."
+    "sessionFull": "Sesi ini sudah penuh: {attending} dari {capacity} tempat sudah terisi.",
+    "notEnrolled": "{field} tidak terdaftar di kursus ini.",
+    "notAssigned": "{field} tidak ada di daftar hadir sesi ini."
   },
   "warn": {
     "unknownFields": "{count, plural, one {Kolom tak dikenal pada # catatan diabaikan} other {Kolom tak dikenal pada # catatan diabaikan}}",

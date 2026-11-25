@@ -11,7 +11,7 @@ const GUIDE_ITEMS: Record<string, string[]> = {
   dashboard: ["money", "next", "profile"],
   members: ["add", "find", "detail"],
   trainers: ["add", "find", "detail"],
-  courses: ["add", "enroll", "detail"],
+  courses: ["add", "enroll", "detail", "assign"],
   attendance: ["sessions", "mark", "trainer", "dashboard"],
   invoices: ["pay", "status"],
   payroll: ["generate", "paid"],

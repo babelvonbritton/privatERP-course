@@ -1,6 +1,6 @@
 import type { Msg } from "@/i18n/types";
 import type { BackupData } from "@/lib/domain/types";
-import { courseWeekdays } from "@/lib/domain/types";
+import { courseWeekdays, sessionAttendees } from "@/lib/domain/types";
 import { STORE_NAMES, type StoreName } from "./constants";
 
 export type Decision = "replace" | "skip";
@@ -30,6 +30,7 @@ export type DiffField =
   | "level"
   | "price"
   | "capacity"
+  | "attendees"
   | "trainer"
   | "requiredSkills"
   | "schedule"
@@ -184,6 +185,7 @@ export class MergePlanner {
       { field: "topic", kind: "text", get: (v) => v.topic },
       { field: "trainer", kind: "text", get: (v) => v.trainerId },
       { field: "capacity", kind: "text", get: (v) => (v.capacity == null ? "" : String(v.capacity)) },
+      { field: "attendees", kind: "text", get: (v) => (sessionAttendees(v) ?? []).join(", ") },
       { field: "startTime", kind: "text", get: (v) => v.startTime },
       { field: "endTime", kind: "text", get: (v) => v.endTime },
       { field: "status", kind: "text", get: (v) => (v.trainerPresent ? "present" : "absent") },

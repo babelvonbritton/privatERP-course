@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { allSkills, courseRequiredSkills, courseWeekdays, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { allSkills, courseRequiredSkills, courseWeekdays, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
 import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
@@ -81,6 +81,9 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [sessionTrainerId, setSessionTrainerId] = useState("");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
+
+  const [assignSessionId, setAssignSessionId] = useState<string | null>(null);
+  const [assignChecked, setAssignChecked] = useState<string[]>([]);
 
   const [standaloneOpen, setStandaloneOpen] = useState(false);
   const [standaloneCourseId, setStandaloneCourseId] = useState(NONE);
@@ -321,6 +324,37 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     const activeIds = new Set(enrollments.filter((e) => e.status === "active").map((e) => e.memberId));
     return members.filter((m) => !activeIds.has(m.id));
   }, [enrollments, members]);
+
+  /** Members currently enrolled in the open course, for the session attendee picker. */
+  const enrolledMembers = useMemo(() => {
+    const byId = new Map(members.map((m) => [m.id, m]));
+    return enrollments
+      .filter((e) => e.status === "active")
+      .map((e) => byId.get(e.memberId))
+      .filter((m): m is Member => m !== undefined)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [enrollments, members]);
+
+  const openAssign = (session: Session) => {
+    if (assignSessionId === session.id) {
+      setAssignSessionId(null);
+      return;
+    }
+    setAssignChecked(sessionAttendees(session) ?? []);
+    setAssignSessionId(session.id);
+  };
+
+  const saveAssign = async (session: Session) => {
+    try {
+      await getServices().attendance.assignSessionAttendees(session.id, assignChecked, createId());
+      errorCenter.notify({ key: "toast.saved" });
+      setAssignSessionId(null);
+      setAssignChecked([]);
+      if (selected) await loadDetail(selected.id);
+    } catch (e) {
+      errorCenter.report(e, { action: "session.assign" });
+    }
+  };
 
   /** Names the allowed weekdays when a date falls outside the course's weekly slot, or null when the date is fine. */
   const scheduledDayError = (date: string | null, course: Course, fieldKey: MessageKey): string | null => {
@@ -836,21 +870,76 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                 <ul className="mt-3 flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-card border border-line bg-surface">
                   {sessions.map((s) => {
                     const hours = sessionDurationHours(s);
+                    const assigned = sessionAttendees(s);
+                    const assignedNames = (assigned ?? []).map((id) => memberName(id)).filter((n) => n !== "");
+                    const assignOpen = assignSessionId === s.id;
                     return (
-                      <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-ink">
-                            {formatDate(s.date, locale)}
-                            {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
-                          </p>
-                          <p className="text-xs text-muted">
-                            {hours !== null ? `${t("duration.hours", { hours })} · ` : ""}
-                            {t("field.trainerPresent")}: {t(s.trainerPresent ? "status.present" : "status.absent")}
-                          </p>
+                      <li key={s.id} className="flex flex-col gap-2 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-ink">
+                              {formatDate(s.date, locale)}
+                              {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
+                            </p>
+                            <p className="text-xs text-muted">
+                              {hours !== null ? `${t("duration.hours", { hours })} · ` : ""}
+                              {t("field.trainerPresent")}: {t(s.trainerPresent ? "status.present" : "status.absent")}
+                            </p>
+                            <p className="text-xs text-muted">
+                              {assigned === null
+                                ? t("session.allEnrolled")
+                                : assignedNames.length > 0
+                                  ? t("session.assigned", { names: assignedNames.join(", ") })
+                                  : t("session.assignedCount", { count: assigned.length })}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {enrolledMembers.length > 0 && (
+                              <Button
+                                className="max-sm:min-h-11"
+                                variant="soft"
+                                aria-expanded={assignOpen}
+                                aria-controls={`assign-${s.id}`}
+                                onClick={() => openAssign(s)}
+                              >
+                                {t("session.assign")}
+                              </Button>
+                            )}
+                            <Button className="max-sm:min-h-11" variant="dangerSoft" onClick={() => setPendingSession(s)}>
+                              {t("session.delete")}
+                            </Button>
+                          </div>
                         </div>
-                        <Button className="max-sm:min-h-11" variant="dangerSoft" onClick={() => setPendingSession(s)}>
-                          {t("session.delete")}
-                        </Button>
+                        {assignOpen && (
+                          <fieldset id={`assign-${s.id}`} className="rounded-card border border-line bg-canvas p-3">
+                            <legend className="px-1 text-sm font-medium text-ink">{t("session.assignTitle")}</legend>
+                            <p className="text-xs text-muted">{t("session.assignHint")}</p>
+                            <div className="mt-1 flex flex-col">
+                              {enrolledMembers.map((m) => {
+                                const checked = assignChecked.includes(m.id);
+                                return (
+                                  <label key={m.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => setAssignChecked((prev) => (checked ? prev.filter((id) => id !== m.id) : [...prev, m.id]))}
+                                      className="size-4 shrink-0 accent-plum-600"
+                                    />
+                                    {m.name}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-2 flex justify-end gap-2">
+                              <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setAssignSessionId(null)}>
+                                {t("action.cancel")}
+                              </Button>
+                              <Button className="max-sm:min-h-11" onClick={() => void saveAssign(s)}>
+                                {t("action.save")}
+                              </Button>
+                            </div>
+                          </fieldset>
+                        )}
                       </li>
                     );
                   })}

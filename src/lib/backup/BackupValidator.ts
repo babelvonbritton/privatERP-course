@@ -13,6 +13,7 @@ import {
   TRAINER_STATUSES,
   dedupeSkills,
   isCurrencyCode,
+  sessionAttendees,
   type BackupData,
   type Attendance,
   type AuditLogEntry,
@@ -175,6 +176,18 @@ class FieldReader {
     });
   }
 
+  /** Record ids from a list, deduplicated, dropping blank entries (non-text entries are already logged by stringList). */
+  idList(o: Raw, key: string, path: string): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const entry of this.stringList(o, key, path, 10_000, 64)) {
+      if (!entry || seen.has(entry)) continue;
+      seen.add(entry);
+      out.push(entry);
+    }
+    return out;
+  }
+
   nullableInt(o: Raw, key: string, path: string, min: number, max: number): number | null {
     const v = o[key];
     if (v === null || v === undefined) return null;
@@ -193,7 +206,7 @@ const FIELDS = {
   trainer: ["id", "orgId", "ownerId", "name", "email", "phone", "subjects", "ratePerSession", "status", "createdAt", "updatedAt", "rev"],
   course: ["id", "orgId", "ownerId", "title", "description", "level", "price", "capacity", "trainerId", "requiredSkills", "scheduleWeekdays", "scheduleWeekday", "scheduleTime", "status", "createdAt", "updatedAt", "rev"],
   enrollment: ["id", "orgId", "ownerId", "memberId", "courseId", "startDate", "endDate", "status", "createdAt", "updatedAt", "rev"],
-  session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "startTime", "endTime", "capacity", "createdAt", "updatedAt", "rev"],
+  session: ["id", "orgId", "ownerId", "courseId", "date", "topic", "trainerId", "trainerPresent", "startTime", "endTime", "capacity", "attendeeMemberIds", "createdAt", "updatedAt", "rev"],
   attendance: ["id", "orgId", "ownerId", "sessionId", "memberId", "status", "createdAt", "updatedAt", "rev"],
   invoice: ["id", "orgId", "ownerId", "number", "memberId", "enrollmentId", "lineItems", "total", "paidAmount", "dueDate", "status", "paymentMethod", "paymentDetails", "createdAt", "updatedAt", "rev"],
   payment: ["id", "orgId", "ownerId", "invoiceId", "amount", "at", "method", "createdAt", "updatedAt", "rev"],
@@ -280,6 +293,9 @@ class DataValidation {
     sessions.forEach((s, i) => {
       if (!courseIds.has(s.courseId)) this.log.add(`sessions[${i}].courseId`, "points to a missing course");
       if (!trainerIds.has(s.trainerId)) this.log.add(`sessions[${i}].trainerId`, "points to a missing trainer");
+      (sessionAttendees(s) ?? []).forEach((id, j) => {
+        if (!memberIds.has(id)) this.log.add(`sessions[${i}].attendeeMemberIds[${j}]`, "points to a missing member");
+      });
     });
     attendance.forEach((a, i) => {
       if (!sessionIds.has(a.sessionId)) this.log.add(`attendance[${i}].sessionId`, "points to a missing session");
@@ -428,6 +444,8 @@ class DataValidation {
     endTime: this.read.timeOptional(o, "endTime", p),
     // A backup written before session capacity existed carries none: null means no limit.
     capacity: o.capacity === undefined || o.capacity === null ? null : this.read.int(o, "capacity", p, 1, 10_000),
+    // A backup written before attendee assignment existed carries none: null means unassigned.
+    attendeeMemberIds: o.attendeeMemberIds === undefined || o.attendeeMemberIds === null ? null : this.read.idList(o, "attendeeMemberIds", p),
   });
 
   private attendance = (o: Raw, p: string): Attendance => ({

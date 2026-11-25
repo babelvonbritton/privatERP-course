@@ -64,7 +64,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, isAttendingStatus, sessionCapacity, sessionDurationHours, trainerSkillMatchCount } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, isAttendingStatus, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -580,11 +580,44 @@ export class AttendanceService extends ServiceBase {
       const duplicate = await this.storage.sessions.findByCourseAndDate(data.courseId, data.date);
       if (duplicate) throw new ValidationError("date", "a session already exists for this course on this date", "invalid");
       const now = this.now();
-      const session: Session = { ...baseFields(this.actor, now), courseId: data.courseId, date: data.date, topic: data.topic, trainerId: data.trainerId, trainerPresent: data.trainerPresent, startTime: data.startTime, endTime: data.endTime, capacity: data.capacity ?? null };
+      const session: Session = { ...baseFields(this.actor, now), courseId: data.courseId, date: data.date, topic: data.topic, trainerId: data.trainerId, trainerPresent: data.trainerPresent, startTime: data.startTime, endTime: data.endTime, capacity: data.capacity ?? null, attendeeMemberIds: null };
       await this.storage.sessions.put(session);
       await this.recordKey(data.idempotencyKey, "session", session.id);
       await this.audit("session.create", "session", session.id, `${course.title} · ${session.date}`);
       return session;
+    });
+  }
+
+  /**
+   * Assigns which members attend a session. Every assigned member must hold
+   * an active enrollment in the session's course; an empty list clears the
+   * assignment back to unassigned, so every enrolled member attends.
+   */
+  async assignSessionAttendees(sessionId: string, memberIds: string[], idempotencyKey: string): Promise<Session> {
+    requireCan(this.actor, "session.update");
+    if (!idempotencyKey) throw new ValidationError("idempotencyKey", "idempotency key is required", "required");
+    const session = await this.storage.sessions.get(sessionId);
+    if (!session) throw new AppError("NOT_FOUND", { details: `session ${sessionId}` });
+    const enrolled = await this.storage.enrollments.listActiveByCourse(session.courseId);
+    const enrolledIds = new Set(enrolled.map((e) => e.memberId));
+    const unique = [...new Set(memberIds.filter((id) => typeof id === "string" && id !== ""))];
+    for (const id of unique) {
+      if (!enrolledIds.has(id)) throw new ValidationError("memberId", "member is not enrolled in this course", "notEnrolled");
+    }
+    return this.db.transaction("rw", [this.db.sessions, this.db.writeKeys, this.db.auditLog], async () => {
+      const seenId = await this.seenKey(idempotencyKey, "session");
+      if (seenId === sessionId) {
+        const existing = await this.storage.sessions.get(sessionId);
+        if (existing) return existing;
+      }
+      const current = await this.storage.sessions.get(sessionId);
+      if (!current) throw new AppError("NOT_FOUND", { details: `session ${sessionId}` });
+      const assigned = unique.length === 0 ? null : unique;
+      const updated: Session = { ...touched(current, this.now()), attendeeMemberIds: assigned };
+      await this.storage.sessions.put(updated);
+      await this.recordKey(idempotencyKey, "session", sessionId);
+      await this.audit("session.update", "session", sessionId, assigned === null ? "attendees cleared" : `${assigned.length} attendees assigned`);
+      return updated;
     });
   }
 
@@ -621,7 +654,11 @@ export class AttendanceService extends ServiceBase {
     });
   }
 
-  /** Marks attendance for one session. Every member listed must hold an active enrollment in the session's course. */
+  /**
+   * Marks attendance for one session. Every member listed must be on the
+   * session's effective list: its assigned members when assigned, otherwise
+   * every member holding an active enrollment in the session's course.
+   */
   async mark(sessionId: string, marks: Array<{ memberId: string; status: AttendanceStatus }>, idempotencyKey: string): Promise<Attendance[]> {
     requireCan(this.actor, "attendance.mark");
     if (!idempotencyKey) throw new ValidationError("idempotencyKey", "idempotency key is required", "required");
@@ -629,9 +666,11 @@ export class AttendanceService extends ServiceBase {
     if (!session) throw new AppError("NOT_FOUND", { details: `session ${sessionId}` });
     const enrolled = await this.storage.enrollments.listActiveByCourse(session.courseId);
     const enrolledIds = new Set(enrolled.map((e) => e.memberId));
+    const effective = new Set(sessionEffectiveAttendees(session, enrolled.map((e) => e.memberId)));
     for (const m of marks) {
       const data = parseInput(attendanceInput, { sessionId, memberId: m.memberId, status: m.status, idempotencyKey });
-      if (!enrolledIds.has(m.memberId)) throw new ValidationError("memberId", "member is not enrolled in this course", "invalid");
+      if (!enrolledIds.has(m.memberId)) throw new ValidationError("memberId", "member is not enrolled in this course", "notEnrolled");
+      if (!effective.has(m.memberId)) throw new ValidationError("memberId", "member is not on this session's attendee list", "notAssigned");
     }
     return this.db.transaction("rw", [this.db.attendance, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(idempotencyKey, "attendance-batch");

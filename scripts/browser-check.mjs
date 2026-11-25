@@ -422,6 +422,68 @@ async function desktop(browser) {
     await noOverflow(page, "attendance", 1280);
   });
 
+  await check("desktop: session attendee assignment in the course menu drives the attendance list", async () => {
+    // A second enrolled member, so the assignment can narrow the list.
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Citra Kirana");
+    await page.getByLabel("Email", { exact: true }).fill("citra@example.com");
+    await page.getByLabel("Phone", { exact: true }).fill("081234567892");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    try {
+      await nav(page, "Courses");
+      await page.locator("tr", { hasText: "Piano Basics" }).click();
+      await page.getByText("Enrollments").first().waitFor();
+      await page.getByRole("button", { name: "Enroll member" }).click();
+      await pickSelect(page, "Member", "Citra Kirana");
+      await page.getByRole("button", { name: "Add", exact: true }).last().click();
+      await toast(page, "Saved");
+      // A fresh session lists every enrolled member.
+      await page.getByText("All enrolled members").waitFor();
+      await page.getByRole("button", { name: "Assign members" }).click();
+      await page.getByRole("checkbox", { name: "Ayu Lestari" }).check();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.getByText("Assigned: Ayu Lestari").waitFor();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+    // The attendance list now shows only the assigned member.
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Piano Basics");
+    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+    await page.getByRole("option", { name: "Scales" }).click();
+    await page.getByText("Only the assigned members are listed here.").waitFor();
+    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
+    if (await page.getByRole("radiogroup", { name: "Citra Kirana" }).count()) {
+      throw new Error("unassigned member Citra Kirana is listed in the attendance marking");
+    }
+    // Unchecking every member returns the session to unassigned, and both
+    // enrolled members are listed again.
+    try {
+      await nav(page, "Courses");
+      await page.locator("tr", { hasText: "Piano Basics" }).click();
+      await page.getByText("Enrollments").first().waitFor();
+      await page.getByRole("button", { name: "Assign members" }).click();
+      await page.getByRole("checkbox", { name: "Ayu Lestari" }).uncheck();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.getByText("All enrolled members").waitFor();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Piano Basics");
+    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+    await page.getByRole("option", { name: "Scales" }).click();
+    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
+    await page.getByRole("radiogroup", { name: "Citra Kirana" }).waitFor();
+    await noOverflow(page, "attendance-assigned", 1280);
+  });
+
   await check("desktop: course detail enrollment and session lists scroll independently", async () => {
     try {
       await nav(page, "Courses");
@@ -784,7 +846,8 @@ async function desktop(browser) {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Get to know the features" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
-    // Scope to the tour dialog: the dashboard pagination also has a "Next" button.
+    // Scope to the tour dialog: the dashboard behind it has its own "Next"
+    // pagination button, and an unscoped click is a strict-mode race.
     await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
     await page.getByText("Get to know Olaseena").waitFor();
     await page.getByRole("button", { name: "Skip tour" }).click();
@@ -1203,6 +1266,31 @@ async function mobileScreensWithData(browser) {
     await footerClearOfNav(page);
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-trainers-390.png` });
+  });
+
+  await check("mobile data: session attendee assignment at 390px", async () => {
+    try {
+      await nav(page, "Courses");
+      await page.locator("tr", { hasText: "Piano Basics" }).click();
+      await page.getByText("Enrollments").first().waitFor();
+      await page.getByText("All enrolled members").waitFor();
+      await page.getByRole("button", { name: "Assign members" }).click();
+      await page.getByRole("checkbox", { name: "Ayu Lestari" }).check();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.getByText("Assigned: Ayu Lestari").waitFor();
+      await noOverflow(page, "mobile data assign", 390);
+      await fixedTargetsAtLeast44(page, "assign picker");
+      // Uncheck again: the session goes back to all enrolled members.
+      await page.getByRole("button", { name: "Assign members" }).click();
+      await page.getByRole("checkbox", { name: "Ayu Lestari" }).uncheck();
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.getByText("All enrolled members").waitFor();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
   });
 
   await check("mobile data: course detail modal, no overflow", async () => {

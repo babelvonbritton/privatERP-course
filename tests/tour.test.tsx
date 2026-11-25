@@ -103,6 +103,15 @@ describe("tour", () => {
     }
   });
 
+  it("the courses and attendance steps mention session attendee assignment", () => {
+    // The assignment lives in the course menu: the courses step names it,
+    // and the attendance step says marking only covers the listed members.
+    expect(enMessages.tour.step.courses.body).toContain("which members will attend");
+    expect(idMessages.tour.step.courses.body).toContain("anggota mana saja yang akan hadir");
+    expect(enMessages.tour.step.attendance.body).toContain("listed member");
+    expect(idMessages.tour.step.attendance.body).toContain("yang tercantum");
+  });
+
   it("does not navigate again for the Drive step on the same Settings screen", async () => {
     const onNavigate = vi.fn();
     render(<Harness onNavigate={onNavigate} />);

@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseRequiredSkills, courseWeekdays, isAttendingStatus, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionCapacity, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { courseRequiredSkills, courseWeekdays, isAttendingStatus, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -175,14 +175,19 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       const active = allEnrollments.filter((e) => e.status === "active");
       setSession(found ?? null);
       setTrainerPresent(found?.trainerPresent ?? false);
-      setEnrollments(active);
+      // The marking list is the session's assigned members when assigned,
+      // otherwise every enrolled member. Assigned members who left the
+      // course drop out of the list.
+      const effectiveIds = found ? new Set(sessionEffectiveAttendees(found, active.map((a) => a.memberId))) : null;
+      const listed = effectiveIds === null ? active : active.filter((e) => effectiveIds.has(e.memberId));
+      setEnrollments(listed);
       const saved = new Map(rows.map((r) => [r.memberId, r.status]));
       const next: Record<string, AttendanceStatus> = {};
       // Unmarked members default to present, but only up to the session cap:
       // the rest start absent, so the form never opens already over the cap.
       const cap = found ? sessionCapacity(found) : null;
       let attending = 0;
-      for (const e of active) {
+      for (const e of listed) {
         const savedMark = saved.get(e.memberId);
         if (savedMark) {
           next[e.memberId] = savedMark;
@@ -365,7 +370,9 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         </div>
       ) : enrollments.length === 0 ? (
         <div className="rounded-card border border-line bg-surface px-6 py-12 text-center">
-          <p className="text-base font-medium text-ink">{t("attendance.noEnrollments")}</p>
+          <p className="text-base font-medium text-ink">
+            {session && sessionAttendees(session) !== null ? t("attendance.noListedMembers") : t("attendance.noEnrollments")}
+          </p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-card border border-line bg-surface">
@@ -375,6 +382,9 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               {timeLabel(session)} - {session.topic}
             </p>
             <p className="text-xs text-muted">{selectedCourse?.title ?? ""}</p>
+            {sessionAttendees(session) !== null && (
+              <p className="mt-1 text-xs text-muted">{t("attendance.assignedOnly")}</p>
+            )}
             {markingCap !== null && (
               <p role="status" className="mt-1 text-xs text-muted">
                 {capReached
