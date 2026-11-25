@@ -8,13 +8,17 @@ import type { RestorePlan, StepState } from "@/lib/backup/types";
 import {
   DEFAULT_DRIVE_CLIENT_ID,
   DRIVE_BACKUP_FILENAME,
+  DRIVE_PASSPHRASE_FILENAME,
   DriveService,
+  buildDrivePassphraseFile,
   ensureDriveToken,
   readDriveState,
   resolveDriveClientId,
+  setupPassphraseError,
   writeDriveState,
   type DriveState,
 } from "@/lib/drive";
+import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
 import { getDriveSyncManager, type SyncState } from "@/lib/driveSync";
 import { AppError } from "@/lib/errors/AppError";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -47,6 +51,15 @@ export function DriveSection({ onRestored }: Props) {
   const [showOwnId, setShowOwnId] = useState(false);
   const [drivePass, setDrivePass] = useState("");
   const [drivePassConfirm, setDrivePassConfirm] = useState("");
+  // Passphrase setup dialog, shown when auto-sync is turned on before any
+  // Drive passphrase is stored. Its fields live apart from the section's own
+  // passphrase fields, so the dialog never disturbs a manual backup.
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setupStep, setSetupStep] = useState<"form" | "download">("form");
+  const [setupPass, setSetupPass] = useState("");
+  const [setupPassConfirm, setSetupPassConfirm] = useState("");
+  const [showSetupPass, setShowSetupPass] = useState(false);
+  const [showSetupPassConfirm, setShowSetupPassConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [steps, setSteps] = useState<StepState[]>([]);
   const [status, setStatus] = useState("");
@@ -65,8 +78,19 @@ export function DriveSection({ onRestored }: Props) {
   const [applyResult, setApplyResult] = useState<MergeResult | null>(null);
 
   const connected = !!state?.accessToken;
-  const hasPassphrase = !!state?.passphrase;
   const hasDefault = DEFAULT_DRIVE_CLIENT_ID.trim().length > 0;
+
+  /** Live validation of the setup dialog fields; shown once the user has started typing, so the disabled Confirm explains itself. */
+  const setupErrorKind = setupPassphraseError(setupPass, setupPassConfirm);
+  const setupError =
+    (setupPass !== "" || setupPassConfirm !== "") && setupErrorKind !== null
+      ? setupErrorKind === "required"
+        ? t("validation.required", { field: t("drive.passphrase") })
+        : setupErrorKind === "alphanumeric"
+          ? t("validation.alphanumeric", { field: t("drive.passphrase") })
+          : t("drive.passphraseMismatch")
+      : "";
+  const setupValid = setupErrorKind === null;
 
   const reloadState = useCallback(async () => {
     try {
@@ -128,6 +152,10 @@ export function DriveSection({ onRestored }: Props) {
   const validPassphrase = useCallback((): string | null => {
     if (drivePass === "") {
       setFormError(t("validation.required", { field: t("drive.passphrase") }));
+      return null;
+    }
+    if (!isAlphanumericPassphrase(drivePass)) {
+      setFormError(t("validation.alphanumeric", { field: t("drive.passphrase") }));
       return null;
     }
     if (drivePass !== drivePassConfirm) {
@@ -224,6 +252,12 @@ export function DriveSection({ onRestored }: Props) {
       setFormError(t("validation.required", { field: t("drive.passphrase") }));
       return;
     }
+    // Letters and digits only, like every passphrase entry: a backup made
+    // before the rule with symbols in its passphrase cannot be opened here.
+    if (!isAlphanumericPassphrase(drivePass)) {
+      setFormError(t("validation.alphanumeric", { field: t("drive.passphrase") }));
+      return;
+    }
     const file: FileLike = { name: DRIVE_BACKUP_FILENAME, size: bytes.length, arrayBuffer: async () => bytes.slice().buffer as ArrayBuffer };
     await runFlow(async () => {
       const inspected = await service.inspect(file, setSteps, drivePass);
@@ -265,12 +299,73 @@ export function DriveSection({ onRestored }: Props) {
 
   async function toggleSync(on: boolean) {
     setError(null);
+    if (!on) {
+      try {
+        await syncManager.setSyncEnabled(false);
+        await reloadState();
+      } catch (e) {
+        await fail(e);
+      }
+      return;
+    }
+    // Turning on: with a stored passphrase sync starts at once. Without one,
+    // the setup dialog collects it first; sync stays off until then, and the
+    // toggle — controlled by the stored state — keeps showing off.
     try {
-      await syncManager.setSyncEnabled(on);
-      await reloadState();
+      const fresh = await readDriveState(getStorage().settings);
+      if (fresh.passphrase) {
+        await syncManager.setSyncEnabled(true);
+        await reloadState();
+        return;
+      }
     } catch (e) {
       await fail(e);
+      return;
     }
+    setSetupPass("");
+    setSetupPassConfirm("");
+    setShowSetupPass(false);
+    setShowSetupPassConfirm(false);
+    setSetupStep("form");
+    setSetupOpen(true);
+  }
+
+  /** Closes the setup dialog and clears its fields. In the form step this is a cancel: sync was never enabled, so the toggle stays off and nothing is stored. In the download step sync is already on. */
+  function closeSetup() {
+    setSetupOpen(false);
+    setSetupPass("");
+    setSetupPassConfirm("");
+    setSetupStep("form");
+  }
+
+  /** Stores the setup passphrase and turns sync on, then moves to the download step. */
+  async function confirmSetup() {
+    if (!setupValid) return;
+    setBusy(true);
+    try {
+      await writeDriveState(getStorage().settings, { passphrase: setupPass });
+      await syncManager.setSyncEnabled(true);
+      await reloadState();
+      setSetupStep("download");
+    } catch (e) {
+      await fail(e);
+      setSetupOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Downloads the stored passphrase as JSON. Triggered only by the user's tap on the download button. */
+  function downloadPassphraseFile() {
+    const blob = new Blob([buildDrivePassphraseFile(setupPass)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = DRIVE_PASSPHRASE_FILENAME;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function saveClientId() {
@@ -369,10 +464,9 @@ export function DriveSection({ onRestored }: Props) {
           onChange={(on) => void toggleSync(on)}
           label={t("drive.sync")}
           description={t("drive.syncHint")}
-          disabled={busy || !connected || !hasPassphrase}
+          disabled={busy || !connected}
         />
         {!connected && <p className="mt-1 text-xs text-muted">{t("drive.syncNeedsConnect")}</p>}
-        {connected && !hasPassphrase && <p className="mt-1 text-xs text-muted">{t("drive.syncNeedsPassphrase")}</p>}
         {syncState.status === "syncing" && <p className="mt-1 text-xs text-muted">{t("drive.syncing")}</p>}
         {syncState.status === "error" && syncState.lastError && (
           <p className="mt-1 text-xs text-red-700">{t("drive.syncError", { error: syncState.lastError })}</p>
@@ -445,6 +539,94 @@ export function DriveSection({ onRestored }: Props) {
               </div>
             )}
           </>
+        )}
+      </Modal>
+
+      <Modal
+        open={setupOpen}
+        onOpenChange={(next) => {
+          if (!next) closeSetup();
+        }}
+        title={t(setupStep === "form" ? "drive.syncSetupTitle" : "drive.syncDownloadTitle")}
+      >
+        {setupStep === "form" ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">{t("drive.syncSetupBody")}</p>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="drive-setup-passphrase" className="text-sm font-medium text-ink">
+                {t("drive.passphrase")}
+              </label>
+              <span className="relative block">
+                <input
+                  id="drive-setup-passphrase"
+                  type={showSetupPass ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={setupPass}
+                  onChange={(e) => setSetupPass(e.target.value)}
+                  placeholder={t("drive.passphrasePlaceholder")}
+                  className="h-10 w-full rounded-control border border-line bg-surface px-3 pr-24 font-normal"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetupPass((v) => !v)}
+                  aria-label={t(showSetupPass ? "drive.hidePassword" : "drive.showPassword")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-plum-600 hover:underline"
+                >
+                  {t(showSetupPass ? "drive.hidePassword" : "drive.showPassword")}
+                </button>
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="drive-setup-passphrase-confirm" className="text-sm font-medium text-ink">
+                {t("drive.passphraseConfirm")}
+              </label>
+              <span className="relative block">
+                <input
+                  id="drive-setup-passphrase-confirm"
+                  type={showSetupPassConfirm ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={setupPassConfirm}
+                  onChange={(e) => setSetupPassConfirm(e.target.value)}
+                  placeholder={t("drive.passphrasePlaceholder")}
+                  className="h-10 w-full rounded-control border border-line bg-surface px-3 pr-24 font-normal"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetupPassConfirm((v) => !v)}
+                  aria-label={t(showSetupPassConfirm ? "drive.hidePassword" : "drive.showPassword")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-plum-600 hover:underline"
+                >
+                  {t(showSetupPassConfirm ? "drive.hidePassword" : "drive.showPassword")}
+                </button>
+              </span>
+            </div>
+            <p className="text-xs text-muted">{t("drive.syncSetupPassphraseHint")}</p>
+            {setupError && (
+              <p role="alert" className="text-sm text-red-700">
+                {setupError}
+              </p>
+            )}
+            <div className="mt-1 flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={closeSetup} disabled={busy}>
+                {t("action.cancel")}
+              </Button>
+              <Button onClick={() => void confirmSetup()} disabled={!setupValid || busy}>
+                {t("action.confirm")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">{t("drive.syncDownloadBody")}</p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              <Button icon="download" onClick={downloadPassphraseFile}>
+                {t("drive.downloadPassphrase")}
+              </Button>
+              <Button variant="ghost" onClick={closeSetup}>
+                {t("action.done")}
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
 

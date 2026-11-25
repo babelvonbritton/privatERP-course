@@ -43,6 +43,11 @@ async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKe
   );
 }
 
+/** Letters and digits only. Every passphrase the site asks the user to set must match this — the setup dialog, the Drive backup, and the file-backup creation. Restore entry never checks it, so backups made before the rule still open. */
+export function isAlphanumericPassphrase(value: string): boolean {
+  return /^[A-Za-z0-9]+$/.test(value);
+}
+
 /** Encrypts backup data with AES-256-GCM and a PBKDF2-derived passphrase key. */
 export class BackupCrypto {
   /** Derives one key for a whole backup, with a fresh random salt. Reuse the key for every file. */

@@ -514,6 +514,69 @@ async function desktop(browser) {
     await noOverflow(page, "drive section", 1280);
   });
 
+  await check("desktop: sync setup dialog opens, cancels, and reaches the download step", async () => {
+    // Seed a connected Drive session (fake token) so the sync toggle is clickable.
+    await page.evaluate(() => new Promise((resolve, reject) => {
+      const req = indexedDB.open("olaseena-db");
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction("settings", "readwrite");
+        const store = tx.objectStore("settings");
+        store.put({ key: "drive.accessToken", value: "check-token" });
+        store.put({ key: "drive.tokenExpiresAt", value: Date.now() + 3600_000 });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      };
+      req.onerror = () => reject(req.error);
+    }));
+    await page.reload({ waitUntil: "networkidle" });
+    await nav(page, "Settings");
+    await page.getByText("Connected", { exact: true }).waitFor();
+    const syncToggle = page.getByRole("switch", { name: /Auto-sync to Drive/ });
+    // No passphrase stored yet: turning it on opens the setup dialog.
+    await syncToggle.click();
+    const dlg = page.getByRole("dialog");
+    await dlg.getByRole("heading", { name: "Set up auto-sync" }).waitFor();
+    // Cancel turns the toggle back off and stores nothing.
+    await dlg.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    if ((await syncToggle.getAttribute("aria-checked")) !== "false") throw new Error("sync toggle stayed on after Cancel");
+    // A valid passphrase reaches the download step.
+    await syncToggle.click();
+    await dlg.getByRole("heading", { name: "Set up auto-sync" }).waitFor();
+    await dlg.getByLabel("Backup passphrase", { exact: true }).fill("CheckPass123");
+    await dlg.getByLabel("Confirm backup passphrase", { exact: true }).fill("CheckPass123");
+    await dlg.getByRole("button", { name: "Confirm" }).click();
+    await dlg.getByRole("heading", { name: "Save your passphrase" }).waitFor();
+    await noOverflow(page, "sync setup dialog", 1280);
+    const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+    await dlg.getByRole("button", { name: "Download passphrase (JSON)" }).click();
+    const download = await downloadPromise;
+    if (download.suggestedFilename() !== "olaseena-drive-passphrase.json") {
+      throw new Error(`unexpected passphrase download name: ${download.suggestedFilename()}`);
+    }
+    const path = await download.path();
+    if (!path) throw new Error("passphrase download has no path");
+    const content = JSON.parse(readFileSync(path, "utf8"));
+    if (content.passphrase !== "CheckPass123") throw new Error("downloaded JSON does not contain the passphrase");
+    if (content.app !== "Olaseena" || content.type !== "drive-backup-passphrase") {
+      throw new Error("downloaded JSON metadata is wrong");
+    }
+    // Done closes the dialog with sync on; then switch it back off so no
+    // sync is scheduled against this fake session later in the run.
+    await dlg.getByRole("button", { name: "Done" }).click();
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    if ((await syncToggle.getAttribute("aria-checked")) !== "true") throw new Error("sync toggle is off after setup");
+    await syncToggle.click();
+    // Turning off writes state and re-renders, so wait for the flip instead
+    // of reading the attribute in the same tick as the click.
+    await page.waitForFunction(
+      (el) => el.getAttribute("aria-checked") === "false",
+      await syncToggle.elementHandle(),
+      { timeout: 5000 },
+    );
+  });
+
   await check("desktop: tour replay advances and skips", async () => {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Get to know the features" }).click();

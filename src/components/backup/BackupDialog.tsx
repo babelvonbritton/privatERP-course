@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import { useI18n } from "@/i18n";
 import { BackupService } from "@/lib/backup/BackupService";
+import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
 import type { Decision, MergeResult } from "@/lib/backup/MergePlanner";
 import { FileSaver } from "@/lib/backup/FileSaver";
 import type { BackupResult, Outcome, RestorePlan, StepState } from "@/lib/backup/types";
@@ -83,8 +84,9 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
   const [encryptBackup, setEncryptBackup] = useState(false);
   const [backupPassphrase, setBackupPassphrase] = useState("");
   const [backupPassphraseConfirm, setBackupPassphraseConfirm] = useState("");
-  const [backupPassphraseError, setBackupPassphraseError] = useState(false);
+  const [backupPassphraseError, setBackupPassphraseError] = useState<"mismatch" | "alphanumeric" | null>(null);
   const [restorePassphrase, setRestorePassphrase] = useState("");
+  const [restorePassphraseError, setRestorePassphraseError] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [showChecks, setShowChecks] = useState(false);
   const [adoptedCurrency, setAdoptedCurrency] = useState<CurrencyCode | null>(null);
@@ -105,7 +107,8 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
     setBackupPassphrase("");
     setBackupPassphraseConfirm("");
     setRestorePassphrase("");
-    setBackupPassphraseError(false);
+    setBackupPassphraseError(null);
+    setRestorePassphraseError(false);
   }
 
   function handleOpenChange(next: boolean) {
@@ -116,6 +119,13 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
 
   function chooseFile(file: File | undefined) {
     if (!file) return;
+    // Letters and digits only, like every passphrase entry: a backup made
+    // before the rule with symbols in its passphrase cannot be opened here.
+    if (restorePassphrase !== "" && !isAlphanumericPassphrase(restorePassphrase)) {
+      setRestorePassphraseError(true);
+      return;
+    }
+    setRestorePassphraseError(false);
     apply.reset();
     setDecisions(new Map());
     setShowChecks(false);
@@ -150,11 +160,19 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
   }
 
   function startBackup() {
-    if (encryptBackup && (backupPassphrase === "" || backupPassphrase !== backupPassphraseConfirm)) {
-      setBackupPassphraseError(true);
-      return;
+    if (encryptBackup) {
+      if (backupPassphrase === "" || backupPassphrase !== backupPassphraseConfirm) {
+        setBackupPassphraseError("mismatch");
+        return;
+      }
+      // Letters and digits only when a passphrase is set. The restore entry
+      // never checks this, so backups made before the rule still open.
+      if (!isAlphanumericPassphrase(backupPassphrase)) {
+        setBackupPassphraseError("alphanumeric");
+        return;
+      }
     }
-    setBackupPassphraseError(false);
+    setBackupPassphraseError(null);
     void backup.run((cb) => service.createBackup(cb, "backup", encryptBackup ? backupPassphrase : undefined));
   }
 
@@ -207,7 +225,12 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
                         {t("backup.confirmPassphrase")}
                         <input type="password" autoComplete="new-password" value={backupPassphraseConfirm} onChange={(e) => setBackupPassphraseConfirm(e.target.value)} className="h-10 rounded-control border border-line bg-surface px-3 font-normal" />
                       </label>
-                      {backupPassphraseError && <p role="alert" className="text-sm text-red-700">{t("backup.passphraseMismatch")}</p>}
+                      <p className="text-xs text-muted">{t("backup.passphraseHint")}</p>
+                      {backupPassphraseError && (
+                        <p role="alert" className="text-sm text-red-700">
+                          {backupPassphraseError === "mismatch" ? t("backup.passphraseMismatch") : t("validation.alphanumeric", { field: t("backup.passphrase") })}
+                        </p>
+                      )}
                     </div>
                   )}
                   <Button icon="download" className="w-fit" onClick={startBackup}>{t("backup.start")}</Button>
@@ -237,6 +260,9 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
                     <input type="password" autoComplete="current-password" value={restorePassphrase} onChange={(e) => setRestorePassphrase(e.target.value)} className="h-10 rounded-control border border-line bg-surface px-3 font-normal" />
                   </label>
                   <p className="text-xs text-muted">{t("restore.passphraseHint")}</p>
+                  {restorePassphraseError && (
+                    <p role="alert" className="text-sm text-red-700">{t("validation.alphanumeric", { field: t("restore.passphrase") })}</p>
+                  )}
                   <label onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop} className={`flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-10 text-center transition-colors duration-200 ${dragging ? "border-plum-600 bg-plum-50" : "border-line hover:border-plum-200 hover:bg-plum-50/60"}`}>
                     <motion.span animate={{ y: dragging ? -4 : 0 }} className="grid size-11 place-items-center rounded-full bg-plum-100 text-plum-600"><Icon name="upload" size={20} /></motion.span>
                     <span className="text-sm font-medium text-ink">{t("restore.drop")}</span>

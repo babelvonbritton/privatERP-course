@@ -3,14 +3,18 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BackupService } from "@/lib/backup/BackupService";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
 import {
   DEFAULT_DRIVE_CLIENT_ID,
   DRIVE_BACKUP_EXCLUDED_KEYS,
   DRIVE_BACKUP_FILENAME,
+  DRIVE_PASSPHRASE_FILENAME,
   DriveService,
+  buildDrivePassphraseFile,
   ensureDriveToken,
   readDriveState,
   resolveDriveClientId,
+  setupPassphraseError,
   stripDriveSecrets,
   writeDriveState,
   type DriveService as DriveServiceType,
@@ -398,5 +402,37 @@ describe("Drive secrets never enter a backup", () => {
     expect(out.ok).toBe(true);
     const members = await getServices().members.list();
     expect(members.map((m) => m.name)).toEqual(["Ana"]);
+  });
+});
+
+describe("alphanumeric passphrase rule", () => {
+  it("accepts letters and digits only", () => {
+    expect(isAlphanumericPassphrase("Abc123")).toBe(true);
+    expect(isAlphanumericPassphrase("correcthorsebatterystaple")).toBe(true);
+    expect(isAlphanumericPassphrase("12345678")).toBe(true);
+    expect(isAlphanumericPassphrase("abc!")).toBe(false);
+    expect(isAlphanumericPassphrase("abc def")).toBe(false);
+    expect(isAlphanumericPassphrase("abc-def")).toBe(false);
+    expect(isAlphanumericPassphrase("p@ss")).toBe(false);
+    expect(isAlphanumericPassphrase("")).toBe(false);
+  });
+
+  it("setup validation rejects empty, symbols, whitespace, and mismatch — in that order", () => {
+    expect(setupPassphraseError("", "")).toBe("required");
+    expect(setupPassphraseError("abc12345", "")).toBe("required");
+    expect(setupPassphraseError("bad!pass", "bad!pass")).toBe("alphanumeric");
+    expect(setupPassphraseError("bad pass", "bad pass")).toBe("alphanumeric");
+    expect(setupPassphraseError("good1234", "good1235")).toBe("mismatch");
+    expect(setupPassphraseError("good1234", "good1234")).toBeNull();
+  });
+
+  it("builds the passphrase download file with app, type, passphrase, and createdAt", () => {
+    const content = buildDrivePassphraseFile("SyncPass123", new Date("2026-11-25T10:00:00.000Z"));
+    const parsed = JSON.parse(content) as { app: string; type: string; passphrase: string; createdAt: string };
+    expect(parsed.app).toBe("Olaseena");
+    expect(parsed.type).toBe("drive-backup-passphrase");
+    expect(parsed.passphrase).toBe("SyncPass123");
+    expect(parsed.createdAt).toBe("2026-11-25T10:00:00.000Z");
+    expect(DRIVE_PASSPHRASE_FILENAME).toBe("olaseena-drive-passphrase.json");
   });
 });

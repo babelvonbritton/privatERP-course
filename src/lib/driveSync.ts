@@ -184,6 +184,12 @@ export function getDriveSyncManager(): DriveSyncManager {
   return shared;
 }
 
+/** Forgets the shared manager, so the next call builds one against the current storage. Used by tests to start each one from a clean state (the manager captures the storage it was built with, and resetStorage swaps it). */
+export function resetDriveSyncManager(): void {
+  shared?.stop();
+  shared = null;
+}
+
 /** Starts the app-wide auto-sync. Returns a stop function. Safe to call repeatedly. */
 export function startDriveSync(): () => void {
   const manager = getDriveSyncManager();

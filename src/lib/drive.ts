@@ -9,11 +9,38 @@
 // stays on this device and is never included in a backup.
 
 import { AppError } from "@/lib/errors/AppError";
+import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
 import type { BackupData, SettingRecord } from "@/lib/domain/types";
 import type { SettingsStore } from "@/lib/storage/repositories";
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 export const DRIVE_BACKUP_FILENAME = "olaseena-backup.olaseena";
+/** Name of the JSON file the passphrase setup downloads. */
+export const DRIVE_PASSPHRASE_FILENAME = "olaseena-drive-passphrase.json";
+
+/** Why a passphrase setup entry is not usable yet; null means it is valid. Mirrors the backup passphrase rules: non-empty, letters and digits only, and both fields must match. */
+export type SetupPassphraseError = "required" | "alphanumeric" | "mismatch";
+
+export function setupPassphraseError(passphrase: string, confirm: string): SetupPassphraseError | null {
+  if (passphrase === "" || confirm === "") return "required";
+  if (!isAlphanumericPassphrase(passphrase) || !isAlphanumericPassphrase(confirm)) return "alphanumeric";
+  if (passphrase !== confirm) return "mismatch";
+  return null;
+}
+
+/** Contents of the passphrase download: the passphrase plus enough metadata to tell what the file is. The passphrase is readable in the file, by design — the file is the recovery path. */
+export function buildDrivePassphraseFile(passphrase: string, now = new Date()): string {
+  return JSON.stringify(
+    {
+      app: "Olaseena",
+      type: "drive-backup-passphrase",
+      passphrase,
+      createdAt: now.toISOString(),
+    },
+    null,
+    2,
+  );
+}
 
 /**
  * Shared OAuth client ID for the app's single sign-on. A Client ID is a
