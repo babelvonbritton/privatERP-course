@@ -165,8 +165,7 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
         setBackupPassphraseError("mismatch");
         return;
       }
-      // Letters and digits only when a passphrase is set. The restore entry
-      // never checks this, so backups made before the rule still open.
+      // Letters and digits only when a passphrase is set, like every passphrase entry in the app.
       if (!isAlphanumericPassphrase(backupPassphrase)) {
         setBackupPassphraseError("alphanumeric");
         return;

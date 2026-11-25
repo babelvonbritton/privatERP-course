@@ -43,7 +43,7 @@ async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKe
   );
 }
 
-/** Letters and digits only. Every passphrase the site asks the user to set must match this — the setup dialog, the Drive backup, and the file-backup creation. Restore entry never checks it, so backups made before the rule still open. */
+/** Letters and digits only. Every passphrase the site asks the user for must match this — setting one (setup dialog, Drive backup, file-backup creation) and opening a backup (Drive and file restore). A backup made before the rule with symbols in its passphrase cannot be opened through the UI. */
 export function isAlphanumericPassphrase(value: string): boolean {
   return /^[A-Za-z0-9]+$/.test(value);
 }
