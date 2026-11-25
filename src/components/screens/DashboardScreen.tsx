@@ -12,6 +12,9 @@ import type { NavId } from "../nav";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
+/** Upcoming sessions per dashboard page. */
+const PAGE_SIZE = 5;
+
 /** One figure on the dashboard: a small muted label above a large value. */
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -27,6 +30,20 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
   const { t, locale } = useI18n();
   const [data, setData] = useState<DashboardData | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [page, setPage] = useState(1);
+
+  // The attendance dashboard pagination, reused: clamp the page to what
+  // exists and slice the rows for it.
+  const pageCount = Math.max(1, Math.ceil((data?.upcomingSessions.length ?? 0) / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageSessions = (data?.upcomingSessions ?? []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Back to page 1 whenever the upcoming list itself changes, so the view
+  // never sits on a page that no longer exists.
+  const upcomingCount = data?.upcomingSessions.length ?? 0;
+  useEffect(() => {
+    setPage(1);
+  }, [upcomingCount]);
 
   const load = useCallback(async () => {
     try {
@@ -80,20 +97,35 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
             {data.upcomingSessions.length === 0 ? (
               <p className="mt-3 text-sm text-muted">{t("dashboard.noUpcoming")}</p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-line">
-                {data.upcomingSessions.map((session) => (
-                  <li key={session.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-ink">{session.topic}</p>
-                      <p className="mt-0.5 text-sm text-muted">
-                        {session.courseTitle}
-                        {session.trainerName ? ` · ${session.trainerName}` : ""}
-                      </p>
+              <>
+                <ul className="mt-3 flex flex-col divide-y divide-line">
+                  {pageSessions.map((session) => (
+                    <li key={session.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink">{session.topic}</p>
+                        <p className="mt-0.5 text-sm text-muted">
+                          {session.courseTitle}
+                          {session.trainerName ? ` · ${session.trainerName}` : ""}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm text-muted">{formatDate(session.date, locale)}</p>
+                    </li>
+                  ))}
+                </ul>
+                {pageCount > 1 && (
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    <p className="text-sm text-muted">{t("attendance.page", { page: currentPage, pages: pageCount })}</p>
+                    <div className="flex gap-2">
+                      <Button className="max-sm:min-h-11" variant="soft" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                        {t("attendance.prevPage")}
+                      </Button>
+                      <Button className="max-sm:min-h-11" variant="soft" disabled={currentPage >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+                        {t("attendance.nextPage")}
+                      </Button>
                     </div>
-                    <p className="shrink-0 text-sm text-muted">{formatDate(session.date, locale)}</p>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

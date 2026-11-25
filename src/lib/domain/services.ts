@@ -1264,8 +1264,8 @@ export class DashboardService extends ServiceBase {
     const attendanceRate = attendance.length === 0 ? 0 : Math.round((attended / attendance.length) * 100);
     const upcoming = sessions
       .filter((s) => s.date >= today)
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.topic.localeCompare(b.topic)))
-      .slice(0, 5);
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.topic.localeCompare(b.topic)));
+    // No cap here: the dashboard paginates the full upcoming list itself.
     const courseById = new Map(courses.map((c) => [c.id, c]));
     const allCourses = await this.storage.courses.all();
     const allCourseById = new Map(allCourses.map((c) => [c.id, c]));
@@ -1281,7 +1281,7 @@ export class DashboardService extends ServiceBase {
     const memberById = new Map((await this.storage.members.all()).map((m) => [m.id, m]));
     const recentInvoices: DashboardRecentInvoice[] = [...invoices]
       .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 5)
+      .slice(0, 3)
       .map((inv) => ({
         id: inv.id,
         number: inv.number,

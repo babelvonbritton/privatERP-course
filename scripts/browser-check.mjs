@@ -1,5 +1,5 @@
 /**
- * Browser verification for Olaseena v0.8.0.
+ * Browser verification for Olaseena v0.9.0.
  * Serves the static export separately (python3 -m http.server 8901 --directory out)
  * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
  * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
@@ -178,6 +178,99 @@ async function trackAlerts(page) {
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
   });
+}
+
+/** The next `count` Mon/Wed/Fri dates after today, as Date objects. */
+function upcomingSlotDates(count) {
+  const out = [];
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  while (out.length < count) {
+    const day = d.getDay();
+    if (day === 1 || day === 3 || day === 5) out.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+/** Today's invoice-number prefix, e.g. INV-20261125. */
+function invoicePrefix() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `INV-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+}
+
+const MORE_NAV = new Set(["Trainers", "Attendance", "Payroll", "Trash", "Settings"]);
+
+/** Mobile nav: bottom-bar items directly, the rest behind the More sheet. */
+async function navMobile(page, name) {
+  if (MORE_NAV.has(name)) {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("button", { name, exact: true }).click();
+  } else {
+    await nav(page, name);
+  }
+}
+
+/** Creates one Piano Basics session with Budi Santoso; `date` null keeps today. */
+async function createSession(page, topic, date, onMobile) {
+  if (onMobile) await navMobile(page, "Attendance");
+  else await nav(page, "Attendance");
+  await pickSessionCourse(page, "Piano Basics");
+  await page.getByRole("button", { name: "New session" }).click();
+  if (date) await pickDate(page, date);
+  await page.getByLabel("Topic", { exact: true }).fill(topic);
+  await pickTime(page, "Start time", "10:00");
+  await pickTime(page, "End time", "11:30");
+  await page.getByRole("radio", { name: "Budi Santoso" }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).last().click();
+  await toast(page, "Saved");
+}
+
+/** Creates one Sent invoice for the given member. */
+async function createInvoice(page, memberName, description, amount, onMobile) {
+  if (onMobile) await navMobile(page, "Invoices");
+  else await nav(page, "Invoices");
+  await page.getByRole("button", { name: "New invoice" }).click();
+  await pickSelect(page, "Member", memberName);
+  await pickSelect(page, "Status", "Sent");
+  await page.getByLabel("Description", { exact: true }).fill(description);
+  await page.getByLabel("Amount", { exact: true }).fill(String(amount));
+  await page.getByRole("button", { name: "Create invoice" }).click();
+  await toast(page, "Saved");
+}
+
+/** Dashboard pagination + latest-three invoices, shared by desktop and mobile. */
+async function assertDashboardPagination(page, width, page1Topics, page2Topics) {
+  if (width === 390) await navMobile(page, "Dashboard");
+  else await nav(page, "Dashboard");
+  const upcoming = page.locator("section").filter({ has: page.getByRole("heading", { name: "Upcoming sessions" }) });
+  await upcoming.getByText("Page 1 of 2").waitFor();
+  if ((await upcoming.locator("li").count()) !== 5) {
+    throw new Error(`expected 5 upcoming sessions on page 1, got ${await upcoming.locator("li").count()}`);
+  }
+  for (const topic of page1Topics) await upcoming.getByText(topic).waitFor();
+  await upcoming.getByRole("button", { name: "Next" }).click();
+  await upcoming.getByText("Page 2 of 2").waitFor();
+  if ((await upcoming.locator("li").count()) !== page2Topics.length) {
+    throw new Error(`expected ${page2Topics.length} upcoming session(s) on page 2, got ${await upcoming.locator("li").count()}`);
+  }
+  for (const topic of page2Topics) await upcoming.getByText(topic).waitFor();
+  await upcoming.getByRole("button", { name: "Previous" }).click();
+  await upcoming.getByText("Page 1 of 2").waitFor();
+  await noOverflow(page, `dashboard pagination ${width}`, width);
+
+  const invoices = page.locator("section").filter({ has: page.getByRole("heading", { name: "Recent invoices" }) });
+  if ((await invoices.locator("tbody tr").count()) !== 3) {
+    throw new Error(`expected 3 recent invoices, got ${await invoices.locator("tbody tr").count()}`);
+  }
+  const prefix = invoicePrefix();
+  for (const n of ["002", "003", "004"]) await invoices.getByText(`${prefix}-${n}`).waitFor();
+  if ((await invoices.getByText(`${prefix}-001`).count()) !== 0) {
+    throw new Error("oldest invoice still shown in the latest-three list");
+  }
+  await invoices.getByRole("button", { name: "View all" }).click();
+  await page.getByRole("button", { name: "New invoice" }).waitFor();
 }
 
 async function desktop(browser) {
@@ -515,6 +608,15 @@ async function desktop(browser) {
     await noOverflow(page, "dashboard", 1280);
   });
 
+  await check("desktop: dashboard upcoming sessions paginate 5 per page, invoices show latest 3", async () => {
+    // One session (Scales, today) and one invoice (-001) already exist.
+    const dates = upcomingSlotDates(5);
+    const topics = ["Dash S2", "Dash S3", "Dash S4", "Dash S5", "Dash S6"];
+    for (let i = 0; i < 5; i++) await createSession(page, topics[i], dates[i], false);
+    for (let i = 2; i <= 4; i++) await createInvoice(page, "Ayu Lestari", `Dashboard check ${i}`, 100000 * i, false);
+    await assertDashboardPagination(page, 1280, ["Scales", "Dash S2", "Dash S3", "Dash S4", "Dash S5"], ["Dash S6"]);
+  });
+
   await check("desktop: language switch to Indonesian and back", async () => {
     await nav(page, "Settings");
     await page.locator('a[href="/id/"]').first().click();
@@ -691,6 +793,36 @@ async function mobile(browser) {
     await toast(page, "Saved");
     await page.getByText("Mobile User").waitFor();
     await noOverflow(page, "mobile members", 390);
+  });
+
+  await check("mobile: dashboard upcoming sessions paginate 5 per page, invoices show latest 3", async () => {
+    // Seed the trainer and course the dashboard data needs (member "Mobile User" already exists).
+    await navMobile(page, "Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
+    await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
+    await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.keyboard.press("Enter");
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await navMobile(page, "Courses");
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Piano Basics");
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await addRequiredSkill(page, "Piano");
+    await page.getByRole("checkbox", { name: "Mon" }).check();
+    await page.getByRole("checkbox", { name: "Wed" }).check();
+    await page.getByRole("checkbox", { name: "Fri" }).check();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    const dates = upcomingSlotDates(5);
+    const topics = ["Mobile S2", "Mobile S3", "Mobile S4", "Mobile S5", "Mobile S6"];
+    await createSession(page, "Mobile S1", null, true);
+    for (let i = 0; i < 5; i++) await createSession(page, topics[i], dates[i], true);
+    for (let i = 1; i <= 4; i++) await createInvoice(page, "Mobile User", `Mobile check ${i}`, 100000 * i, true);
+    await assertDashboardPagination(page, 390, ["Mobile S1", "Mobile S2", "Mobile S3", "Mobile S4", "Mobile S5"], ["Mobile S6"]);
   });
 
   for (const [navName, overflowLabel] of [
