@@ -140,6 +140,25 @@ export function courseWeekdays(course: Pick<Course, "scheduleWeekdays"> & { sche
   return typeof legacy === "number" && Number.isInteger(legacy) && legacy >= 0 && legacy <= 6 ? [legacy] : [];
 }
 
+/** Weekday (0 = Sunday … 6 = Saturday) of a YYYY-MM-DD date, or null when it is not a real calendar date. Built from parts, never parsed as a timestamp, so no timezone can shift the day. */
+export function dateWeekday(date: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const built = new Date(year, month - 1, day);
+  if (built.getFullYear() !== year || built.getMonth() !== month - 1 || built.getDate() !== day) return null;
+  return built.getDay();
+}
+
+/** True when a date falls on one of the course's scheduled weekdays. A course with no scheduled days accepts any date, so legacy rows without a schedule stay usable. */
+export function isDateOnSchedule(date: string, weekdays: number[]): boolean {
+  if (weekdays.length === 0) return true;
+  const day = dateWeekday(date);
+  return day !== null && weekdays.includes(day);
+}
+
 export interface Attendance extends BaseRecord {
   sessionId: string;
   memberId: string;

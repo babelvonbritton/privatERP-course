@@ -58,7 +58,7 @@ async function seed() {
   const c = await s.courses.create({ title: "Piano Basics", description: "", level: "Beginner", price: 500000, capacity: 10, trainerId: t.id, scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
   const inv = await s.invoices.create({ memberId: m.id, enrollmentId: null, lineItems: [{ description: "Course fee", amount: 500000 }, { description: "Book", amount: 75000 }], dueDate: "2026-12-01", status: "sent", idempotencyKey: createId() });
   await s.invoices.recordPayment({ invoiceId: inv.id, amount: 150000, method: "transfer", idempotencyKey: createId() });
-  await s.attendance.createSession({ courseId: c.id, date: "2026-11-10", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
+  await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
   const run = await s.payroll.generate({ trainerId: t.id, periodStart: "2026-11-01", periodEnd: "2026-11-30", idempotencyKey: createId() });
   return { s, m, t, c, inv, run };
 }

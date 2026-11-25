@@ -933,6 +933,7 @@
     "email": "{field} harus berupa alamat email yang valid.",
     "endAfterStart": "Waktu selesai harus setelah waktu mulai.",
     "invalid": "{field} tidak valid.",
+    "notScheduledDay": "{field} harus pada hari kursus ini berjalan: {days}.",
     "positive": "{field} harus lebih dari nol.",
     "required": "{field} wajib diisi.",
     "time": "{field} harus berupa jam seperti 09:00.",

@@ -1,5 +1,5 @@
 /**
- * Browser verification for Olaseena v0.7.0.
+ * Browser verification for Olaseena v0.8.0.
  * Serves the static export separately (python3 -m http.server 8901 --directory out)
  * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
  * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
@@ -1247,6 +1247,108 @@ async function darkDesktop(browser) {
 }
 
 /** v0.2.0 currency: stubbed Frankfurter rates drive the switch, the 10/day limit blocks the 11th, and a failed fetch changes nothing. */
+/** v0.8.0 weekly slot: a session or enrollment outside the course's weekdays shows the error naming the allowed days; on a slot day both save. */
+async function weeklySlotChecks(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  currentPage = page;
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
+  });
+
+  // The slot is chosen so today is outside it, whatever day the check runs:
+  // weekends when today is a weekday, Monday and Tuesday when today is a weekend day.
+  const todayDow = new Date().getDay();
+  const offDays = todayDow === 6 || todayDow === 0 ? [1, 2] : [6, 0];
+  const short = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const full = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const offNames = [...offDays].sort((a, b) => a - b).map((d) => full[d]).join(", ");
+  const onDay = todayDow;
+
+  async function seedMemberTrainer() {
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await trackAlerts(page);
+    await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Skip tour" }).click();
+    await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
+    await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Ayu Lestari");
+    await page.getByLabel("Email", { exact: true }).fill("ayu@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await nav(page, "Trainers");
+    await page.getByRole("button", { name: "Add trainer" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
+    await page.getByLabel("Email", { exact: true }).fill("budi@example.com");
+    await page.getByLabel("Subjects", { exact: true }).fill("Piano");
+    await page.getByLabel("Rate per session (IDR)", { exact: true }).fill("150000");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+  }
+
+  async function addCourse(title, days) {
+    await nav(page, "Courses");
+    await page.getByRole("button", { name: "Add course" }).click();
+    await page.getByLabel("Title", { exact: true }).fill(title);
+    await page.getByLabel("Level", { exact: true }).fill("Beginner");
+    await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
+    await page.getByLabel("Capacity", { exact: true }).fill("10");
+    await pickSelect(page, "Trainer", "Budi Santoso");
+    for (const d of days) await page.getByRole("checkbox", { name: short[d] }).check();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+  }
+
+  await check("weekly slot: enrollment outside the slot shows the error naming the allowed days", async () => {
+    await seedMemberTrainer();
+    await addCourse("Weekend Piano", offDays);
+    await page.locator("tr", { hasText: "Weekend Piano" }).click();
+    await page.getByText("Enrollments").first().waitFor();
+    await page.getByRole("button", { name: "Enroll member" }).click();
+    await pickSelect(page, "Member", "Ayu Lestari");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await page.getByText(`Start date must be on a day this course meets: ${offNames}.`).waitFor({ timeout: 5000 });
+    if (await page.locator("ul li", { hasText: "Ayu Lestari" }).count()) throw new Error("off-slot enrollment was listed anyway");
+  });
+
+  await check("weekly slot: session outside the slot shows the error naming the allowed days", async () => {
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("Off-slot scales");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await page.getByText(`Date must be on a day this course meets: ${offNames}.`).waitFor({ timeout: 5000 });
+    if (await page.locator("ul li", { hasText: "Off-slot scales" }).count()) throw new Error("off-slot session was listed anyway");
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("weekly slot: enrollment and session on a slot day save", async () => {
+    await addCourse("Today Piano", [onDay]);
+    await page.locator("tr", { hasText: "Today Piano" }).click();
+    await page.getByText("Enrollments").first().waitFor();
+    await page.getByRole("button", { name: "Enroll member" }).click();
+    await pickSelect(page, "Member", "Ayu Lestari");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByLabel("Topic", { exact: true }).fill("On-slot scales");
+    await page.getByRole("button", { name: "Add", exact: true }).last().click();
+    await toast(page, "Saved");
+    await page.getByText("On-slot scales").waitFor();
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    await noOverflow(page, "weekly slot", 1280);
+  });
+
+  await check("weekly slot: no console errors or page errors", async () => {
+    if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
+    const alerts = await page.evaluate(() => window.__alerts ?? []);
+    if (alerts.length) throw new Error(`error toasts shown: ${alerts.slice(0, 3).join(" | ")}`);
+  });
+  await context.close();
+}
+
 async function currencyChecks(browser) {
   const RATES = {
     "IDR->EUR": 0.00005,
@@ -1906,6 +2008,7 @@ async function trashChecks(browser) {
 const browser = await chromium.launch(launchOptions());
 try {
   await desktop(browser);
+  await weeklySlotChecks(browser);
   await printChecks(browser);
   await darkDesktop(browser);
   await currencyChecks(browser);

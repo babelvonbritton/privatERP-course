@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseWeekdays, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { courseWeekdays, isDateOnSchedule, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
 import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
@@ -68,6 +68,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [showEnrollForm, setShowEnrollForm] = useState(false);
   const [enrollMemberId, setEnrollMemberId] = useState(NONE);
   const [enrollStart, setEnrollStart] = useState<string | null>(today());
+  const [enrollError, setEnrollError] = useState<string | null>(null);
   const [pendingEnrollment, setPendingEnrollment] = useState<Enrollment | null>(null);
 
   const [showSessionForm, setShowSessionForm] = useState(false);
@@ -240,8 +241,21 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     return members.filter((m) => !activeIds.has(m.id));
   }, [enrollments, members]);
 
+  /** Names the allowed weekdays when a date falls outside the course's weekly slot, or null when the date is fine. */
+  const scheduledDayError = (date: string | null, course: Course, fieldKey: MessageKey): string | null => {
+    if (!date) return null;
+    const days = courseWeekdays(course);
+    if (isDateOnSchedule(date, days)) return null;
+    return t("validation.notScheduledDay", { field: t(fieldKey), days: days.map((d) => t(`weekday.${d}` as MessageKey)).join(", ") });
+  };
+
   const submitEnroll = async () => {
     if (!selected || enrollMemberId === NONE || !enrollStart) return;
+    const dayError = scheduledDayError(enrollStart, selected, "field.startDate");
+    if (dayError) {
+      setEnrollError(dayError);
+      return;
+    }
     try {
       await getServices().courses.enroll({
         memberId: enrollMemberId,
@@ -253,6 +267,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       });
       errorCenter.notify({ key: "toast.saved" });
       setShowEnrollForm(false);
+      setEnrollError(null);
       setEnrollMemberId(NONE);
       setEnrollStart(today());
       await loadDetail(selected.id);
@@ -276,6 +291,11 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const submitSession = async () => {
     if (!selected || !sessionDate || !sessionTopic.trim()) return;
+    const dayError = scheduledDayError(sessionDate, selected, "field.date");
+    if (dayError) {
+      setSessionError(dayError);
+      return;
+    }
     if (!/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd)) {
       setSessionError(t("validation.time", { field: t("field.startTime") }));
       return;
@@ -513,7 +533,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-plum-900">{t("course.detail.enrollments")}</h2>
                 {eligibleMembers.length > 0 && (
-                  <Button className="max-sm:min-h-11" variant="soft" icon="plus" onClick={() => setShowEnrollForm((v) => !v)}>
+                  <Button className="max-sm:min-h-11" variant="soft" icon="plus" onClick={() => { setEnrollError(null); setShowEnrollForm((v) => !v); }}>
                     {t("enrollment.add")}
                   </Button>
                 )}
@@ -532,6 +552,11 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                   <Field label={t("field.startDate")} htmlFor="enroll-start">
                     <DatePicker id="enroll-start" value={enrollStart} onChange={setEnrollStart} />
                   </Field>
+                  {enrollError && (
+                    <p role="alert" className="text-sm text-danger">
+                      {enrollError}
+                    </p>
+                  )}
                   <div className="flex justify-end gap-2">
                     <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setShowEnrollForm(false)}>
                       {t("action.cancel")}

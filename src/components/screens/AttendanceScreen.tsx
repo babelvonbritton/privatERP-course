@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
+import type { MessageKey } from "@/i18n/types";
 import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { courseWeekdays, isDateOnSchedule, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -197,6 +198,11 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
 
   const createNewSession = async () => {
     if (!selectedCourse || !newDate || !newTopic.trim()) return;
+    const days = courseWeekdays(selectedCourse);
+    if (!isDateOnSchedule(newDate, days)) {
+      setNewSessionError(t("validation.notScheduledDay", { field: t("field.date"), days: days.map((d) => t(`weekday.${d}` as MessageKey)).join(", ") }));
+      return;
+    }
     if (!/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime)) {
       setNewSessionError(t("validation.time", { field: t("field.startTime") }));
       return;

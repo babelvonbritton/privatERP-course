@@ -63,7 +63,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, sessionDurationHours } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseWeekdays, dateWeekday, sessionDurationHours } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -81,6 +81,21 @@ function baseFields(actor: Actor, now: number, id = createId()): BaseRecord {
 
 function touched<T extends BaseRecord>(record: T, now: number): T {
   return { ...record, updatedAt: now, rev: record.rev + 1 };
+}
+
+/**
+ * Rejects a date outside the course's weekly slot, naming the allowed weekdays
+ * as numbers so the error text can be translated at display time. A course with
+ * no scheduled days accepts any date, so legacy rows without a schedule stay usable.
+ */
+function assertDateOnSchedule(field: string, date: string, course: Course): void {
+  const days = courseWeekdays(course);
+  if (days.length === 0) return;
+  const weekday = dateWeekday(date);
+  if (weekday === null) throw new ValidationError(field, `${field} is not a valid date`, "invalid");
+  if (!days.includes(weekday)) {
+    throw new ValidationError(field, `${field} is not one of the course's scheduled weekdays`, "notScheduledDay", undefined, { days: days.join(",") });
+  }
 }
 
 abstract class ServiceBase {
@@ -401,6 +416,7 @@ export class CourseService extends ServiceBase {
     const [member, course] = await Promise.all([this.storage.members.get(data.memberId), this.storage.courses.get(data.courseId)]);
     if (!member) throw new ValidationError("memberId", "member does not exist", "invalid");
     if (!course) throw new ValidationError("courseId", "course does not exist", "invalid");
+    assertDateOnSchedule("startDate", data.startDate, course);
     return this.db.transaction("rw", [this.db.enrollments, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "enrollment");
       if (seenId) {
@@ -422,6 +438,16 @@ export class CourseService extends ServiceBase {
   async updateEnrollment(id: string, input: EnrollmentPatch): Promise<Enrollment> {
     requireCan(this.actor, "enrollment.update");
     const data = parseInput(enrollmentPatch, input);
+    // Checked before the transaction, like enroll does: the courses table is
+    // outside this transaction's scope, so it cannot be read inside it.
+    // Only a move to a new start date or course is checked: an untouched
+    // enrollment keeps its date even when it predates the weekly slot.
+    if (data.startDate !== undefined || data.courseId !== undefined) {
+      const current = await this.storage.enrollments.get(id);
+      if (!current) throw new AppError("NOT_FOUND", { details: `enrollment ${id}` });
+      const course = await this.storage.courses.get(data.courseId ?? current.courseId);
+      if (course) assertDateOnSchedule("startDate", data.startDate ?? current.startDate, course);
+    }
     return this.db.transaction("rw", [this.db.enrollments, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "enrollment");
       if (seenId === id) {
@@ -551,6 +577,7 @@ export class AttendanceService extends ServiceBase {
     const [course, trainer] = await Promise.all([this.storage.courses.get(data.courseId), this.storage.trainers.get(data.trainerId)]);
     if (!course) throw new ValidationError("courseId", "course does not exist", "invalid");
     if (!trainer) throw new ValidationError("trainerId", "trainer does not exist", "invalid");
+    assertDateOnSchedule("date", data.date, course);
     return this.db.transaction("rw", [this.db.sessions, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "session");
       if (seenId) {

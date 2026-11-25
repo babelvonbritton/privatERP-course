@@ -933,6 +933,7 @@
     "email": "{field} must be a valid email address.",
     "endAfterStart": "End time must be after the start time.",
     "invalid": "{field} is not valid.",
+    "notScheduledDay": "{field} must be on a day this course meets: {days}.",
     "positive": "{field} must be more than zero.",
     "required": "{field} is required.",
     "time": "{field} must be a time like 09:00.",

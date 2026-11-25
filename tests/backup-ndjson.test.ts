@@ -203,7 +203,7 @@ describe("backup format 2", () => {
 
   it("restores a legacy backup: a single weekday becomes a list, a course time is dropped, and a session without times gets empty times", async () => {
     const { s, c } = await seed();
-    const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-10", topic: "Scales", trainerId: c.trainerId, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
+    const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: c.trainerId, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     const service = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });
     const created = await service.createBackup(noop);
     expect(created.ok).toBe(true);

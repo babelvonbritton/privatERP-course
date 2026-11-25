@@ -43,7 +43,19 @@ export function describeError(error: AppError, t: Translate): { title: string; h
   const cause = error.cause;
   if (error.code === "VALIDATION" && cause instanceof ValidationError) {
     const key = FIELD_KEYS[cause.field];
-    return { title, hint: t(`validation.${cause.kind}`, { field: key ? t(key, { currency: getCurrency() }) : cause.field, limit: cause.limit ?? 0 }) };
+    const vars: Record<string, string | number> = {
+      field: key ? t(key, { currency: getCurrency() }) : cause.field,
+      limit: cause.limit ?? 0,
+      ...(cause.vars ?? {}),
+    };
+    // The service carries allowed weekdays as numbers, so they stay correct in every language; translate them here.
+    if (cause.kind === "notScheduledDay" && typeof cause.vars?.days === "string") {
+      vars.days = cause.vars.days
+        .split(",")
+        .map((n) => t(`weekday.${n}` as MessageKey))
+        .join(", ");
+    }
+    return { title, hint: t(`validation.${cause.kind}`, vars) };
   }
   return { title, hint: t(`err.${error.code}.hint` as MessageKey, error.context) };
 }
