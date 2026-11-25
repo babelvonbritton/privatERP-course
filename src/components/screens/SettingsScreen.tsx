@@ -9,6 +9,7 @@ import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DB_SCHEMA_VERSION } from "@/lib/b
 import { BackupDialog } from "../backup/BackupDialog";
 import { GuideDialog } from "../GuideDialog";
 import { CurrencySection } from "../settings/CurrencySection";
+import { DriveSection } from "../settings/DriveSection";
 import { RetentionSection } from "../settings/RetentionSection";
 import { ThemeSection } from "../settings/ThemeSection";
 import type { NavId } from "../nav";
@@ -100,6 +101,8 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
         />
       </SectionCard>
 
+      <DriveSection onRestored={reload} />
+
       <SectionCard label={t("settings.tour")} hint={t("settings.tourHint")}>
         <Button variant="soft" className="max-sm:h-11" onClick={() => startTour()}>
           {t("settings.tour")}
@@ -118,6 +121,11 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
           <AboutRow label={t("settings.privacy")}>
             <Link href={`/${localeCode}/privacy/`} className="text-plum-600 transition-colors duration-200 hover:underline">
               {t("settings.privacy")}
+            </Link>
+          </AboutRow>
+          <AboutRow label={t("settings.terms")}>
+            <Link href={`/${localeCode}/terms/`} className="text-plum-600 transition-colors duration-200 hover:underline">
+              {t("settings.terms")}
             </Link>
           </AboutRow>
         </dl>

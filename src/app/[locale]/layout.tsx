@@ -22,11 +22,12 @@ export function generateStaticParams() {
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://accounts.google.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self' https://api.frankfurter.dev https://api.exchangerate-api.com",
+  "connect-src 'self' https://api.frankfurter.dev https://api.exchangerate-api.com https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com",
+  "frame-src https://accounts.google.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

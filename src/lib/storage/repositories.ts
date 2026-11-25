@@ -265,6 +265,7 @@ export class DexiePayrollStore extends BaseRepository<PayrollRun, string> implem
 export class DexieAuditStore extends BaseRepository<AuditLogEntry, string> implements AuditStore {
   async add(entry: AuditLogEntry): Promise<string> {
     await this.table.add(entry);
+    this.onWrite?.();
     return entry.id;
   }
   listRecent(limit: number): Promise<AuditLogEntry[]> {

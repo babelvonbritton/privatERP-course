@@ -173,6 +173,41 @@
     "trainer": "Pengajar",
     "value": "Nilai"
   },
+  "drive": {
+    "backup": "Cadangkan ke Drive",
+    "clientIdOwn": "Client ID Google sendiri (opsional)",
+    "clientIdSaved": "Client ID disimpan.",
+    "connect": "Hubungkan Google Drive",
+    "connected": "Terhubung",
+    "disconnect": "Putuskan",
+    "enterPassphrase": "Cadangan dari Drive ditemukan. Isi kata sandi di atas, lalu tekan Pulihkan dari Drive lagi.",
+    "hideOwnId": "Sembunyikan",
+    "hint": "Simpan salinan terenkripsi dari semuanya di folder aplikasi Google Drive-mu. Hanya aplikasi ini yang bisa melihat folder itu — tidak pernah tampil di drive.google.com.",
+    "lastBackup": "Cadangan terakhir",
+    "lastSynced": "Terakhir disinkronkan",
+    "noBackup": "Belum ada cadangan di Google Drive.",
+    "noClientId": "Tempel Client ID Google dulu.",
+    "notConnected": "Belum terhubung",
+    "passphrase": "Kata sandi cadangan",
+    "passphraseConfirm": "Konfirmasi kata sandi cadangan",
+    "passphraseHint": "Kata sandi yang sama membuka semua cadangan, file maupun Drive. Setelah cadangan Drive berhasil, kata sandi disimpan di perangkat ini supaya sinkronisasi otomatis bisa berjalan tanpa bertanya. Kata sandi tidak pernah ditulis ke dalam file cadangan.",
+    "passphraseMismatch": "Kedua kata sandi tidak sama.",
+    "passphrasePlaceholder": "Minimal 8 karakter",
+    "restore": "Pulihkan dari Drive",
+    "saveClientId": "Simpan Client ID",
+    "saved": "Cadangan tersimpan di Google Drive.",
+    "sharedIdHint": "Tekan Hubungkan lalu pilih akun Google-mu. Olaseena sudah membawa Client ID-nya sendiri, jadi tidak ada yang perlu ditempel.",
+    "status": "Status",
+    "sync": "Sinkronisasi otomatis ke Drive",
+    "syncError": "Sinkronisasi otomatis gagal ({error}). Akan dicoba lagi setelah perubahan berikutnya.",
+    "syncHint": "Setelah ada perubahan, tunggu beberapa detik lalu unggah cadangan terenkripsi yang sama. Hanya saat terhubung dan sakelar menyala.",
+    "syncNeedsConnect": "Hubungkan Google Drive untuk menyalakan sinkronisasi otomatis.",
+    "syncNeedsPassphrase": "Cadangkan ke Drive sekali dulu, supaya kata sandi tersimpan di perangkat ini untuk sinkronisasi otomatis.",
+    "syncing": "Menyinkronkan ke Drive…",
+    "title": "Google Drive",
+    "useDefault": "Pakai bawaan aplikasi",
+    "useOwnId": "Pakai Client ID sendiri"
+  },
   "duration": {
     "hours": "{hours} jam"
   },
@@ -291,6 +326,26 @@
     "DELETE_BLOCKED": {
       "hint": "Hapus atau pindahkan catatan terkait terlebih dahulu, lalu hapus yang ini.",
       "title": "Catatan ini masih digunakan"
+    },
+    "DRIVE_AUTH": {
+      "hint": "Hubungkan Google Drive lagi di Pengaturan.",
+      "title": "Sesi Google Drive berakhir"
+    },
+    "DRIVE_DOWNLOAD_FAILED": {
+      "hint": "Periksa koneksimu lalu coba lagi.",
+      "title": "Cadangan tidak bisa diunduh dari Drive"
+    },
+    "DRIVE_GIS_FAILED": {
+      "hint": "Periksa koneksimu lalu coba lagi.",
+      "title": "Masuk Google gagal"
+    },
+    "DRIVE_LIST_FAILED": {
+      "hint": "Periksa koneksimu lalu coba lagi.",
+      "title": "Cadangan Drive tidak bisa dibaca"
+    },
+    "DRIVE_UPLOAD_FAILED": {
+      "hint": "Periksa koneksimu lalu coba lagi.",
+      "title": "Cadangan tidak bisa diunggah ke Drive"
     },
     "EXPORT_FAILED": {
       "hint": "Berkas tidak dapat dibuat. Coba lagi.",
@@ -717,6 +772,7 @@
     "licenseValue": "MIT",
     "privacy": "Kebijakan privasi",
     "schemaVersion": "Versi data",
+    "terms": "Ketentuan layanan",
     "theme": "Tema",
     "themeHint": "Pilih tampilan Olaseena. Ikuti sistem memakai pengaturan perangkat.",
     "title": "Pengaturan",
@@ -745,6 +801,8 @@
     "compare": "Bandingkan dengan data Anda saat ini",
     "compress": "Kompresi ke ZIP",
     "decrypt": "Dekripsi cadangan",
+    "driveDownload": "Unduh dari Drive",
+    "driveUpload": "Unggah ke Drive",
     "encrypt": "Enkripsi cadangan",
     "metadata": "Periksa metadata dan versi",
     "package": "Buat berkas dan checksum",
@@ -758,6 +816,31 @@
     "unpack": "Buka arsip",
     "verifyArchive": "Verifikasi arsip baru",
     "verifyRestore": "Verifikasi data yang dipulihkan"
+  },
+  "terms": {
+    "changes": {
+      "body": "Jika ketentuan ini berubah, versi baru dan tanggalnya akan muncul di halaman ini.",
+      "title": "Perubahan"
+    },
+    "data": {
+      "body": "Catatan Anda tetap berada di perangkat Anda. Cadangan Google Drive yang opsional menyimpan salinan terenkripsi di folder aplikasi Drive Anda sendiri; hanya Anda yang memegang kata sandinya. Anda bertanggung jawab atas data Anda sendiri dan atas penyimpanan cadangan.",
+      "title": "Data Anda"
+    },
+    "intro": "Olaseena adalah aplikasi lokal untuk menjalankan bisnis kursus privat. Dengan menggunakannya, Anda menyetujui ketentuan berikut.",
+    "service": {
+      "body": "Olaseena adalah aplikasi lokal untuk menjalankan bisnis kursus privat, untuk satu pengguna. Aplikasi ini berjalan sepenuhnya di peramban Anda; tidak ada akun dan tidak ada server.",
+      "title": "Layanan"
+    },
+    "title": "Ketentuan Layanan",
+    "updated": "Terakhir diperbarui: {date}",
+    "use": {
+      "body": "Gunakan aplikasi ini untuk catatan bisnis Anda sendiri. Jangan menggunakannya untuk hal yang melanggar hukum.",
+      "title": "Penggunaan yang wajar"
+    },
+    "warranty": {
+      "body": "Aplikasi ini disediakan apa adanya, tanpa garansi apa pun. Penulis tidak bertanggung jawab atas kehilangan data atau kerusakan yang timbul dari penggunaannya.",
+      "title": "Tanpa garansi"
+    }
   },
   "theme": {
     "dark": "Gelap",

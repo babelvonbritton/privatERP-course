@@ -1,5 +1,5 @@
 /**
- * Browser verification for Olaseena v0.2.0.
+ * Browser verification for Olaseena v0.7.0.
  * Serves the static export separately (python3 -m http.server 8901 --directory out)
  * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
  * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
@@ -497,6 +497,23 @@ async function desktop(browser) {
     await page.getByRole("button", { name: "Close" }).click();
   });
 
+  await check("desktop: Drive section renders with sign-in gated actions disabled", async () => {
+    await nav(page, "Settings");
+    await page.getByRole("heading", { name: "Google Drive" }).waitFor();
+    await page.getByText("Not connected").waitFor();
+    const backupBtn = page.getByRole("button", { name: "Back up to Drive" });
+    const restoreBtn = page.getByRole("button", { name: "Restore from Drive" });
+    const connectBtn = page.getByRole("button", { name: "Connect Google Drive" });
+    if (!(await backupBtn.isDisabled())) throw new Error("Back up to Drive is enabled while signed out");
+    if (!(await restoreBtn.isDisabled())) throw new Error("Restore from Drive is enabled while signed out");
+    if (await connectBtn.isDisabled()) throw new Error("Connect Google Drive is disabled while signed out");
+    const syncToggle = page.getByRole("switch", { name: /Auto-sync to Drive/ });
+    if ((await syncToggle.getAttribute("aria-checked")) !== "false") throw new Error("auto-sync is on by default");
+    if (!(await syncToggle.isDisabled())) throw new Error("auto-sync toggle is enabled while signed out");
+    await page.getByText("Connect Google Drive to turn on auto-sync.").waitFor();
+    await noOverflow(page, "drive section", 1280);
+  });
+
   await check("desktop: tour replay advances and skips", async () => {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Get to know the features" }).click();
@@ -511,6 +528,15 @@ async function desktop(browser) {
     await page.goto(`${BASE}/en/privacy`, { waitUntil: "networkidle" });
     await page.getByText("Privacy & Policy").first().waitFor();
     await noOverflow(page, "privacy", 1280);
+  });
+
+  await check("desktop: terms page loads in English and Indonesian", async () => {
+    await page.goto(`${BASE}/en/terms`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Terms of Service" }).waitFor();
+    await noOverflow(page, "terms en", 1280);
+    await page.goto(`${BASE}/id/terms`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Ketentuan Layanan" }).waitFor();
+    await noOverflow(page, "terms id", 1280);
   });
 
   await check("desktop: no console errors or page errors", async () => {
@@ -917,6 +943,20 @@ async function mobileScreensWithData(browser) {
     await fixedTargetsAtLeast44(page, "payroll review");
     await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-payroll-390.png` });
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  });
+
+  await check("mobile data: Drive section renders gated while signed out, toggle off", async () => {
+    await moreNav("Settings");
+    await page.getByRole("heading", { name: "Google Drive" }).waitFor();
+    await page.getByText("Not connected").waitFor();
+    const backupBtn = page.getByRole("button", { name: "Back up to Drive" });
+    const restoreBtn = page.getByRole("button", { name: "Restore from Drive" });
+    if (!(await backupBtn.isDisabled())) throw new Error("Back up to Drive is enabled while signed out");
+    if (!(await restoreBtn.isDisabled())) throw new Error("Restore from Drive is enabled while signed out");
+    const syncToggle = page.getByRole("switch", { name: /Auto-sync to Drive/ });
+    if ((await syncToggle.getAttribute("aria-checked")) !== "false") throw new Error("auto-sync is on by default");
+    if (!(await syncToggle.isDisabled())) throw new Error("auto-sync toggle is enabled while signed out");
+    await noOverflow(page, "mobile drive section", 390);
   });
 
   await check("mobile data: settings, footer clears the bottom nav", async () => {

@@ -23,6 +23,7 @@ import { sha256Hex } from "./hash";
 import { decodeConfiguration, decodeNdjson } from "./Ndjson";
 import { StepRunner, type StepDef, type StepOutcome } from "./StepRunner";
 import { MergePlanner, type Decision, type MergeResult } from "./MergePlanner";
+import { stripDriveSecrets } from "@/lib/drive";
 import type { BackupAsset, BackupKind, BackupManifest, BackupResult, Outcome, RestorePlan, StepState, VerifiedArchive } from "./types";
 
 /** The part of a File the service needs (also satisfied by test doubles). */
@@ -42,6 +43,20 @@ export interface RestoreOptions {
 }
 
 type Progress = (steps: StepState[]) => void;
+
+/** Working state shared by the archive-building steps (file export and Drive upload build the same archive). */
+interface ArchiveCtx {
+  data?: BackupData;
+  noticeCount: number;
+  files?: Map<string, Uint8Array>;
+  plainBytes?: number;
+  key?: DerivedBackupKey;
+  manifest?: BackupManifest;
+  zip?: Uint8Array;
+  fileName?: string;
+  total: number;
+  collectedAssets?: BackupAsset[];
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const kb = (bytes: number) => (bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
@@ -100,15 +115,16 @@ export class BackupService {
     return new AttachmentService(this.storage.db, async () => {});
   }
 
-  /** Builds a new-format archive from data, encrypting every file when a passphrase is given. Attachment files are always collected from the blob store, plus any assets the caller passes. */
+  /** Builds a new-format archive from data, encrypting every file when a passphrase is given. Attachment files are always collected from the blob store, plus any assets the caller passes. Drive secrets are stripped from the settings first, so a backup never carries its own unlock key or the device's access token. */
   private async buildArchive(data: BackupData, kind: BackupKind, passphrase?: string, assets?: BackupAsset[]): Promise<{ zip: Uint8Array; manifest: BackupManifest }> {
+    const exportData = stripDriveSecrets(data);
     let collected: BackupAsset[];
     try {
       collected = await this.attachmentService().listBlobs();
     } catch (e) {
       throw new AppError("BACKUP_COLLECT_FAILED", { cause: e, details: AppError.from(e).details });
     }
-    const { files, manifest } = await ArchiveCodec.describe(withAttachments(data), this.now(), kind, [...collected, ...(assets ?? [])]);
+    const { files, manifest } = await ArchiveCodec.describe(withAttachments(exportData), this.now(), kind, [...collected, ...(assets ?? [])]);
     const key = passphrase === undefined ? undefined : await BackupCrypto.createKey(passphrase);
     return ArchiveCodec.pack(manifest, files, key);
   }
@@ -285,17 +301,18 @@ export class BackupService {
 
   // ---------------------------------------------------------------- create a backup
 
-  /** Reads, checks, packages, compresses, re-verifies and saves a backup ZIP. */
-  async createBackup(onChange: Progress, kind: BackupKind = "backup", passphrase?: string, assets?: BackupAsset[]): Promise<Outcome<BackupResult>> {
-    interface Ctx { data?: BackupData; noticeCount: number; files?: Map<string, Uint8Array>; plainBytes?: number; key?: DerivedBackupKey; manifest?: BackupManifest; zip?: Uint8Array; fileName?: string; total: number; collectedAssets?: BackupAsset[] }
-    const ctx: Ctx = { noticeCount: 0, total: 0 };
-    const steps: StepDef<Ctx>[] = [
+  /** Steps that build and verify a backup archive: collect, self-check, package, encrypt, compress, verify. The save step (downloading the file) is not one of them — file export adds it, Drive upload does not need it. */
+  private archiveSteps(kind: BackupKind, passphrase?: string, assets?: BackupAsset[]): StepDef<ArchiveCtx>[] {
+    return [
       {
         id: "collect",
         titleKey: "step.collect",
         run: async (c) => {
           try {
-            c.data = withAttachments(await this.storage.snapshots.readAll());
+            // Drive secrets are stripped here so the self-check, the package
+            // and the round-trip verification all see the same data that
+            // lands in the archive.
+            c.data = stripDriveSecrets(withAttachments(await this.storage.snapshots.readAll()));
             c.collectedAssets = await this.attachmentService().listBlobs();
           } catch (e) {
             throw new AppError("BACKUP_COLLECT_FAILED", { cause: e, details: AppError.from(e).details });
@@ -374,6 +391,14 @@ export class BackupService {
           }
         },
       },
+    ];
+  }
+
+  /** Reads, checks, packages, compresses, re-verifies and saves a backup ZIP. */
+  async createBackup(onChange: Progress, kind: BackupKind = "backup", passphrase?: string, assets?: BackupAsset[]): Promise<Outcome<BackupResult>> {
+    const ctx: ArchiveCtx = { noticeCount: 0, total: 0 };
+    const steps: StepDef<ArchiveCtx>[] = [
+      ...this.archiveSteps(kind, passphrase, assets),
       {
         id: "save",
         titleKey: "step.save",
@@ -387,6 +412,14 @@ export class BackupService {
     const outcome = await this.runner(steps).run(ctx, onChange, "backup");
     if (!outcome.ok) return outcome;
     return { ok: true, value: { fileName: ctx.fileName!, bytes: ctx.zip!.length, zip: ctx.zip!, manifest: ctx.manifest!, total: ctx.total } };
+  }
+
+  /** Builds and verifies a backup archive and returns its bytes, without downloading anything. Used by Drive backup and auto-sync; a Drive backup is always encrypted, so the passphrase is required. */
+  async buildBackupArchive(kind: BackupKind, passphrase: string, onChange: Progress): Promise<Outcome<{ zip: Uint8Array; manifest: BackupManifest; total: number; fileName: string }>> {
+    const ctx: ArchiveCtx = { noticeCount: 0, total: 0 };
+    const outcome = await this.runner(this.archiveSteps(kind, passphrase)).run(ctx, onChange, "backup");
+    if (!outcome.ok) return outcome;
+    return { ok: true, value: { zip: ctx.zip!, manifest: ctx.manifest!, total: ctx.total, fileName: BackupService.fileName(kind, ctx.manifest!.createdAtMs) } };
   }
 
   // ---------------------------------------------------------------- inspect a file before restoring
@@ -602,6 +635,9 @@ export class BackupService {
     ];
     const outcome = await this.runner(steps).run(ctx, onChange, "restore.apply");
     if (!outcome.ok) return outcome;
+    // The restore replaced whole tables past the repositories, so the
+    // data-change listeners would not hear about it otherwise.
+    this.storage.notifyDataChanged();
     // Carry the inspection warnings (including missing attachment files) on the
     // result, so the UI can show which files are missing after the restore.
     return { ok: true, value: { ...ctx.merged!, warnings: plan.warnings } };

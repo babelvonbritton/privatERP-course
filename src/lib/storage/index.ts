@@ -45,24 +45,41 @@ export class StorageService {
   readonly snapshots: SnapshotService;
   readonly integrity: IntegrityChecker;
   private initPromise: Promise<StorageReport> | null = null;
+  /** Listeners told whenever a data store is written. The settings store never notifies. */
+  private readonly dataChangeListeners = new Set<() => void>();
+  /** Passed to every data store; runs after a write lands. Listeners only set in-memory state and schedule timers — they do no database work here, so a write inside a Dexie transaction is safe. */
+  private readonly notifyWrite = () => this.notifyDataChanged();
 
   constructor(readonly db: OlaseenaDatabase = new OlaseenaDatabase(), clock: Clock = Date.now) {
-    this.members = new DexieMemberStore(db.members, clock);
-    this.trainers = new DexieTrainerStore(db.trainers, clock);
-    this.courses = new DexieCourseStore(db.courses, clock);
-    this.enrollments = new DexieEnrollmentStore(db.enrollments, clock);
-    this.sessions = new DexieSessionStore(db.sessions, clock);
-    this.attendance = new DexieAttendanceStore(db.attendance, clock);
-    this.invoices = new DexieInvoiceStore(db.invoices, clock);
-    this.payments = new DexiePaymentStore(db.payments, clock);
-    this.payrollRuns = new DexiePayrollStore(db.payrollRuns, clock);
-    this.audit = new DexieAuditStore(db.auditLog, clock);
-    this.writeKeys = new DexieWriteKeyStore(db.writeKeys, clock);
+    this.members = new DexieMemberStore(db.members, clock, this.notifyWrite);
+    this.trainers = new DexieTrainerStore(db.trainers, clock, this.notifyWrite);
+    this.courses = new DexieCourseStore(db.courses, clock, this.notifyWrite);
+    this.enrollments = new DexieEnrollmentStore(db.enrollments, clock, this.notifyWrite);
+    this.sessions = new DexieSessionStore(db.sessions, clock, this.notifyWrite);
+    this.attendance = new DexieAttendanceStore(db.attendance, clock, this.notifyWrite);
+    this.invoices = new DexieInvoiceStore(db.invoices, clock, this.notifyWrite);
+    this.payments = new DexiePaymentStore(db.payments, clock, this.notifyWrite);
+    this.payrollRuns = new DexiePayrollStore(db.payrollRuns, clock, this.notifyWrite);
+    this.audit = new DexieAuditStore(db.auditLog, clock, this.notifyWrite);
+    this.writeKeys = new DexieWriteKeyStore(db.writeKeys, clock, this.notifyWrite);
     this.settings = new DexieSettingsStore(db.settings, clock);
-    this.trash = new DexieTrashStore(db.trash, clock);
+    this.trash = new DexieTrashStore(db.trash, clock, this.notifyWrite);
     this.preferences = new PreferenceService(this.settings);
     this.snapshots = new SnapshotService(db);
     this.integrity = new IntegrityChecker(db, clock);
+  }
+
+  /** Subscribes to data-store writes. Returns an unsubscribe function. */
+  onDataChange(listener: () => void): () => void {
+    this.dataChangeListeners.add(listener);
+    return () => {
+      this.dataChangeListeners.delete(listener);
+    };
+  }
+
+  /** Tells every data-change listener that a data store was written. Used by the stores and by flows that write past them (a restore replaces whole tables at once). */
+  notifyDataChanged(): void {
+    for (const listener of this.dataChangeListeners) listener();
   }
 
   /** Schema version of the open database. */

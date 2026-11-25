@@ -173,6 +173,41 @@
     "trainer": "Trainer",
     "value": "Value"
   },
+  "drive": {
+    "backup": "Back up to Drive",
+    "clientIdOwn": "Your own Google Client ID (optional)",
+    "clientIdSaved": "Client ID saved.",
+    "connect": "Connect Google Drive",
+    "connected": "Connected",
+    "disconnect": "Disconnect",
+    "enterPassphrase": "Backup from Drive found. Enter the passphrase above, then tap Restore from Drive again.",
+    "hideOwnId": "Hide",
+    "hint": "Keep an encrypted copy of everything in your Google Drive app folder. Only this app can see that folder — it never shows on drive.google.com.",
+    "lastBackup": "Last backup",
+    "lastSynced": "Last synced",
+    "noBackup": "No backup found in Google Drive yet.",
+    "noClientId": "Paste a Google Client ID first.",
+    "notConnected": "Not connected",
+    "passphrase": "Backup passphrase",
+    "passphraseConfirm": "Confirm backup passphrase",
+    "passphraseHint": "The same passphrase opens every backup, file or Drive. After a successful Drive backup it is kept on this device, so auto-sync can back up without asking. It is never written into a backup file.",
+    "passphraseMismatch": "The two passphrases do not match.",
+    "passphrasePlaceholder": "At least 8 characters",
+    "restore": "Restore from Drive",
+    "saveClientId": "Save Client ID",
+    "saved": "Backup saved to Google Drive.",
+    "sharedIdHint": "Tap Connect and pick your Google account. Olaseena already carries its own Client ID, so there is nothing to paste.",
+    "status": "Status",
+    "sync": "Auto-sync to Drive",
+    "syncError": "Auto-sync failed ({error}). It will try again after the next change.",
+    "syncHint": "After a change, wait a few seconds and upload the same encrypted backup. Only while connected and switched on.",
+    "syncNeedsConnect": "Connect Google Drive to turn on auto-sync.",
+    "syncNeedsPassphrase": "Back up to Drive once first, so the passphrase is saved on this device for auto-sync.",
+    "syncing": "Syncing to Drive…",
+    "title": "Google Drive",
+    "useDefault": "Use the app default",
+    "useOwnId": "Use your own Client ID"
+  },
   "duration": {
     "hours": "{hours} h"
   },
@@ -291,6 +326,26 @@
     "DELETE_BLOCKED": {
       "hint": "Remove or reassign the linked records first, then delete this one.",
       "title": "This record is still in use"
+    },
+    "DRIVE_AUTH": {
+      "hint": "Connect Google Drive again in Settings.",
+      "title": "The Google Drive session ended"
+    },
+    "DRIVE_DOWNLOAD_FAILED": {
+      "hint": "Check your connection and try again.",
+      "title": "The backup could not be downloaded from Drive"
+    },
+    "DRIVE_GIS_FAILED": {
+      "hint": "Check your connection and try again.",
+      "title": "Google sign-in failed"
+    },
+    "DRIVE_LIST_FAILED": {
+      "hint": "Check your connection and try again.",
+      "title": "The Drive backup could not be read"
+    },
+    "DRIVE_UPLOAD_FAILED": {
+      "hint": "Check your connection and try again.",
+      "title": "The backup could not be uploaded to Drive"
     },
     "EXPORT_FAILED": {
       "hint": "The file could not be created. Try again.",
@@ -717,6 +772,7 @@
     "licenseValue": "MIT",
     "privacy": "Privacy policy",
     "schemaVersion": "Data version",
+    "terms": "Terms of service",
     "theme": "Theme",
     "themeHint": "Choose how Olaseena looks. Follow system uses your device setting.",
     "title": "Settings",
@@ -745,6 +801,8 @@
     "compare": "Compare with your current data",
     "compress": "Compress to ZIP",
     "decrypt": "Decrypt backup",
+    "driveDownload": "Download from Drive",
+    "driveUpload": "Upload to Drive",
     "encrypt": "Encrypt backup",
     "metadata": "Check metadata and version",
     "package": "Build files and checksums",
@@ -758,6 +816,31 @@
     "unpack": "Open the archive",
     "verifyArchive": "Verify the new archive",
     "verifyRestore": "Verify restored data"
+  },
+  "terms": {
+    "changes": {
+      "body": "If these terms change, the new version and its date will appear on this page.",
+      "title": "Changes"
+    },
+    "data": {
+      "body": "Your records stay on your device. The optional Google Drive backup stores an encrypted copy in your own Drive app folder; only you hold the passphrase. You are responsible for your own data and for keeping backups.",
+      "title": "Your data"
+    },
+    "intro": "Olaseena is a local-first app for running a private course business. By using it, you agree to these terms.",
+    "service": {
+      "body": "Olaseena is a local-first app for running a private course business, for one user. It runs entirely in your browser; there is no account and no server.",
+      "title": "The service"
+    },
+    "title": "Terms of Service",
+    "updated": "Last updated: {date}",
+    "use": {
+      "body": "Use the app for your own business records. Do not use it for anything unlawful.",
+      "title": "Acceptable use"
+    },
+    "warranty": {
+      "body": "The app is provided as is, without warranty of any kind. The authors are not liable for data loss or damage arising from its use.",
+      "title": "No warranty"
+    }
   },
   "theme": {
     "dark": "Dark",

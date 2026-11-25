@@ -49,7 +49,7 @@ describe("translations", () => {
 
   it("does not leave English text in the other language by accident", () => {
     const idFlat = flatten(id);
-    const keep = new Set(["app.name", "field.status", "diff.status", "field.email", "diff.email", "field.total", "diff.total", "field.member", "diff.member", "invoice.member", "invoice.total", "payroll.total", "privacy.hosting.title", "settings.licenseValue", "kind.member", "detail.saved", "detail.packaged", "detail.read", "backup.doneBody", "legal.license", "err.BACKUP_UNEXPECTED_CONTENT.hint", "detail.unpacked", "detail.metadata", "detail.checksum"]);
+    const keep = new Set(["app.name", "field.status", "diff.status", "field.email", "diff.email", "field.total", "diff.total", "field.member", "diff.member", "invoice.member", "invoice.total", "payroll.total", "privacy.hosting.title", "settings.licenseValue", "kind.member", "detail.saved", "detail.packaged", "detail.read", "backup.doneBody", "legal.license", "err.BACKUP_UNEXPECTED_CONTENT.hint", "detail.unpacked", "detail.metadata", "detail.checksum", "drive.status", "drive.title"]);
     for (const [key, text] of Object.entries(base)) {
       if (keep.has(key) || /^\{[^}]*\}$/.test(text) || text.length < 5) continue;
       expect(idFlat[key], `id:${key}`).not.toBe(text);

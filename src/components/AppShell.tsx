@@ -7,6 +7,7 @@ import { LOCALE_NAMES, type Locale } from "@/i18n/routing";
 import { setCurrency, subscribeCurrency } from "@/lib/currency";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { getServices } from "@/lib/domain/services";
+import { startDriveSync } from "@/lib/driveSync";
 import { getStorage } from "@/lib/storage";
 import { Logo } from "./Logo";
 import { TourProvider } from "./Tour";
@@ -35,7 +36,11 @@ export function AppShell() {
   // Loads the stored currency at boot so amounts format in it, and re-renders
   // every screen when a switch or a restore changes it. Expired trash entries
   // are purged on boot too, so the bin never shows items past their time.
+  // Drive auto-sync also starts here: it listens for data changes for the
+  // whole session and uploads only while Drive is connected and the toggle
+  // is on.
   useEffect(() => {
+    const stopSync = startDriveSync();
     let cancelled = false;
     void getStorage()
       .preferences.load()
@@ -46,7 +51,11 @@ export function AppShell() {
     void getServices()
       .trash.purgeExpired()
       .catch((e) => errorCenter.report(e, { action: "trash.purge" }));
-    return subscribeCurrency(() => setCurrencyTick((n) => n + 1));
+    const stopCurrency = subscribeCurrency(() => setCurrencyTick((n) => n + 1));
+    return () => {
+      stopSync();
+      stopCurrency();
+    };
   }, []);
 
   const navigate = useCallback((id: NavId) => {
