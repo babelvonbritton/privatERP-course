@@ -870,16 +870,20 @@
     "skip": "Skip tour",
     "step": {
       "attendance": {
-        "body": "This is where you record who showed up (attendance). Pick a session, mark each member Present, Absent, or Late, and mark whether the trainer was there. Sessions where the trainer was present count toward their pay.",
+        "body": "This is where you record who showed up (attendance). Pick a session, mark each member Present, Absent, or Late, and mark whether the trainer was there. Sessions where the trainer was present count toward their pay. Below the marking, a dashboard totals attendance per member and course, with a Trainers tab for how much each trainer taught.",
         "title": "Attendance"
       },
       "courses": {
-        "body": "This is where your classes live (courses). Each course has a trainer, a weekly schedule, a price, and a capacity. Open one to enroll members and see its sessions.",
+        "body": "This is where your classes live (courses). Each course has a trainer, weekly days, a price, and a capacity. Open one to enroll members and see its sessions — each session has a start and end time, and its length is worked out from them.",
         "title": "Courses"
       },
       "dashboard": {
         "body": "This is your overview (the dashboard). It shows money collected this month, unpaid invoices, how often members show up, and what is coming next.",
         "title": "Dashboard"
+      },
+      "drive": {
+        "body": "This is where your backups can also live (Google Drive). Connect your account to back up and restore from your own Drive app folder, and switch on auto-sync to upload a fresh encrypted copy a few seconds after each change — it needs the backup passphrase first.",
+        "title": "Google Drive"
       },
       "invoices": {
         "body": "This is where you bill members (invoices). Create one from a member or an enrollment, add charges, and record payments. Overdue invoices are flagged automatically when the due date passes.",

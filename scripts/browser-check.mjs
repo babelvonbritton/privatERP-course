@@ -692,11 +692,11 @@ async function mobileTourSheet(browser) {
   page.setDefaultTimeout(10000);
   currentPage = page;
 
-  await check("mobile tour: sheet docks above the bottom nav on all 9 steps", async () => {
+  await check("mobile tour: sheet docks above the bottom nav on all 10 steps", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 10; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         const dr = dlg?.getBoundingClientRect();
@@ -751,7 +751,7 @@ async function mobileTourSheet(browser) {
       }
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-1.png` });
       if (i === 4) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-5.png` });
-      if (i < 8) {
+      if (i < 9) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -788,7 +788,7 @@ async function mobileTourShortPhone(browser) {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 10; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         // Scroll the sheet to its end first: on a short phone the longest
@@ -813,7 +813,7 @@ async function mobileTourShortPhone(browser) {
         if (b.h < 44) throw new Error(`step ${i + 1}: ${b.label} button ${b.h}px tall`);
       }
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-360x740-step-1.png` });
-      if (i < 8) {
+      if (i < 9) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }
@@ -1386,11 +1386,16 @@ async function shortViewportTour(browser) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   currentPage = page;
-  await check("short viewport: tour tooltip stays inside the viewport on all 9 steps", async () => {
+  await check("short viewport: tour tooltip stays inside the viewport on all 10 steps", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    for (let i = 0; i < 9; i++) {
+    // The steps in tour order: the overlay falls back to a centered tooltip
+    // when its target is missing, so check each target is really on screen.
+    const targets = ["dashboard", "members", "trainers", "courses", "attendance", "invoices", "payroll", "trash", "settings", "drive"];
+    for (let i = 0; i < 10; i++) {
+      const hasTarget = await page.evaluate((t) => !!document.querySelector(`[data-tour="${t}"]`), targets[i]);
+      if (!hasTarget) throw new Error(`step ${i + 1}: no [data-tour="${targets[i]}"] target on screen`);
       const box = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
         const r = dlg?.getBoundingClientRect();
@@ -1406,7 +1411,7 @@ async function shortViewportTour(browser) {
       if (box.top === null || box.top < 0 || box.bottom > box.vh || !box.skipVisible) {
         throw new Error(`step ${i + 1}: tooltip top ${box.top} bottom ${box.bottom} vs viewport ${box.vh}, Skip visible ${box.skipVisible}`);
       }
-      if (i < 8) {
+      if (i < 9) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
       }

@@ -2,11 +2,13 @@
 import "fake-indexeddb/auto";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TourProvider, useTour } from "@/components/Tour";
+import { TourProvider, TOUR_STEPS, useTour } from "@/components/Tour";
 import type { NavId } from "@/components/nav";
 import { getStorage, resetStorage } from "@/lib/storage";
 import { resetServices } from "@/lib/domain/services";
 import { Providers } from "./support";
+import enMessages from "../messages/en.json";
+import idMessages from "../messages/id.json";
 
 async function freshStorage() {
   await resetStorage();
@@ -87,6 +89,34 @@ describe("tour", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Replay tour" }));
     expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Dashboard");
+  });
+
+  it("every tour step has title and body copy in English and Indonesian", () => {
+    // The overlay looks the copy up by step id at runtime, so a missing key
+    // would render as a bare key instead of failing loudly.
+    for (const { step } of TOUR_STEPS) {
+      for (const messages of [enMessages, idMessages]) {
+        const copy = messages.tour.step[step as keyof typeof messages.tour.step];
+        expect(copy.title.length).toBeGreaterThan(0);
+        expect(copy.body.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("does not navigate again for the Drive step on the same Settings screen", async () => {
+    const onNavigate = vi.fn();
+    render(<Harness onNavigate={onNavigate} />);
+    await screen.findByRole("dialog", {}, { timeout: 3000 });
+    // Walk to the settings step (8 Next taps from the dashboard).
+    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Settings");
+    const calls = onNavigate.mock.calls.length;
+    // The Drive step stays on Settings: no further navigation (a redundant
+    // navigate would scroll back to the top after the overlay scrolled the
+    // Drive section into view, pushing the tooltip off-screen).
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Google Drive");
+    expect(onNavigate.mock.calls.length).toBe(calls);
   });
 
   it("renders as a bottom sheet on a narrow screen, with no highlight ring", async () => {

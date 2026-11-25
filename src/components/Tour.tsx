@@ -26,6 +26,7 @@ export const TOUR_STEPS: TourStep[] = [
   { nav: "payroll", target: "payroll", step: "payroll" },
   { nav: "trash", target: "trash", step: "trash" },
   { nav: "settings", target: "settings", step: "settings" },
+  { nav: "settings", target: "drive", step: "drive" },
 ];
 
 interface TourContextValue {
@@ -73,9 +74,16 @@ export function TourProvider({ navigate, children }: Props) {
 
   const step = index === null ? null : TOUR_STEPS[index];
 
-  // Move to the screen the current step belongs to.
+  // The tour moves between screens by navigating. When two steps share one
+  // screen (settings, then its Drive section), navigating again would scroll
+  // back to the top after the overlay scrolled the section into view, so
+  // only navigate when the screen actually changes.
+  const lastNav = useRef<NavId | null>(null);
   useEffect(() => {
-    if (step) navigate(step.nav);
+    if (step && step.nav !== lastNav.current) {
+      lastNav.current = step.nav;
+      navigate(step.nav);
+    }
   }, [step, navigate]);
 
   return (

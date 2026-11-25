@@ -870,16 +870,20 @@
     "skip": "Lewati tur",
     "step": {
       "attendance": {
-        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap member Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi di mana pengajar hadir dihitung untuk gaji mereka.",
+        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap member Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi di mana pengajar hadir dihitung untuk gaji mereka. Di bawah formulir penandaan, dasbor merangkum kehadiran per member dan kursus, dengan tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar.",
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki pengajar, jadwal mingguan, harga, dan kapasitas. Buka satu kursus untuk mendaftarkan member dan melihat sesinya.",
+        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki pengajar, hari mingguan, harga, dan kapasitas. Buka satu kursus untuk mendaftarkan member dan melihat sesinya — setiap sesi memiliki jam mulai dan jam selesai, dan durasinya dihitung dari rentang tersebut.",
         "title": "Kursus"
       },
       "dashboard": {
         "body": "Ini adalah ringkasan Anda (dasbor). Di sini terlihat uang yang terkumpul bulan ini, tagihan yang belum dibayar, seberapa sering member hadir, dan apa yang akan datang.",
         "title": "Dasbor"
+      },
+      "drive": {
+        "body": "Di sinilah cadangan Anda juga bisa disimpan (Google Drive). Hubungkan akun Anda untuk mencadangkan dan memulihkan dari folder aplikasi Drive Anda sendiri, lalu nyalakan sinkronisasi otomatis untuk mengunggah salinan terenkripsi yang baru beberapa detik setelah setiap perubahan — kata sandi cadangan harus diatur dulu.",
+        "title": "Google Drive"
       },
       "invoices": {
         "body": "Di sinilah Anda menagih member (tagihan). Buat tagihan dari member atau pendaftaran, tambahkan biaya, dan catat pembayaran. Tagihan jatuh tempo ditandai otomatis saat tanggal jatuh tempo lewat.",

@@ -393,7 +393,7 @@ export function DriveSection({ onRestored }: Props) {
   const replacedCount = plan ? plan.merge.entries.filter((e) => e.status === "differs" && decisions.get(e.key) === "replace").length : 0;
 
   return (
-    <section className="rounded-card border border-line bg-surface p-4">
+    <section data-tour="drive" className="rounded-card border border-line bg-surface p-4">
       <h2 className="text-base font-semibold text-plum-900">{t("drive.title")}</h2>
       <p className="mt-1 text-sm text-muted">{t("drive.hint")}</p>
 
