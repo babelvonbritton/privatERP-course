@@ -126,6 +126,12 @@ async function pickSessionCourse(page, option) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+/** The Attendance screen shows a session list, not a picker: click the row for the topic. */
+async function pickAttendanceSession(page, topic) {
+  const list = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+  await list.getByRole("button", { name: topic }).click();
+}
+
 /** TimePicker: open the picker by its field label, then pick the hour and the minute. */
 async function pickTime(page, label, time) {
   const [hour, minute] = time.split(":");
@@ -254,12 +260,12 @@ async function navMobile(page, name) {
   }
 }
 
-/** Creates one Piano Basics session with Budi Santoso; `date` null keeps today. */
+/** Creates one Piano Basics session with Budi Santoso; `date` null keeps today. Sessions are created from the Courses screen's standalone form now: Attendance is marking only. */
 async function createSession(page, topic, date, onMobile) {
-  if (onMobile) await navMobile(page, "Attendance");
-  else await nav(page, "Attendance");
-  await pickSessionCourse(page, "Piano Basics");
-  await page.getByRole("button", { name: "New session" }).click();
+  if (onMobile) await navMobile(page, "Courses");
+  else await nav(page, "Courses");
+  await page.getByRole("button", { name: "New session", exact: true }).first().click();
+  await pickSelect(page, "Course", "Piano Basics");
   if (date) await pickDate(page, date);
   await page.getByLabel("Topic", { exact: true }).fill(topic);
   await pickTime(page, "Start time", "10:00");
@@ -448,16 +454,7 @@ async function desktop(browser) {
     // next course day instead of relying on the form's default date.
     const sessionDay = upcomingSlotDates(1)[0];
     try {
-      await nav(page, "Attendance");
-      await pickSessionCourse(page, "Piano Basics");
-      await page.getByRole("button", { name: "New session" }).click();
-      await pickDate(page, sessionDay);
-      await page.getByLabel("Topic", { exact: true }).fill("Scales");
-      await pickTime(page, "Start time", "10:00");
-      await pickTime(page, "End time", "11:30");
-      await page.getByRole("radio", { name: "Budi Santoso" }).click();
-      await page.getByRole("button", { name: "Add", exact: true }).last().click();
-      await toast(page, "Saved");
+      await createSession(page, "Scales", sessionDay, false);
       // A fresh session hands nothing to marking until members are
       // assigned, so assign Ayu in the Sessions section first.
       const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
@@ -470,8 +467,7 @@ async function desktop(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-      await page.getByRole("option", { name: "Scales" }).click();
+      await pickAttendanceSession(page, "Scales");
       await page.locator("p", { hasText: "Scales" }).waitFor();
       await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
       await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
@@ -487,7 +483,7 @@ async function desktop(browser) {
     }
   });
 
-  await check("desktop: edit and delete a marked session from attendance", async () => {
+  await check("desktop: adjust marks and unmark a marked session from attendance", async () => {
     // A second session on the next slot day, so Scales (used by the payroll
     // and dashboard checks) stays untouched.
     const sessionDay = upcomingSlotDates(2)[1];
@@ -504,31 +500,49 @@ async function desktop(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-      await page.getByRole("option", { name: "Arpeggios" }).click();
+      // Attendance is marking only: no session-management buttons exist here.
+      if (await page.getByRole("button", { name: "New session" }).count()) throw new Error("Attendance still shows a New session button");
+      if (await page.getByRole("button", { name: "Edit session" }).count()) throw new Error("Attendance still shows an Edit session button");
+      if (await page.getByRole("button", { name: "Delete session" }).count()) throw new Error("Attendance still shows a Delete session button");
+      // The session list shows Arpeggios; pick it and mark Ayu present.
+      await pickAttendanceSession(page, "Arpeggios");
       await page.locator("p", { hasText: "Arpeggios" }).waitFor();
       await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
       await page.getByRole("button", { name: "Mark attendance" }).click();
       await toast(page, "Attendance saved");
-      // Edit it from the Attendance screen: the form opens pre-filled.
-      await page.getByRole("button", { name: "Edit session" }).click();
-      const topic = page.getByLabel("Topic", { exact: true });
-      if ((await topic.inputValue()) !== "Arpeggios") throw new Error("edit form is not pre-filled with the session topic");
-      await topic.fill("Arpeggios 2");
-      await page.getByRole("button", { name: "Save changes" }).click();
-      await toast(page, "Saved");
-      await page.locator("p", { hasText: "Arpeggios 2" }).waitFor();
-      // Cancel keeps it; confirming deletes it with its marks.
-      await page.getByRole("button", { name: "Delete session" }).click();
+      // The marked session stays in the list with its Marked indicator; re-opening shows the saved marks.
+      const list = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+      const row = list.getByRole("button", { name: /Arpeggios/ });
+      if (!(await row.getByText("Marked").count())) throw new Error("marked session has no Marked indicator in the list");
+      await pickAttendanceSession(page, "Arpeggios");
+      const ayu = page.getByRole("radiogroup", { name: "Ayu Lestari" });
+      if (!(await ayu.getByRole("radio", { name: "Present" }).isChecked())) throw new Error("saved marks not pre-filled on re-open");
+      // Adjust one mark and save: the session stays marked.
+      await ayu.getByRole("radio", { name: "Absent" }).click();
+      await page.getByRole("button", { name: "Mark attendance" }).click();
+      await toast(page, "Attendance saved");
+      if (!(await row.getByText("Marked").count())) throw new Error("adjusted session lost its Marked indicator");
+      // Unmark it: Cancel keeps the marks, confirming clears them.
+      await page.getByRole("button", { name: "Unmark session" }).click();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await page.locator("p", { hasText: "Arpeggios 2" }).waitFor();
-      await page.getByRole("button", { name: "Delete session" }).click();
-      await page.getByRole("button", { name: "Delete", exact: true }).click();
-      await toast(page, "Arpeggios 2 moved to the trash bin");
-      await page.getByText("No sessions yet").waitFor();
-      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-      if (await page.getByRole("option", { name: "Arpeggios" }).count()) throw new Error("deleted session still listed in the picker");
-      await page.keyboard.press("Escape");
+      if (!(await ayu.getByRole("radio", { name: "Absent" }).isChecked())) throw new Error("canceling unmark changed the marks");
+      await page.getByRole("button", { name: "Unmark session" }).click();
+      const unmarkDlg = page.locator('[role="alertdialog"]');
+      await unmarkDlg.getByText("Unmark this session? Its attendance will be cleared and it will return to the Sessions list.").waitFor();
+      await unmarkDlg.getByRole("button", { name: "Unmark session" }).click();
+      await toast(page, "Attendance cleared");
+      if (await row.getByText("Marked").count()) throw new Error("unmarked session still shows the Marked indicator");
+      // The session is back in the Sessions section on the Courses screen,
+      // where it can be edited or deleted as a session again. Delete it
+      // there so later checks see only the sessions they create themselves.
+      await nav(page, "Courses");
+      await pending.getByText("Arpeggios").waitFor();
+      const sessionRow = pending.locator("li", { hasText: "Arpeggios" });
+      await sessionRow.getByRole("button", { name: "Delete session" }).click();
+      const confirmDlg = page.locator('[role="alertdialog"]');
+      await confirmDlg.getByRole("button", { name: "Delete", exact: true }).click();
+      await confirmDlg.waitFor({ state: "detached", timeout: 5000 });
+      await sessionRow.waitFor({ state: "detached", timeout: 8000 });
       await noOverflow(page, "attendance", 1280);
     } finally {
       const close = page.getByRole("button", { name: "Close" });
@@ -590,8 +604,7 @@ async function desktop(browser) {
     // The attendance list now shows only the assigned member.
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-    await page.getByRole("option", { name: "Arpeggios" }).click();
+    await pickAttendanceSession(page, "Arpeggios");
     await page.getByText("Only the assigned members are listed here.").waitFor();
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
     if (await page.getByRole("radiogroup", { name: "Citra Kirana" }).count()) {
@@ -609,8 +622,7 @@ async function desktop(browser) {
     await pending.getByText("No members assigned yet").waitFor();
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-    await page.getByRole("option", { name: "Arpeggios" }).click();
+    await pickAttendanceSession(page, "Arpeggios");
     await page.getByText("No member assigned to this session.").waitFor();
     if (await page.getByRole("radiogroup", { name: "Ayu Lestari" }).count()) {
       throw new Error("unassigned session lists Ayu Lestari in the attendance marking");
@@ -839,8 +851,7 @@ async function desktop(browser) {
       // Mark the trainer absent: regenerating the draft run must drop the session.
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-      await page.getByRole("option", { name: "Scales" }).click();
+      await pickAttendanceSession(page, "Scales");
       await page.getByRole("switch", { name: "Trainer present" }).click();
       await page.waitForFunction(() => document.querySelector('[role="switch"]')?.getAttribute("aria-checked") === "false");
       await nav(page, "Payroll");
@@ -857,8 +868,7 @@ async function desktop(browser) {
       // Mark the trainer present again: the draft run refreshes back to one paid session.
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-      await page.getByRole("option", { name: "Scales" }).click();
+      await pickAttendanceSession(page, "Scales");
       await page.getByRole("switch", { name: "Trainer present" }).click();
       await page.waitForFunction(() => document.querySelector('[role="switch"]')?.getAttribute("aria-checked") === "true");
       await nav(page, "Payroll");
@@ -1397,18 +1407,9 @@ async function mobileScreensWithData(browser) {
     // not the form's default (today).
     await enrollMember(page, "Ayu Lestari", upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3));
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
-    await moreNav("Attendance");
-    await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("button", { name: "New session" }).click();
     // Today is not always a Piano Basics day (Mon/Wed), so pick the next
     // one instead of relying on the form's default date.
-    await pickDate(page, upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3));
-    await page.getByLabel("Topic", { exact: true }).fill("Scales");
-    await pickTime(page, "Start time", "10:00");
-    await pickTime(page, "End time", "11:30");
-    await page.getByRole("radio", { name: "Budi Santoso" }).click();
-    await page.getByRole("button", { name: "Add", exact: true }).last().click();
-    await toast(page, "Saved");
+    await createSession(page, "Scales", upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3), true);
     // A fresh session hands nothing to marking until members are
     // assigned, so assign Ayu in the Sessions section first.
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
@@ -1421,8 +1422,7 @@ async function mobileScreensWithData(browser) {
     await pending.getByText("Assigned: Ayu Lestari").waitFor();
     await moreNav("Attendance");
     await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-    await page.getByRole("option", { name: /Scales/ }).click();
+    await pickAttendanceSession(page, "Scales");
     await page.locator("p", { hasText: "Scales" }).waitFor();
     await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
@@ -1450,7 +1450,7 @@ async function mobileScreensWithData(browser) {
     await toastsGone();
   });
 
-  await check("mobile data: edit and delete a marked session from attendance", async () => {
+  await check("mobile data: adjust marks and unmark a marked session from attendance", async () => {
     // A second session on another Mon/Wed day, so Scales (used by the mobile
     // dashboard check) stays untouched.
     const sessionDay = upcomingSlotDates(5).filter((d) => d.getDay() === 1 || d.getDay() === 3)[1];
@@ -1466,25 +1466,46 @@ async function mobileScreensWithData(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await moreNav("Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-      await page.getByRole("option", { name: "Arpeggios" }).click();
+      // Attendance is marking only: no session-management buttons exist here.
+      if (await page.getByRole("button", { name: "New session" }).count()) throw new Error("Attendance still shows a New session button");
+      if (await page.getByRole("button", { name: "Edit session" }).count()) throw new Error("Attendance still shows an Edit session button");
+      if (await page.getByRole("button", { name: "Delete session" }).count()) throw new Error("Attendance still shows a Delete session button");
+      await pickAttendanceSession(page, "Arpeggios");
       await page.locator("p", { hasText: "Arpeggios" }).waitFor();
       await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
       await page.getByRole("button", { name: "Mark attendance" }).click();
       await toast(page, "Attendance saved");
-      // Edit it from the Attendance screen: the form opens pre-filled.
-      await page.getByRole("button", { name: "Edit session" }).click();
-      const topic = page.getByLabel("Topic", { exact: true });
-      if ((await topic.inputValue()) !== "Arpeggios") throw new Error("edit form is not pre-filled with the session topic");
-      await topic.fill("Arpeggios 2");
-      await page.getByRole("button", { name: "Save changes" }).click();
-      await toast(page, "Saved");
-      await page.locator("p", { hasText: "Arpeggios 2" }).waitFor();
-      // Confirming deletes it with its marks.
-      await page.getByRole("button", { name: "Delete session" }).click();
-      await page.getByRole("button", { name: "Delete", exact: true }).click();
-      await toast(page, "Arpeggios 2 moved to the trash bin");
-      await page.getByText("No sessions yet").waitFor();
+      // The marked session stays in the list with its Marked indicator; re-opening shows the saved marks.
+      const list = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+      const row = list.getByRole("button", { name: /Arpeggios/ });
+      if (!(await row.getByText("Marked").count())) throw new Error("marked session has no Marked indicator in the list");
+      await pickAttendanceSession(page, "Arpeggios");
+      const ayu = page.getByRole("radiogroup", { name: "Ayu Lestari" });
+      if (!(await ayu.getByRole("radio", { name: "Present" }).isChecked())) throw new Error("saved marks not pre-filled on re-open");
+      // Adjust one mark and save: the session stays marked.
+      await ayu.getByRole("radio", { name: "Absent" }).click();
+      await page.getByRole("button", { name: "Mark attendance" }).click();
+      await toast(page, "Attendance saved");
+      // Unmark it: Cancel keeps the marks, confirming clears them.
+      await page.getByRole("button", { name: "Unmark session" }).click();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      if (!(await ayu.getByRole("radio", { name: "Absent" }).isChecked())) throw new Error("canceling unmark changed the marks");
+      await page.getByRole("button", { name: "Unmark session" }).click();
+      const unmarkDlg = page.locator('[role="alertdialog"]');
+      await unmarkDlg.getByRole("button", { name: "Unmark session" }).click();
+      await toast(page, "Attendance cleared");
+      if (await row.getByText("Marked").count()) throw new Error("unmarked session still shows the Marked indicator");
+      // The session is back in the Sessions section on the Courses screen.
+      // Delete it there: the assignment check that follows creates Arpeggios
+      // on the same course date and would hit the one-session-per-date rule.
+      await nav(page, "Courses");
+      await pending.getByText("Arpeggios").waitFor();
+      const sessionRow = pending.locator("li", { hasText: "Arpeggios" });
+      await sessionRow.getByRole("button", { name: "Delete session" }).click();
+      const confirmDlg = page.locator('[role="alertdialog"]');
+      await confirmDlg.getByRole("button", { name: "Delete", exact: true }).click();
+      await confirmDlg.waitFor({ state: "detached", timeout: 5000 });
+      await sessionRow.waitFor({ state: "detached", timeout: 8000 });
       await noOverflow(page, "mobile attendance edit delete", 390);
       await fixedTargetsAtLeast44(page, "attendance edit delete");
       await footerClearOfNav(page);
@@ -1600,9 +1621,8 @@ async function mobileScreensWithData(browser) {
   await check("mobile data: attendance with a session, radio targets are 44px", async () => {
     await moreNav("Attendance");
     await pickSessionCourse(page, "Piano Basics");
-    // The session option is labeled with its date and topic, so match the topic part.
-    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-    await page.getByRole("option", { name: /Scales/ }).click();
+    // The session list row is labeled with its date and topic, so match the topic part.
+    await pickAttendanceSession(page, "Scales");
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
     await noOverflow(page, "mobile data attendance", 390);
     const radioH = await page.evaluate(() => {
@@ -2067,9 +2087,11 @@ async function timePickerChecks(browser) {
 
   await check("time picker: opens, picks a time, and the form keeps the value", async () => {
     await seed(page);
-    await nav(page, "Attendance");
-    await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("button", { name: "New session" }).click();
+    // The session form lives on the Courses screen now; the seed course meets
+    // today, so the default date is a valid slot day.
+    await nav(page, "Courses");
+    await page.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(page, "Course", "Piano Basics");
     await page.getByLabel("Topic", { exact: true }).fill("Picker scales");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:30");
@@ -2078,17 +2100,21 @@ async function timePickerChecks(browser) {
     await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
+    // The Sessions section row shows the range; the duration lives in the
+    // row's second line, so the range alone is the assertion here.
+    await page.getByText("10:00–11:30").first().waitFor();
   });
 
   await check("time picker: end at or before start still shows the error", async () => {
-    await page.getByRole("button", { name: "New session" }).click();
+    await page.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(page, "Course", "Piano Basics");
     await page.getByLabel("Topic", { exact: true }).fill("Bad range");
     await pickTime(page, "Start time", "11:00");
     await pickTime(page, "End time", "10:00");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await page.getByText("End time must be after the start time.").waitFor({ timeout: 5000 });
-    if (await page.locator("p", { hasText: "Bad range" }).count()) throw new Error("invalid time range was listed anyway");
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+    if (await pending.getByText("Bad range").count()) throw new Error("invalid time range was listed anyway");
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 
@@ -2113,10 +2139,9 @@ async function timePickerChecks(browser) {
 
   await check("time picker mobile: opens at 390px without overflow and picks a time", async () => {
     await seed(mobilePage, true);
-    await mobilePage.getByRole("button", { name: "More", exact: true }).click();
-    await mobilePage.getByRole("button", { name: "Attendance", exact: true }).click();
-    await pickSessionCourse(mobilePage, "Piano Basics");
-    await mobilePage.getByRole("button", { name: "New session" }).click();
+    await nav(mobilePage, "Courses");
+    await mobilePage.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(mobilePage, "Course", "Piano Basics");
     await mobilePage.getByLabel("Topic", { exact: true }).fill("Mobile scales");
     await mobilePage.getByRole("button", { name: "Start time", exact: true }).click();
     await mobilePage.getByRole("group", { name: "Hour" }).waitFor();
@@ -3095,9 +3120,9 @@ async function capacityChecks(browser) {
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
 
     // The session form's capacity field starts blank (no limit); set it to 1.
-    await nav(page, "Attendance");
-    await pickSessionCourse(page, "Small Group");
-    await page.getByRole("button", { name: "New session" }).click();
+    await nav(page, "Courses");
+    await page.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(page, "Course", "Small Group");
     await page.getByLabel("Topic", { exact: true }).fill("Trio");
     const capInput = page.getByLabel("Capacity", { exact: true });
     await capInput.waitFor();
@@ -3114,6 +3139,9 @@ async function capacityChecks(browser) {
 
     // A fresh session hands nothing to attendance marking until members
     // are assigned: the attendance view says so instead of listing anyone.
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Small Group");
+    await pickAttendanceSession(page, "Trio");
     await page.getByText("No member assigned to this session.").waitFor();
     if (await page.getByRole("radiogroup", { name: "Ana" }).count()) {
       throw new Error("unassigned session lists Ana in the attendance marking");
@@ -3140,8 +3168,7 @@ async function capacityChecks(browser) {
     // enabled: the attendance menu just marks who it is given.
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Small Group");
-    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-    await page.getByRole("option", { name: "Trio" }).click();
+    await pickAttendanceSession(page, "Trio");
     await page.getByRole("radiogroup", { name: "Ana" }).waitFor();
     if (await page.getByRole("radiogroup", { name: "Budi" }).count()) {
       throw new Error("unassigned member Budi is listed in the attendance marking");

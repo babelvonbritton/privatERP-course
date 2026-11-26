@@ -6,6 +6,7 @@ import { getServices, resetServices } from "@/lib/domain/services";
 import { getStorage, resetStorage } from "@/lib/storage";
 import { createId } from "@/lib/storage/utils";
 import { AttendanceScreen } from "@/components/screens/AttendanceScreen";
+import { Toaster } from "@/components/Toaster";
 import { Providers } from "./support";
 
 // jsdom has no scrollIntoView or pointer capture; the Radix Select calls both when opening.
@@ -105,55 +106,57 @@ describe("removeSession", () => {
   });
 });
 
-describe("attendance screen session edit and delete", () => {
-  it("edits a marked session from the Attendance screen, keeping its marks", async () => {
-    stubRadix();
+describe("unmarkSession", () => {
+  it("clears a marked session's rows and returns it to the unmarked list", async () => {
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
     await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
     await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
+    expect((await s.attendance.listUnmarkedSessions()).map((x) => x.id)).not.toContain(session.id);
+    await s.attendance.unmarkSession(session.id);
+    expect(await s.attendance.listAttendance(session.id)).toEqual([]);
+    expect(await s.attendance.getSession(session.id)).toBeTruthy();
+    expect((await s.attendance.listUnmarkedSessions()).map((x) => x.id)).toContain(session.id);
+  });
+});
+
+describe("attendance screen session list", () => {
+  async function seedMarked() {
+    const { s, t, course, members } = await seed();
+    const marked = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
+    await s.attendance.assignSessionAttendees(marked.id, [members[0].id], createId());
+    await s.attendance.mark(marked.id, [{ memberId: members[0].id, status: "present" }], createId());
+    await s.attendance.setTrainerPresent(marked.id, true, createId());
+    const open = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-02", "Arpeggios"));
+    return { s, t, course, members, marked, open };
+  }
+
+  it("picking a course shows its session list, soonest first, with a marked indicator and no session-management buttons", async () => {
+    stubRadix();
+    const { course } = await seedMarked();
     const { container } = render(
       <Providers>
         <AttendanceScreen navigate={() => {}} />
       </Providers>,
     );
     const scope = within(container);
-    // No session picked yet: edit and delete stay disabled.
-    expect((scope.getByRole("button", { name: "Edit session" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((scope.getByRole("button", { name: "Delete session" }) as HTMLButtonElement).disabled).toBe(true);
     await pickSelect("Course", "Piano");
-    await pickSelect("Sessions", /Scales/);
-    // The marking list shows the assigned member with the saved mark.
-    // ("Ana" also appears in the dashboard table below, so the radiogroup
-    // is the precise anchor for the marking row.)
-    await scope.findByRole("radiogroup", { name: "Ana" }, { timeout: 3000 });
-    expect((scope.getByRole("button", { name: "Edit session" }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(scope.getByRole("button", { name: "Edit session" }));
-    const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
-    // Pre-filled from the session, with its trainer still picked.
-    expect((within(dialog).getByLabelText("Topic", { exact: true }) as HTMLInputElement).value).toBe("Scales");
-    expect((within(dialog).getByRole("radio", { name: /Budi/ }) as HTMLInputElement).checked).toBe(true);
-    fireEvent.change(within(dialog).getByLabelText("Topic", { exact: true }), { target: { value: "Scales 2" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
-    // The dialog closes and the reloaded session picker shows the new topic.
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    const sessionTrigger = scope.getByRole("combobox", { name: "Sessions" });
-    await waitFor(() => expect(sessionTrigger.textContent).toContain("Scales 2"));
-    expect((await s.attendance.getSession(session.id))?.topic).toBe("Scales 2");
-    // The saved mark survives the edit, in storage and on screen.
-    const rows = await s.attendance.listAttendance(session.id);
-    expect(rows.length).toBe(1);
-    expect(rows[0].status).toBe("present");
-    const group = scope.getByRole("radiogroup", { name: "Ana" });
-    expect((within(group).getByRole("radio", { name: "Present" }) as HTMLElement).getAttribute("aria-checked")).toBe("true");
+    const list = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
+    const rows = within(list).getAllByRole("button");
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain("Arpeggios");
+    expect(rows[1].textContent).toContain("Scales");
+    expect(within(rows[1]).getByText("Marked")).toBeTruthy();
+    expect(within(rows[0]).queryByText("Marked")).toBeNull();
+    expect(scope.queryByRole("button", { name: "New session" })).toBeNull();
+    expect(scope.queryByRole("button", { name: "Edit session" })).toBeNull();
+    expect(scope.queryByRole("button", { name: "Delete session" })).toBeNull();
+    expect(course).toBeTruthy();
   });
 
-  it("deletes a marked session from the Attendance screen only after confirmation", async () => {
+  it("a course with no sessions shows the empty state", async () => {
     stubRadix();
-    const { s, t, course, members } = await seed();
-    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
-    await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
-    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
+    await seed();
     const { container } = render(
       <Providers>
         <AttendanceScreen navigate={() => {}} />
@@ -161,23 +164,80 @@ describe("attendance screen session edit and delete", () => {
     );
     const scope = within(container);
     await pickSelect("Course", "Piano");
-    await pickSelect("Sessions", /Scales/);
+    await scope.findByText("No sessions for this course yet.", {}, { timeout: 3000 });
+    expect(scope.getByText("Add sessions from the Sessions section on the Courses screen.")).toBeTruthy();
+  });
+
+  it("picking a marked session shows its saved marks", async () => {
+    stubRadix();
+    await seedMarked();
+    const { container } = render(
+      <Providers>
+        <AttendanceScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    await pickSelect("Course", "Piano");
+    fireEvent.click(await scope.findByRole("button", { name: /Scales/ }, { timeout: 3000 }));
+    const group = await scope.findByRole("radiogroup", { name: "Ana" }, { timeout: 3000 });
+    expect((within(group).getByRole("radio", { name: "Present" }) as HTMLElement).getAttribute("aria-checked")).toBe("true");
+    expect((scope.getByRole("switch", { name: "Trainer present" }) as HTMLElement).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("saving adjusted marks updates them and the session stays marked", async () => {
+    stubRadix();
+    const { s, marked } = await seedMarked();
+    const { container } = render(
+      <Providers>
+        <AttendanceScreen navigate={() => {}} />
+        <Toaster />
+      </Providers>,
+    );
+    const scope = within(container);
+    await pickSelect("Course", "Piano");
+    fireEvent.click(await scope.findByRole("button", { name: /Scales/ }, { timeout: 3000 }));
+    const group = await scope.findByRole("radiogroup", { name: "Ana" }, { timeout: 3000 });
+    fireEvent.click(within(group).getByRole("radio", { name: "Absent" }));
+    fireEvent.click(scope.getByRole("button", { name: "Mark attendance" }));
+    await screen.findByText("Attendance saved", {}, { timeout: 3000 });
+    const rows = await s.attendance.listAttendance(marked.id);
+    expect(rows.length).toBe(1);
+    expect(rows[0].status).toBe("absent");
+    // The session stays in the list, still marked.
+    expect(within(scope.getByRole("button", { name: /Scales/ })).getByText("Marked")).toBeTruthy();
+  });
+
+  it("the unmark control shows only for marked sessions and clears the marks after confirmation", async () => {
+    stubRadix();
+    const { s, marked } = await seedMarked();
+    const { container } = render(
+      <Providers>
+        <AttendanceScreen navigate={() => {}} />
+        <Toaster />
+      </Providers>,
+    );
+    const scope = within(container);
+    await pickSelect("Course", "Piano");
+    // An unmarked session has no unmark control.
+    fireEvent.click(await scope.findByRole("button", { name: /Arpeggios/ }, { timeout: 3000 }));
+    await scope.findByText("No member assigned to this session.", {}, { timeout: 3000 });
+    expect(scope.queryByRole("button", { name: "Unmark session" })).toBeNull();
+    // A marked session does: cancel keeps the marks, confirming clears them.
+    fireEvent.click(scope.getByRole("button", { name: /Scales/ }));
     await scope.findByRole("radiogroup", { name: "Ana" }, { timeout: 3000 });
-    fireEvent.click(scope.getByRole("button", { name: "Delete session" }));
+    fireEvent.click(scope.getByRole("button", { name: "Unmark session" }));
     const confirm = await screen.findByRole("alertdialog", {}, { timeout: 3000 });
-    expect(within(confirm).getByText("Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.")).toBeTruthy();
-    // Cancel keeps the session and its marks.
+    expect(within(confirm).getByText("Unmark this session? Its attendance will be cleared and it will return to the Sessions list.")).toBeTruthy();
     fireEvent.click(within(confirm).getByRole("button", { name: "Cancel" }));
-    await scope.findByRole("radiogroup", { name: "Ana" }, { timeout: 3000 });
-    expect(await s.attendance.getSession(session.id)).toBeTruthy();
-    fireEvent.click(scope.getByRole("button", { name: "Delete session" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect((await s.attendance.listAttendance(marked.id)).length).toBe(1);
+    fireEvent.click(scope.getByRole("button", { name: "Unmark session" }));
     const confirm2 = await screen.findByRole("alertdialog", {}, { timeout: 3000 });
-    fireEvent.click(within(confirm2).getByRole("button", { name: "Delete" }));
-    // The selection clears and the empty state returns.
-    await scope.findByText("No sessions yet", {}, { timeout: 3000 });
-    expect(await s.attendance.getSession(session.id)).toBeUndefined();
-    expect(await s.attendance.listAttendance(session.id)).toEqual([]);
-    // The dashboard reloads with no rows left either.
-    await scope.findByText("No attendance records yet.", {}, { timeout: 3000 });
+    fireEvent.click(within(confirm2).getByRole("button", { name: "Unmark session" }));
+    await screen.findByText("Attendance cleared", {}, { timeout: 3000 });
+    expect(await s.attendance.listAttendance(marked.id)).toEqual([]);
+    expect((await s.attendance.listUnmarkedSessions()).map((x) => x.id)).toContain(marked.id);
+    // The session stays in the list, now without the marked indicator.
+    expect(within(scope.getByRole("button", { name: /Scales/ })).queryByText("Marked")).toBeNull();
   });
 });
