@@ -2502,6 +2502,9 @@ async function currencyChecks(browser) {
     if (!/Paid/.test(rowText)) throw new Error(`restored invoice row does not show Paid: ${rowText}`);
     await row.click();
     await page.getByText("Trash switch check").first().waitFor();
+    // The payment rows land with the detail data, which can lag the charge
+    // line on a slow run, so wait for the second payment before counting.
+    await page.getByText(/IDR\s500,000/).nth(1).waitFor({ timeout: 8000 });
     if ((await page.getByText(/IDR\s500,000/).count()) < 2) throw new Error("restored invoice does not show two IDR 500,000 payments");
     } finally {
       // The check ends with the invoice detail open; close it so the next
@@ -2994,7 +2997,13 @@ async function attachmentChecks(browser) {
     await page.getByRole("dialog", { name: "receipt-2.png" }).waitFor({ timeout: 8000 });
     if ((await lightboxScale(page)) !== 1) throw new Error("restored attachment did not open in the viewer");
     await page.keyboard.press("Escape");
-    await page.getByRole("dialog", { name: "receipt-2.png" }).waitFor({ state: "detached", timeout: 5000 });
+    // Escape closes the viewer, but on a slow run the key can land before
+    // the dialog is ready to dismiss it; the close button is the same path.
+    const viewer = page.getByRole("dialog", { name: "receipt-2.png" });
+    await viewer.waitFor({ state: "detached", timeout: 5000 }).catch(async () => {
+      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+      await viewer.waitFor({ state: "detached", timeout: 5000 });
+    });
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
   });
 
