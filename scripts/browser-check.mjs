@@ -1,5 +1,5 @@
 /**
- * Browser verification for Olaseena v1.0.3.
+ * Browser verification for Olaseena v1.0.4.
  * Serves the static export separately (python3 -m http.server 8901 --directory out)
  * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
  * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
@@ -484,6 +484,57 @@ async function desktop(browser) {
       // so a stuck modal cannot block every later nav click.
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
+    }
+  });
+
+  await check("desktop: edit and delete a marked session from attendance", async () => {
+    // A second session on the next slot day, so Scales (used by the payroll
+    // and dashboard checks) stays untouched.
+    const sessionDay = upcomingSlotDates(2)[1];
+    try {
+      await createSession(page, "Arpeggios", sessionDay, false);
+      // A fresh session hands nothing to marking until members are assigned.
+      const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+      await nav(page, "Courses");
+      await pending.getByText("Arpeggios").waitFor();
+      await pending.getByRole("button", { name: "Assign members" }).click();
+      await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
+      await pending.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await pending.getByText("Assigned: Ayu Lestari").waitFor();
+      await nav(page, "Attendance");
+      await pickSessionCourse(page, "Piano Basics");
+      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+      await page.getByRole("option", { name: "Arpeggios" }).click();
+      await page.locator("p", { hasText: "Arpeggios" }).waitFor();
+      await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
+      await page.getByRole("button", { name: "Mark attendance" }).click();
+      await toast(page, "Attendance saved");
+      // Edit it from the Attendance screen: the form opens pre-filled.
+      await page.getByRole("button", { name: "Edit session" }).click();
+      const topic = page.getByLabel("Topic", { exact: true });
+      if ((await topic.inputValue()) !== "Arpeggios") throw new Error("edit form is not pre-filled with the session topic");
+      await topic.fill("Arpeggios 2");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.locator("p", { hasText: "Arpeggios 2" }).waitFor();
+      // Cancel keeps it; confirming deletes it with its marks.
+      await page.getByRole("button", { name: "Delete session" }).click();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page.locator("p", { hasText: "Arpeggios 2" }).waitFor();
+      await page.getByRole("button", { name: "Delete session" }).click();
+      await page.getByRole("button", { name: "Delete", exact: true }).click();
+      await toast(page, "Arpeggios 2 moved to the trash bin");
+      await page.getByText("No sessions yet").waitFor();
+      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+      if (await page.getByRole("option", { name: "Arpeggios" }).count()) throw new Error("deleted session still listed in the picker");
+      await page.keyboard.press("Escape");
+      await noOverflow(page, "attendance", 1280);
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+      const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+      if (await cancel.count()) await cancel.first().click().catch(() => {});
     }
   });
 
@@ -1397,6 +1448,52 @@ async function mobileScreensWithData(browser) {
     await page.getByRole("button", { name: "Generate pay run" }).click();
     await toast(page, "Saved");
     await toastsGone();
+  });
+
+  await check("mobile data: edit and delete a marked session from attendance", async () => {
+    // A second session on another Mon/Wed day, so Scales (used by the mobile
+    // dashboard check) stays untouched.
+    const sessionDay = upcomingSlotDates(5).filter((d) => d.getDay() === 1 || d.getDay() === 3)[1];
+    try {
+      await createSession(page, "Arpeggios", sessionDay, true);
+      const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+      await navMobile(page, "Courses");
+      await pending.getByText("Arpeggios").waitFor();
+      await pending.getByRole("button", { name: "Assign members" }).click();
+      await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
+      await pending.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await pending.getByText("Assigned: Ayu Lestari").waitFor();
+      await moreNav("Attendance");
+      await pickSessionCourse(page, "Piano Basics");
+      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+      await page.getByRole("option", { name: "Arpeggios" }).click();
+      await page.locator("p", { hasText: "Arpeggios" }).waitFor();
+      await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
+      await page.getByRole("button", { name: "Mark attendance" }).click();
+      await toast(page, "Attendance saved");
+      // Edit it from the Attendance screen: the form opens pre-filled.
+      await page.getByRole("button", { name: "Edit session" }).click();
+      const topic = page.getByLabel("Topic", { exact: true });
+      if ((await topic.inputValue()) !== "Arpeggios") throw new Error("edit form is not pre-filled with the session topic");
+      await topic.fill("Arpeggios 2");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await page.locator("p", { hasText: "Arpeggios 2" }).waitFor();
+      // Confirming deletes it with its marks.
+      await page.getByRole("button", { name: "Delete session" }).click();
+      await page.getByRole("button", { name: "Delete", exact: true }).click();
+      await toast(page, "Arpeggios 2 moved to the trash bin");
+      await page.getByText("No sessions yet").waitFor();
+      await noOverflow(page, "mobile attendance edit delete", 390);
+      await fixedTargetsAtLeast44(page, "attendance edit delete");
+      await footerClearOfNav(page);
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+      const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+      if (await cancel.count()) await cancel.first().click().catch(() => {});
+    }
   });
 
   await check("mobile data: dashboard with data, no overflow, footer clear", async () => {
