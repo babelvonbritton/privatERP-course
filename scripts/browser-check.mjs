@@ -2997,13 +2997,19 @@ async function attachmentChecks(browser) {
     await page.getByRole("dialog", { name: "receipt-2.png" }).waitFor({ timeout: 8000 });
     if ((await lightboxScale(page)) !== 1) throw new Error("restored attachment did not open in the viewer");
     await page.keyboard.press("Escape");
-    // Escape closes the viewer, but on a slow run the key can land before
-    // the dialog is ready to dismiss it; the close button is the same path.
+    // Escape closes the viewer, but on a slow run the key can miss and the
+    // accessible tree can lag behind the DOM, so a plain role lookup can
+    // wait forever for a button that is on screen. If the viewer is still
+    // there, click its close button directly; it is the same user path.
     const viewer = page.getByRole("dialog", { name: "receipt-2.png" });
-    await viewer.waitFor({ state: "detached", timeout: 5000 }).catch(async () => {
-      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    const closed = await viewer.waitFor({ state: "detached", timeout: 5000 }).then(
+      () => true,
+      () => false,
+    );
+    if (!closed) {
+      await page.locator('[aria-label="Close"]').last().click({ force: true });
       await viewer.waitFor({ state: "detached", timeout: 5000 });
-    });
+    }
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
   });
 
