@@ -94,6 +94,19 @@ async function fixedTargetsAtLeast44(page, label) {
   if (small.length) throw new Error(`${label}: enlarged controls still below 44px: ${small.join("; ")}`);
 }
 
+/** Tour tooltip: the dialog must fit its content without an internal scrollbar. */
+async function assertTourDialogNoScroll(page, label) {
+  const s = await page.evaluate(() => {
+    const dlg = document.querySelector('[role="dialog"]');
+    if (!dlg) return null;
+    return { scrollH: dlg.scrollHeight, clientH: dlg.clientHeight };
+  });
+  if (!s) throw new Error(`${label}: no tour dialog found`);
+  if (s.scrollH > s.clientH + 1) {
+    throw new Error(`${label}: tour tooltip scrolls (scrollHeight ${s.scrollH} > clientHeight ${s.clientH})`);
+  }
+}
+
 /** Radix Select: open the combobox by its accessible name, then pick the option. */
 async function pickSelect(page, label, option) {
   const trigger = page.getByRole("combobox", { name: label, exact: true });
@@ -462,8 +475,8 @@ async function desktop(browser) {
       await pending.getByText("Arpeggios").waitFor();
       // The row names the course the session belongs to.
       await pending.getByText("Piano Basics").waitFor();
-      // A fresh session lists every enrolled member.
-      await pending.getByText("All enrolled members").waitFor();
+      // A fresh session has nobody assigned yet.
+      await pending.getByText("No members assigned yet").waitFor();
       await pending.getByRole("button", { name: "Assign members" }).click();
       await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
       await pending.getByRole("button", { name: "Save changes" }).click();
@@ -483,24 +496,46 @@ async function desktop(browser) {
     if (await page.getByRole("radiogroup", { name: "Citra Kirana" }).count()) {
       throw new Error("unassigned member Citra Kirana is listed in the attendance marking");
     }
-    // Unchecking every member returns the session to unassigned, and both
-    // enrolled members are listed again.
+    // Unchecking every member returns the session to unassigned, and the
+    // attendance view shows the no-member-assigned message instead of the
+    // marking controls.
     await nav(page, "Courses");
     await pending.getByText("Arpeggios").waitFor();
     await pending.getByRole("button", { name: "Assign members" }).click();
     await pending.getByRole("checkbox", { name: "Ayu Lestari" }).uncheck();
     await pending.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
-    await pending.getByText("All enrolled members").waitFor();
+    await pending.getByText("No members assigned yet").waitFor();
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Piano Basics");
+    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+    await page.getByRole("option", { name: "Arpeggios" }).click();
+    await page.getByText("No member assigned to this session.").waitFor();
+    if (await page.getByRole("radiogroup", { name: "Ayu Lestari" }).count()) {
+      throw new Error("unassigned session lists Ayu Lestari in the attendance marking");
+    }
+    if (await page.getByRole("button", { name: "Mark attendance" }).count()) {
+      throw new Error("unassigned session shows the Mark attendance button");
+    }
+    // Select all assigns both enrolled members, so the session can be
+    // marked and drops from the Sessions section. The trainer stays
+    // absent, so the payroll and trainer-detail checks that follow still
+    // see exactly one present session.
+    await nav(page, "Courses");
+    await pending.getByText("Arpeggios").waitFor();
+    await pending.getByRole("button", { name: "Assign members" }).click();
+    await pending.getByRole("button", { name: "Select all" }).click();
+    if (!(await pending.getByRole("checkbox", { name: "Ayu Lestari" }).isChecked())) throw new Error("Select all did not check Ayu Lestari");
+    if (!(await pending.getByRole("checkbox", { name: "Citra Kirana" }).isChecked())) throw new Error("Select all did not check Citra Kirana");
+    await pending.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await pending.getByText("Assigned: Ayu Lestari, Citra Kirana").waitFor();
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Piano Basics");
     await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
     await page.getByRole("option", { name: "Arpeggios" }).click();
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
     await page.getByRole("radiogroup", { name: "Citra Kirana" }).waitFor();
-    // Marking the session drops it from the Sessions section. The trainer
-    // stays absent, so the payroll and trainer-detail checks that follow
-    // still see exactly one present session.
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
     await page.getByRole("radiogroup", { name: "Citra Kirana" }).getByRole("radio", { name: "Present" }).click();
     await page.getByRole("button", { name: "Mark attendance" }).click();
@@ -891,15 +926,22 @@ async function desktop(browser) {
     );
   });
 
-  await check("desktop: tour replay advances and skips", async () => {
+  await check("desktop: tour replay advances through all 12 steps without scrolling", async () => {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Get to know the features" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
-    // Scope to the tour dialog: the dashboard behind it has its own "Next"
-    // pagination button, and an unscoped click is a strict-mode race.
-    await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
-    await page.getByText("Get to know Olaseena").waitFor();
-    await page.getByRole("button", { name: "Skip tour" }).click();
+    // Walk every step at desktop width: the tooltip must fit its content
+    // with no internal scrollbar on any of them.
+    for (let i = 0; i < 12; i++) {
+      await assertTourDialogNoScroll(page, `desktop tour step ${i + 1}`);
+      if (i < 11) {
+        // Scope to the tour dialog: the dashboard behind it has its own "Next"
+        // pagination button, and an unscoped click is a strict-mode race.
+        await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
+        await page.waitForTimeout(600);
+      }
+    }
+    await page.getByRole("dialog").getByRole("button", { name: "Finish" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
   });
 
@@ -1109,6 +1151,7 @@ async function mobileTourSheet(browser) {
       if (state.nextH === null || state.nextH < 44 || state.nextBottom > state.navTop) {
         throw new Error(`step ${i + 1}: Next/Finish button not reachable (height ${state.nextH}, bottom ${state.nextBottom}, navTop ${state.navTop})`);
       }
+      await assertTourDialogNoScroll(page, `mobile tour step ${i + 1}`);
       if (i === 0) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-1.png` });
       if (i === 4) await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-tour-sheet-step-5.png` });
       if (i < 11) {
@@ -1327,7 +1370,7 @@ async function mobileScreensWithData(browser) {
       await nav(page, "Courses");
       await pending.getByText("Arpeggios").waitFor();
       await pending.getByText("Piano Basics").waitFor();
-      await pending.getByText("All enrolled members").waitFor();
+      await pending.getByText("No members assigned yet").waitFor();
       await pending.getByRole("button", { name: "Assign members" }).click();
       await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
       await pending.getByRole("button", { name: "Save changes" }).click();
@@ -1335,12 +1378,19 @@ async function mobileScreensWithData(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await noOverflow(page, "mobile data assign", 390);
       await fixedTargetsAtLeast44(page, "assign picker");
-      // Uncheck again: the session goes back to all enrolled members.
+      // Uncheck again: the session goes back to unassigned.
       await pending.getByRole("button", { name: "Assign members" }).click();
       await pending.getByRole("checkbox", { name: "Ayu Lestari" }).uncheck();
       await pending.getByRole("button", { name: "Save changes" }).click();
       await toast(page, "Saved");
-      await pending.getByText("All enrolled members").waitFor();
+      await pending.getByText("No members assigned yet").waitFor();
+      // Select all assigns the enrolled member at 390px too.
+      await pending.getByRole("button", { name: "Assign members" }).click();
+      await pending.getByRole("button", { name: "Select all" }).click();
+      if (!(await pending.getByRole("checkbox", { name: "Ayu Lestari" }).isChecked())) throw new Error("Select all did not check Ayu Lestari");
+      await pending.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await pending.getByText("Assigned: Ayu Lestari").waitFor();
       // Clean up: delete the check session so later mobile checks see only
       // the sessions they create themselves.
       const detailDialog = page.locator('[role="dialog"]', { hasText: "Piano Basics" });
@@ -2074,6 +2124,7 @@ async function shortViewportTour(browser) {
       if (box.top === null || box.top < 0 || box.bottom > box.vh || !box.skipVisible) {
         throw new Error(`step ${i + 1}: tooltip top ${box.top} bottom ${box.bottom} vs viewport ${box.vh}, Skip visible ${box.skipVisible}`);
       }
+      await assertTourDialogNoScroll(page, `short viewport tour step ${i + 1}`);
       if (i < 11) {
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.waitForTimeout(600);
@@ -2521,6 +2572,29 @@ async function trashChecks(browser) {
     if (await page.locator("tr", { hasText: "Trash Test Member" }).count()) throw new Error("deleted member still listed");
   });
 
+  await check("trash: detail shows the business profile names for an item created before the profile was set", async () => {
+    // The member was created (and stamped with the placeholder ids)
+    // before any profile existed. Set the profile now: the detail must
+    // show the profile's names, not the stamped placeholders.
+    await nav(page, "Settings");
+    await page.getByLabel("Business name", { exact: true }).fill("Trash Studio");
+    await page.getByLabel("Owner's name", { exact: true }).fill("Trash Owner");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await openTrash();
+    await page.getByText("Member: Trash Test Member").waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "View details" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("Trash Studio").waitFor();
+    await dialog.getByText("Trash Owner").waitFor();
+    if (await dialog.getByText("Olaseena", { exact: true }).count()) throw new Error("trash detail still shows the placeholder org id");
+    // The placeholder owner id is the bare word "owner": match it exactly
+    // so the owner's name above cannot false-positive.
+    if (await dialog.getByText("owner", { exact: true }).count()) throw new Error("trash detail still shows the placeholder owner id");
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await page.getByText("Member: Trash Test Member").waitFor();
+  });
+
   await check("trash: entry is listed with kind, label and days remaining", async () => {
     await openTrash();
     await page.getByText("Member: Trash Test Member").waitFor({ timeout: 8000 });
@@ -2774,7 +2848,7 @@ async function capacityChecks(browser) {
     if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
   });
 
-  await check("capacity: capped session refuses the next attending mark and frees the place", async () => {
+  await check("capacity: unassigned session marks nothing, assignment caps at 1 and marking is uncapped", async () => {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await trackAlerts(page);
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
@@ -2842,28 +2916,46 @@ async function capacityChecks(browser) {
     await toast(page, "Saved");
     await page.locator("p", { hasText: "Trio" }).waitFor();
 
-    // The cap is already reached by the default marks, so the member without
-    // a place cannot be marked present or late, only absent. Which member
-    // holds the place depends on enrollment order (ids are random UUIDs), so
-    // read it from the UI instead of assuming Ana is first.
-    await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();
-    const holder = (await page.getByRole("radiogroup", { name: "Ana" }).getByRole("radio", { name: "Present" }).getAttribute("aria-checked")) === "true" ? "Ana" : "Budi";
-    const other = holder === "Ana" ? "Budi" : "Ana";
-    const otherPresent = page.getByRole("radiogroup", { name: other }).getByRole("radio", { name: "Present" });
-    const otherLate = page.getByRole("radiogroup", { name: other }).getByRole("radio", { name: "Late" });
-    const otherAbsent = page.getByRole("radiogroup", { name: other }).getByRole("radio", { name: "Absent" });
-    if (!(await otherPresent.isDisabled())) throw new Error(`Present is enabled for ${other} past the cap`);
-    if (!(await otherLate.isDisabled())) throw new Error(`Late is enabled for ${other} past the cap`);
-    if (await otherAbsent.isDisabled()) throw new Error(`Absent is disabled for ${other} past the cap`);
-    await page.getByRole("button", { name: "Mark attendance" }).click();
-    await toast(page, "Attendance saved");
+    // A fresh session hands nothing to attendance marking until members
+    // are assigned: the attendance view says so instead of listing anyone.
+    await page.getByText("No member assigned to this session.").waitFor();
+    if (await page.getByRole("radiogroup", { name: "Ana" }).count()) {
+      throw new Error("unassigned session lists Ana in the attendance marking");
+    }
 
-    // Freeing the holder's place lets the other member take it.
-    await page.getByRole("radiogroup", { name: holder }).getByRole("radio", { name: "Absent" }).click();
-    await page.getByText("0 of 1 attending").waitFor();
-    if (await otherPresent.isDisabled()) throw new Error(`Present is still disabled for ${other} after a place freed up`);
-    await otherPresent.click();
-    await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();
+    // The cap bites in the Sessions section, not here: assigning Ana
+    // disables Budi, names the cap, and Select all stops at one member.
+    await nav(page, "Courses");
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+    await pending.getByText("Trio").waitFor();
+    await pending.getByText("No members assigned yet").waitFor();
+    await pending.getByRole("button", { name: "Assign members" }).click();
+    await pending.getByRole("checkbox", { name: "Ana" }).check();
+    if (!(await pending.getByRole("checkbox", { name: "Budi" }).isDisabled())) throw new Error("Budi is not disabled once the cap of 1 is reached");
+    await pending.getByText("This session allows at most 1 member.").waitFor();
+    await pending.getByRole("button", { name: "Select all" }).click();
+    if (!(await pending.getByRole("checkbox", { name: "Ana" }).isChecked())) throw new Error("Select all unchecked Ana at the cap");
+    if (await pending.getByRole("checkbox", { name: "Budi" }).isChecked()) throw new Error("Select all checked Budi past the cap");
+    await pending.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await pending.getByText("Assigned: Ana").waitFor();
+
+    // Marking now lists only Ana, with no cap text and Present/Late
+    // enabled: the attendance menu just marks who it is given.
+    await nav(page, "Attendance");
+    await pickSessionCourse(page, "Small Group");
+    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+    await page.getByRole("option", { name: "Trio" }).click();
+    await page.getByRole("radiogroup", { name: "Ana" }).waitFor();
+    if (await page.getByRole("radiogroup", { name: "Budi" }).count()) {
+      throw new Error("unassigned member Budi is listed in the attendance marking");
+    }
+    if (await page.getByText("This session is full").count()) throw new Error("marking still shows the old cap text");
+    const anaPresent = page.getByRole("radiogroup", { name: "Ana" }).getByRole("radio", { name: "Present" });
+    const anaLate = page.getByRole("radiogroup", { name: "Ana" }).getByRole("radio", { name: "Late" });
+    if (await anaPresent.isDisabled()) throw new Error("Present is disabled for the assigned member Ana");
+    if (await anaLate.isDisabled()) throw new Error("Late is disabled for the assigned member Ana");
+    await anaPresent.click();
     await page.getByRole("button", { name: "Mark attendance" }).click();
     await toast(page, "Attendance saved");
     await noOverflow(page, "attendance capped", 1280);
