@@ -792,7 +792,7 @@
     "assigned": "Ditentukan: {names}",
     "assignedCount": "{count} anggota ditentukan",
     "selectAll": "Pilih semua",
-    "pending": "Sesi yang belum ditandai",
+    "pending": "Sesi",
     "pendingEmpty": "Tidak ada sesi yang menunggu ditandai. Setelah sebuah sesi ditandai, sesi itu keluar dari daftar ini."
   },
   "settings": {
@@ -955,7 +955,7 @@
         "body": "Ini adalah profil bisnis Anda (profil bisnis). Atur nama bisnis, logo, slogan, alamat, dan kontak di sini. Nama bisnis dan nama pemilik juga menjadi identitas catatan baru, dan nama serta kontak muncul di setiap tagihan."
       },
       "courseSessions": {
-        "title": "Sesi yang belum ditandai",
+        "title": "Sesi",
         "body": "Bagian ini menampilkan semua sesi yang kehadirannya belum diperiksa, dari yang paling dekat, beserta kursus masing-masing. Setelah sebuah sesi ditandai, sesi itu keluar dari daftar ini. Buka sesi di sini untuk memilih anggota mana saja yang akan hadir."
       }
     },

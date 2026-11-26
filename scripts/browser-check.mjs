@@ -443,10 +443,10 @@ async function desktop(browser) {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
     }
-    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions to mark" }) });
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     // Scales was marked in the attendance check, so it has already left the list.
     await nav(page, "Courses");
-    await pending.getByRole("heading", { name: "Sessions to mark" }).waitFor();
+    await pending.getByRole("heading", { name: "Sessions" }).waitFor();
     if (await pending.getByText("Scales").count()) {
       throw new Error("marked session Scales is still listed in the Sessions section");
     }
@@ -506,7 +506,7 @@ async function desktop(browser) {
     await page.getByRole("button", { name: "Mark attendance" }).click();
     await toast(page, "Attendance saved");
     await nav(page, "Courses");
-    await pending.getByRole("heading", { name: "Sessions to mark" }).waitFor();
+    await pending.getByRole("heading", { name: "Sessions" }).waitFor();
     if (await pending.getByText("Arpeggios").count()) {
       throw new Error("marked session Arpeggios is still listed in the Sessions section");
     }
@@ -1318,7 +1318,7 @@ async function mobileScreensWithData(browser) {
   });
 
   await check("mobile data: session attendee assignment at 390px", async () => {
-    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions to mark" }) });
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     try {
       // A fresh unmarked session on a course day (Piano Basics meets
       // Mondays and Wednesdays): Scales was already marked during the seed.

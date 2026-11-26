@@ -339,7 +339,7 @@ describe("course menu session list", () => {
     );
     const scope = within(container);
     await scope.findByRole("region", { name: "Courses" }, { timeout: 3000 });
-    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     // The row names the course it belongs to, and a fresh session has nobody assigned.
     await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
     expect(within(pending).getByText("Piano")).toBeTruthy();
@@ -368,7 +368,7 @@ describe("course menu session list", () => {
       </Providers>,
     );
     const scope = within(container);
-    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     await within(pending).findByText(/Capped/, {}, { timeout: 3000 });
     // The Assign button only renders once the enrollments have loaded,
     // after the session row appears, so wait for the button itself.
@@ -393,7 +393,7 @@ describe("course menu session list", () => {
       </Providers>,
     );
     const scope = within(container);
-    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     await within(pending).findByText(/Open/, {}, { timeout: 3000 });
     fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
     fireEvent.click(within(pending).getByRole("button", { name: "Select all" }));
@@ -413,7 +413,7 @@ describe("course menu session list", () => {
       </Providers>,
     );
     const scope = within(container);
-    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     await within(pending).findByText(/Capped/, {}, { timeout: 3000 });
     fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
     fireEvent.click(within(pending).getByRole("button", { name: "Select all" }));
@@ -441,7 +441,7 @@ describe("course menu session list", () => {
       </Providers>,
     );
     const scope = within(container);
-    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     await within(pending).findByText(/Waiting/, {}, { timeout: 3000 });
     expect(within(pending).queryByText(/Marked/)).toBeNull();
   });
@@ -454,7 +454,7 @@ describe("course menu session list", () => {
       </Providers>,
     );
     const scope = within(container);
-    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     expect(within(pending).getByText("No sessions waiting to be marked. Once a session is marked, it leaves this list.")).toBeTruthy();
   });
 

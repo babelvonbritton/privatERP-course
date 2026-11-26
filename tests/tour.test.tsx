@@ -105,11 +105,11 @@ describe("tour", () => {
 
   it("the courses and attendance steps mention session attendee assignment", () => {
     // The assignment lives in the course menu: the courses step names it,
-    // and the attendance step says marking only covers the listed members.
+    // and the attendance step says marking only covers the assigned members.
     expect(enMessages.tour.step.courses.body).toContain("which members will attend");
     expect(idMessages.tour.step.courses.body).toContain("anggota mana saja yang akan hadir");
-    expect(enMessages.tour.step.attendance.body).toContain("listed member");
-    expect(idMessages.tour.step.attendance.body).toContain("yang tercantum");
+    expect(enMessages.tour.step.attendance.body).toContain("assigned member");
+    expect(idMessages.tour.step.attendance.body).toContain("yang ditentukan");
   });
 
   it("does not navigate again for the course-sessions step on the same Courses screen", async () => {
@@ -124,7 +124,7 @@ describe("tour", () => {
     // no further navigation (a redundant navigate would scroll back to the
     // top after the overlay scrolled the section into view).
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Sessions to mark");
+    expect((await screen.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Sessions");
     expect(onNavigate.mock.calls.length).toBe(calls);
     // End the tour so this harness leaves no open dialog behind for later tests.
     fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));

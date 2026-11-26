@@ -792,7 +792,7 @@
     "assigned": "Assigned: {names}",
     "assignedCount": "{count} members assigned",
     "selectAll": "Select all",
-    "pending": "Sessions to mark",
+    "pending": "Sessions",
     "pendingEmpty": "No sessions waiting to be marked. Once a session is marked, it leaves this list."
   },
   "settings": {
@@ -955,7 +955,7 @@
         "body": "This is your business profile (business profile). Set your business name, logo, tagline, address, and contacts here. The business name and owner's name also identify new records, and the name and contacts appear on every invoice."
       },
       "courseSessions": {
-        "title": "Sessions to mark",
+        "title": "Sessions",
         "body": "This section lists every session whose attendance has not been checked yet, soonest first, with the course each session belongs to. Once a session is marked, it leaves this list. Open a session here to choose exactly which members will attend it."
       }
     },
