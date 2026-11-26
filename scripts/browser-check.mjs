@@ -1481,14 +1481,23 @@ async function mobileScreensWithData(browser) {
   });
 
   await check("mobile data: course detail modal, no overflow", async () => {
-    await nav(page, "Courses");
-    await page.locator("tr", { hasText: "Piano Basics" }).click();
-    await page.getByText("Enrollments").first().waitFor();
-    await page.getByText("Ayu Lestari").waitFor();
-    await noOverflow(page, "mobile data course detail", 390);
-    await fixedTargetsAtLeast44(page, "course detail");
-    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-course-detail-390.png` });
-    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    try {
+      await nav(page, "Courses");
+      await page.locator("tr", { hasText: "Piano Basics" }).click();
+      await page.getByText("Enrollments").first().waitFor();
+      // Exact match: the detail's session list also shows "Assigned: Ayu
+      // Lestari", and a substring match resolves to both elements.
+      await page.getByText("Ayu Lestari", { exact: true }).waitFor();
+      await noOverflow(page, "mobile data course detail", 390);
+      await fixedTargetsAtLeast44(page, "course detail");
+      await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-course-detail-390.png` });
+      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    } finally {
+      // Close the detail sheet even when an assertion above failed, so a
+      // stuck sheet cannot hide the nav from every later mobile check.
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
   });
 
   await check("mobile data: attendance with a session, radio targets are 44px", async () => {
@@ -1511,25 +1520,35 @@ async function mobileScreensWithData(browser) {
   });
 
   await check("mobile data: invoice detail modal, no overflow", async () => {
-    await nav(page, "Invoices");
-    await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
-    await page.getByRole("button", { name: "Record payment", exact: true }).waitFor();
-    await page.getByText("Partially paid").first().waitFor();
-    await noOverflow(page, "mobile data invoice detail", 390);
-    await fixedTargetsAtLeast44(page, "invoice detail");
-    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-invoice-detail-390.png` });
-    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    try {
+      await nav(page, "Invoices");
+      await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+      await page.getByRole("button", { name: "Record payment", exact: true }).waitFor();
+      await page.getByText("Partially paid").first().waitFor();
+      await noOverflow(page, "mobile data invoice detail", 390);
+      await fixedTargetsAtLeast44(page, "invoice detail");
+      await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-invoice-detail-390.png` });
+      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
   });
 
   await check("mobile data: payroll review, no overflow", async () => {
-    await moreNav("Payroll");
-    await page.locator("tr", { hasText: "Budi Santoso" }).click();
-    await page.getByText("Review pay run").waitFor();
-    await page.getByText("IDR 150,000").first().waitFor();
-    await noOverflow(page, "mobile data payroll review", 390);
-    await fixedTargetsAtLeast44(page, "payroll review");
-    await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-payroll-390.png` });
-    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    try {
+      await moreNav("Payroll");
+      await page.locator("tr", { hasText: "Budi Santoso" }).click();
+      await page.getByText("Review pay run").waitFor();
+      await page.getByText("IDR 150,000").first().waitFor();
+      await noOverflow(page, "mobile data payroll review", 390);
+      await fixedTargetsAtLeast44(page, "payroll review");
+      await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-payroll-390.png` });
+      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    } finally {
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
   });
 
   await check("mobile data: Drive section renders gated while signed out, toggle off", async () => {
