@@ -37,22 +37,27 @@
   "attendance": {
     "all": "Semua",
     "dashboard": "Ringkasan kehadiran",
-    "empty": "Belum ada sesi",
-    "emptyHint": "Buat sesi untuk sebuah kursus, lalu tandai siapa saja yang hadir.",
+    "empty": "Belum ada sesi yang dipilih",
+    "emptyHint": "Pilih sesi dari daftar untuk menandai kehadiran.",
     "mark": "Tandai kehadiran",
-    "newSession": "Sesi baru",
+    "marked": "Sudah ditandai",
     "nextPage": "Berikutnya",
     "noData": "Belum ada data kehadiran.",
     "noAssignedMembers": "Tidak ada anggota yang ditugaskan ke sesi ini.",
+    "noSessions": "Belum ada sesi untuk kursus ini.",
+    "noSessionsHint": "Tambahkan sesi dari bagian Sessions di layar Courses.",
     "page": "Halaman {page} dari {pages}",
     "pickCourse": "Pilih kursus",
-    "pickSession": "Pilih sesi",
+    "pickCourseFirst": "Pilih kursus untuk melihat sesinya.",
     "prevPage": "Sebelumnya",
     "saved": "Kehadiran tersimpan",
     "tabMembers": "Member",
     "tabTrainers": "Pengajar",
     "title": "Kehadiran",
     "trainerPresent": "Pengajar hadir",
+    "unmark": "Batalkan penandaan sesi",
+    "unmarkBody": "Batalkan penandaan sesi ini? Kehadirannya akan dihapus dan sesi akan kembali ke daftar Sessions.",
+    "unmarked": "Kehadiran dihapus",
     "assignedOnly": "Hanya anggota yang ditentukan yang tercantum di sini.",
     "noListedMembers": "Tidak ada anggota yang ditentukan yang masih terdaftar."
   },
@@ -909,7 +914,7 @@
     "skip": "Lewati tur",
     "step": {
       "attendance": {
-        "body": "Pilih sesi lalu tandai setiap anggota yang ditentukan Hadir, Tidak Hadir, atau Terlambat, dan apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi dengan pengajar hadir dihitung untuk gaji. Tombol di samping pemilih sesi mengubah atau menghapus sesi yang dipilih. Di bawahnya, dasbor merangkum kehadiran per member dan kursus.",
+        "body": "Pilih kursus, lalu sesi dari daftar, dan tandai setiap anggota yang ditentukan sebagai Hadir, Tidak Hadir, atau Terlambat, serta apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi dengan pengajar hadir dihitung untuk gaji. Sesi yang sudah ditandai tetap ada di daftar, buka lagi untuk mengubah tandanya. Di bawahnya, dasbor merangkum kehadiran per member dan kursus.",
         "title": "Kehadiran"
       },
       "courses": {

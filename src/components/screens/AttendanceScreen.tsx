@@ -2,21 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
-import type { MessageKey } from "@/i18n/types";
-import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
+import { getServices, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseRequiredSkills, courseWeekdays, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes } from "@/lib/domain/types";
+import { sessionAttendees, sessionDurationHours, sessionEffectiveAttendees } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { Modal } from "../ui/Modal";
-import { Field, inputClass } from "../ui/Field";
+import { Field } from "../ui/Field";
 import { Select } from "../ui/Select";
-import { DatePicker } from "../ui/DatePicker";
-import { TimePicker } from "../ui/TimePicker";
-import { TrainerPicker } from "../ui/TrainerPicker";
 import { Switch } from "../ui/Switch";
 import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
@@ -47,19 +42,10 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [trainerPresent, setTrainerPresent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-
-  const [newSessionOpen, setNewSessionOpen] = useState(false);
-  const [newDate, setNewDate] = useState<string | null>(today());
-  const [newTopic, setNewTopic] = useState("");
-  const [newStartTime, setNewStartTime] = useState("09:00");
-  const [newEndTime, setNewEndTime] = useState("10:00");
-  const [newCapacity, setNewCapacity] = useState("");
-  const [newTrainerId, setNewTrainerId] = useState("");
-  const [newSessionError, setNewSessionError] = useState<string | null>(null);
-  /** The session being edited in the session form, or null when creating one. */
-  const [editingSession, setEditingSession] = useState<Session | null>(null);
-  /** The delete confirmation for the open session. */
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  /** Ids of the chosen course's sessions that already have attendance rows. */
+  const [markedSessionIds, setMarkedSessionIds] = useState<string[]>([]);
+  /** The unmark confirmation for the open session, shown only when it is marked. */
+  const [unmarkOpen, setUnmarkOpen] = useState(false);
 
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
   const [trainerSummary, setTrainerSummary] = useState<TrainerDashboardSummary | null>(null);
@@ -116,11 +102,14 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const memberName = (id: string) => memberById.get(id)?.name ?? "";
   const selectedCourse = useMemo(() => courses.find((c) => c.id === courseId) ?? null, [courses, courseId]);
-  /** Trainers qualified for a session of the chosen course, ranked by matching required skills. */
-  const rankedNewSessionTrainers = useMemo(
-    () => (selectedCourse ? rankTrainersForCourse(trainers, courseRequiredSkills(selectedCourse)) : []),
-    [selectedCourse, trainers],
-  );
+  /** Ids of a course's sessions that already have attendance rows. */
+  const refreshMarked = useCallback(async (id: string) => {
+    try {
+      setMarkedSessionIds(await getServices().attendance.listMarkedSessionIds(id));
+    } catch (e) {
+      errorCenter.report(e, { action: "attendance.marked" });
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -144,14 +133,20 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     setSession(null);
     setEnrollments([]);
     setMarks({});
-    setNewTrainerId("");
+    setMarkedSessionIds([]);
     if (id === NONE) {
       setSessions([]);
       return;
     }
     try {
-      const found = await getServices().attendance.listSessionsByCourse(id);
-      setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
+      const [found, marked] = await Promise.all([
+        getServices().attendance.listSessionsByCourse(id),
+        getServices().attendance.listMarkedSessionIds(id),
+      ]);
+      // Soonest first: date, then start time, then topic. Marked sessions
+      // stay in the list; opening one shows its saved marks to adjust.
+      setSessions([...found].sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || "") || a.topic.localeCompare(b.topic)));
+      setMarkedSessionIds(marked);
     } catch (e) {
       errorCenter.report(e, { action: "attendance.sessions" });
     }
@@ -212,6 +207,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       const marksList = enrollments.map((e) => ({ memberId: e.memberId, status: marks[e.memberId] ?? "present" }));
       await getServices().attendance.mark(session.id, marksList, createId());
       errorCenter.notify({ key: "attendance.saved" });
+      if (courseId !== NONE) void refreshMarked(courseId);
       void loadDashboard(filterTrainer, filterMember, filterCourse);
     } catch (e) {
       errorCenter.report(e, { action: "attendance.mark" });
@@ -220,122 +216,18 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     }
   };
 
-  /**
-   * Opens the same session form pre-filled, to edit the open session. The
-   * course is fixed: the form's trainer picker already follows the course
-   * the session belongs to, and updateSession never moves a session.
-   */
-  const openEditSession = (s: Session) => {
-    setEditingSession(s);
-    setNewDate(s.date);
-    setNewTopic(s.topic);
-    setNewStartTime(s.startTime);
-    setNewEndTime(s.endTime);
-    setNewCapacity(s.capacity === null ? "" : String(s.capacity));
-    setNewTrainerId(s.trainerId);
-    setNewSessionError(null);
-    setNewSessionOpen(true);
-  };
-
-  /** Deletes the open session after confirmation, with its attendance rows. */
-  const confirmDeleteSession = async () => {
+  /** Clears the open session's marks after confirmation: it goes back to unmarked. */
+  const confirmUnmarkSession = async () => {
     if (!session) return;
-    const label = session.topic;
-    const course = selectedCourse;
     try {
-      await getServices().attendance.removeSession(session.id);
-      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
-      setDeleteOpen(false);
-      setEditingSession(null);
-      setSessionId(NONE);
-      setSession(null);
-      setEnrollments([]);
-      setMarks({});
-      setTrainerPresent(false);
-      if (course) {
-        const found = await getServices().attendance.listSessionsByCourse(course.id);
-        setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
-      }
+      await getServices().attendance.unmarkSession(session.id);
+      errorCenter.notify({ key: "attendance.unmarked" });
+      setUnmarkOpen(false);
+      if (courseId !== NONE) void refreshMarked(courseId);
+      await chooseSession(session.id);
       void loadDashboard(filterTrainer, filterMember, filterCourse);
     } catch (e) {
-      errorCenter.report(e, { action: "session.delete" });
-    }
-  };
-
-  const createNewSession = async () => {
-    if (!selectedCourse || !newDate || !newTopic.trim()) return;
-    const days = courseWeekdays(selectedCourse);
-    if (!isDateOnSchedule(newDate, days)) {
-      setNewSessionError(t("validation.notScheduledDay", { field: t("field.date"), days: days.map((d) => t(`weekday.${d}` as MessageKey)).join(", ") }));
-      return;
-    }
-    if (!/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime)) {
-      setNewSessionError(t("validation.time", { field: t("field.startTime") }));
-      return;
-    }
-    const startMinutes = timeToMinutes(newStartTime);
-    const endMinutes = timeToMinutes(newEndTime);
-    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
-      setNewSessionError(t("validation.endAfterStart"));
-      return;
-    }
-    if (rankedNewSessionTrainers.length === 0) {
-      setNewSessionError(t("session.noQualifiedTrainer"));
-      return;
-    }
-    if (!newTrainerId) {
-      setNewSessionError(t("validation.required", { field: t("field.trainer") }));
-      return;
-    }
-    const capacity = parseSessionCapacity(newCapacity);
-    if (capacity === undefined) {
-      setNewSessionError(t("validation.positive", { field: t("field.capacity") }));
-      return;
-    }
-    try {
-      const edited = editingSession;
-      let openId: string;
-      if (edited) {
-        // Editing keeps the session's assignment and attendance rows;
-        // updateSession validates the merged values like creation.
-        await getServices().attendance.updateSession(edited.id, {
-          date: newDate,
-          topic: newTopic.trim(),
-          trainerId: newTrainerId,
-          startTime: newStartTime,
-          endTime: newEndTime,
-          capacity,
-          idempotencyKey: createId(),
-        });
-        openId = edited.id;
-      } else {
-        const created = await getServices().attendance.createSession({
-          courseId: selectedCourse.id,
-          date: newDate,
-          topic: newTopic.trim(),
-          trainerId: newTrainerId,
-          trainerPresent: false,
-          startTime: newStartTime,
-          endTime: newEndTime,
-          capacity,
-          idempotencyKey: createId(),
-        });
-        openId = created.id;
-      }
-      errorCenter.notify({ key: "toast.saved" });
-      setNewSessionOpen(false);
-      setNewTopic("");
-      setNewDate(today());
-      setNewCapacity("");
-      setNewTrainerId("");
-      setNewSessionError(null);
-      setEditingSession(null);
-      const found = await getServices().attendance.listSessionsByCourse(selectedCourse.id);
-      setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
-      await chooseSession(openId);
-      void loadDashboard(filterTrainer, filterMember, filterCourse);
-    } catch (e) {
-      errorCenter.report(e, { action: editingSession ? "session.update" : "session.create" });
+      errorCenter.report(e, { action: "attendance.unmark" });
     }
   };
 
@@ -367,90 +259,83 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 md:flex-row md:items-end">
-        <div className="min-w-0 flex-1">
-          <Field label={t("field.course")} htmlFor="attendance-course">
-            <Select
-              value={courseId}
-              onChange={(v) => void chooseCourse(v)}
-              ariaLabel={t("field.course")}
-              className="w-full"
-              options={[{ value: NONE, label: t("attendance.pickCourse") }, ...courses.map((c) => ({ value: c.id, label: c.title }))]}
-            />
-          </Field>
-        </div>
-        <div className="min-w-0 flex-1">
-          <Field label={t("session.title")} htmlFor="attendance-session">
-            <Select
-              value={sessionId}
-              onChange={(v) => void chooseSession(v)}
-              ariaLabel={t("session.title")}
-              className="w-full"
-              options={[
-                { value: NONE, label: t("attendance.pickSession") },
-                ...sessions.map((s) => ({ value: s.id, label: `${formatDate(s.date, locale)}${timeLabel(s)} - ${s.topic}` })),
-              ]}
-            />
-          </Field>
-        </div>
-        <Button
-          variant="soft"
-          icon="plus"
-          disabled={courseId === NONE}
-          onClick={() => {
-            if (selectedCourse) {
-              setNewStartTime("09:00");
-              setNewEndTime("10:00");
-              setNewCapacity("");
-              setNewTrainerId("");
-              setNewSessionError(null);
-            }
-            setEditingSession(null);
-            setNewSessionOpen(true);
-          }}
-          className="shrink-0 max-sm:min-h-11"
-        >
-          {t("attendance.newSession")}
-        </Button>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            variant="soft"
-            icon="pencil"
-            disabled={!session}
-            onClick={() => session && openEditSession(session)}
-            className="max-sm:min-h-11"
-          >
-            {t("session.edit")}
-          </Button>
-          <Button
-            variant="dangerSoft"
-            icon="trash"
-            disabled={!session}
-            onClick={() => setDeleteOpen(true)}
-            className="max-sm:min-h-11"
-          >
-            {t("session.delete")}
-          </Button>
-        </div>
+      <div className="rounded-card border border-line bg-surface p-4">
+        <Field label={t("field.course")} htmlFor="attendance-course">
+          <Select
+            value={courseId}
+            onChange={(v) => void chooseCourse(v)}
+            ariaLabel={t("field.course")}
+            className="w-full"
+            options={[{ value: NONE, label: t("attendance.pickCourse") }, ...courses.map((c) => ({ value: c.id, label: c.title }))]}
+          />
+        </Field>
       </div>
 
-      {!session ? (
+      {courseId === NONE ? (
+        <div className="rounded-card border border-line bg-surface px-6 py-12 text-center">
+          <p className="text-base font-medium text-ink">{t("attendance.pickCourseFirst")}</p>
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="rounded-card border border-line bg-surface px-6 py-12 text-center">
+          <p className="text-base font-medium text-ink">{t("attendance.noSessions")}</p>
+          <p className="mt-1 text-sm text-muted">{t("attendance.noSessionsHint")}</p>
+        </div>
+      ) : (
+        <section aria-label={t("session.title")} className="overflow-hidden rounded-card border border-line bg-surface">
+          <h2 className="border-b border-line px-4 py-3 text-base font-semibold text-plum-900">{t("session.title")}</h2>
+          <ul className="flex flex-col divide-y divide-line">
+            {sessions.map((s) => {
+              const marked = markedSessionIds.includes(s.id);
+              const selected = sessionId === s.id;
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => void chooseSession(s.id)}
+                    aria-current={selected ? "true" : undefined}
+                    className={`flex min-h-11 w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left text-sm transition-colors duration-200 ${
+                      selected ? "bg-plum-100 font-medium text-plum-900" : "bg-surface text-ink hover:bg-plum-50"
+                    }`}
+                  >
+                    <span>
+                      {formatDate(s.date, locale)}
+                      {timeLabel(s)} - {s.topic}
+                    </span>
+                    {marked && (
+                      <span className="rounded-full bg-plum-600 px-2 py-0.5 text-xs font-medium text-white">{t("attendance.marked")}</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {courseId !== NONE && !session && (
         <div className="rounded-card border border-line bg-surface px-6 py-12 text-center">
           <p className="text-base font-medium text-ink">{t("attendance.empty")}</p>
           <p className="mt-1 text-sm text-muted">{t("attendance.emptyHint")}</p>
         </div>
-      ) : enrollments.length === 0 ? (
+      )}
+      {courseId !== NONE && session && enrollments.length === 0 && (
         <div className="rounded-card border border-line bg-surface px-6 py-12 text-center">
           <p className="text-base font-medium text-ink">
-            {session && sessionAttendees(session) === null ? t("attendance.noAssignedMembers") : t("attendance.noListedMembers")}
+            {sessionAttendees(session) === null ? t("attendance.noAssignedMembers") : t("attendance.noListedMembers")}
           </p>
         </div>
-      ) : (
+      )}
+      {session && enrollments.length > 0 && (
         <div className="overflow-hidden rounded-card border border-line bg-surface">
           <div className="border-b border-line px-4 py-3">
-            <p className="text-sm font-semibold text-plum-900">
-              {formatDate(session.date, locale)}
-              {timeLabel(session)} - {session.topic}
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-plum-900">
+              <span>
+                {formatDate(session.date, locale)}
+                {timeLabel(session)} - {session.topic}
+              </span>
+              {markedSessionIds.includes(session.id) && (
+                <span className="rounded-full bg-plum-600 px-2 py-0.5 text-xs font-medium text-white">{t("attendance.marked")}</span>
+              )}
             </p>
             <p className="text-xs text-muted">{selectedCourse?.title ?? ""}</p>
             {sessionAttendees(session) !== null && (
@@ -483,7 +368,12 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               </li>
             ))}
           </ul>
-          <div className="flex justify-end border-t border-line px-4 py-3">
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
+            {markedSessionIds.includes(session.id) && (
+              <Button variant="dangerSoft" icon="restore" onClick={() => setUnmarkOpen(true)} className="max-sm:min-h-11">
+                {t("attendance.unmark")}
+              </Button>
+            )}
             <Button className="max-sm:min-h-11" onClick={() => void saveMarks()} disabled={saving}>
               {t("attendance.mark")}
             </Button>
@@ -678,72 +568,15 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
 
       <GuideDialog open={guideOpen} section="attendance" onClose={() => setGuideOpen(false)} />
 
-      <Modal
-        open={newSessionOpen}
-        onOpenChange={(open) => {
-          setNewSessionOpen(open);
-          if (!open) setEditingSession(null);
-        }}
-        title={editingSession ? t("session.edit") : t("session.add")}
-      >
-        <div className="flex flex-col gap-4">
-          <Field label={t("field.date")} htmlFor="new-session-date">
-            <DatePicker id="new-session-date" value={newDate} onChange={setNewDate} />
-          </Field>
-          <Field label={t("field.topic")} htmlFor="new-session-topic">
-            <input id="new-session-topic" className={inputClass} value={newTopic} onChange={(e) => setNewTopic(e.target.value)} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("field.startTime")} htmlFor="new-session-start">
-              <TimePicker id="new-session-start" ariaLabel={t("field.startTime")} value={newStartTime} onChange={setNewStartTime} />
-            </Field>
-            <Field label={t("field.endTime")} htmlFor="new-session-end">
-              <TimePicker id="new-session-end" ariaLabel={t("field.endTime")} value={newEndTime} onChange={setNewEndTime} />
-            </Field>
-          </div>
-          <Field label={t("field.capacity")} htmlFor="new-session-capacity" hint={t("hint.sessionCapacity")}>
-            <input id="new-session-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={newCapacity} onChange={(e) => setNewCapacity(e.target.value)} />
-          </Field>
-          <Field label={t("field.trainer")}>
-            <TrainerPicker
-              name="new-session-trainer"
-              trainers={rankedNewSessionTrainers}
-              requiredSkills={selectedCourse ? courseRequiredSkills(selectedCourse) : []}
-              value={newTrainerId}
-              onChange={setNewTrainerId}
-              label={t("field.trainer")}
-              emptyMessage={t("session.noQualifiedTrainer")}
-            />
-          </Field>
-          {newSessionError && (
-            <p role="alert" className="text-sm text-danger">
-              {newSessionError}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setNewSessionOpen(false)}>
-              {t("action.cancel")}
-            </Button>
-            <Button
-              className="max-sm:min-h-11"
-              onClick={() => void createNewSession()}
-              disabled={!newDate || !newTopic.trim() || !/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime) || rankedNewSessionTrainers.length === 0}
-            >
-              {editingSession ? t("action.save") : t("action.add")}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
       <ConfirmDialog
-        open={deleteOpen}
-        title={t("session.delete")}
-        body={t("session.deleteBody")}
-        confirmLabel={t("action.delete")}
+        open={unmarkOpen}
+        title={t("attendance.unmark")}
+        body={t("attendance.unmarkBody")}
+        confirmLabel={t("attendance.unmark")}
         cancelLabel={t("action.cancel")}
         danger
-        onConfirm={() => void confirmDeleteSession()}
-        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => void confirmUnmarkSession()}
+        onCancel={() => setUnmarkOpen(false)}
       />
     </div>
   );

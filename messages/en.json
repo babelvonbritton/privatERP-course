@@ -37,22 +37,27 @@
   "attendance": {
     "all": "All",
     "dashboard": "Attendance summary",
-    "empty": "No sessions yet",
-    "emptyHint": "Create a session for a course, then mark who showed up.",
+    "empty": "No session picked",
+    "emptyHint": "Pick a session from the list to mark attendance.",
     "mark": "Mark attendance",
-    "newSession": "New session",
+    "marked": "Marked",
     "nextPage": "Next",
     "noData": "No attendance records yet.",
     "noAssignedMembers": "No member assigned to this session.",
+    "noSessions": "No sessions for this course yet.",
+    "noSessionsHint": "Add sessions from the Sessions section on the Courses screen.",
     "page": "Page {page} of {pages}",
     "pickCourse": "Choose a course",
-    "pickSession": "Choose a session",
+    "pickCourseFirst": "Pick a course to see its sessions.",
     "prevPage": "Previous",
     "saved": "Attendance saved",
     "tabMembers": "Members",
     "tabTrainers": "Trainers",
     "title": "Attendance",
     "trainerPresent": "Trainer present",
+    "unmark": "Unmark session",
+    "unmarkBody": "Unmark this session? Its attendance will be cleared and it will return to the Sessions list.",
+    "unmarked": "Attendance cleared",
     "assignedOnly": "Only the assigned members are listed here.",
     "noListedMembers": "None of the assigned members are still enrolled."
   },
@@ -909,7 +914,7 @@
     "skip": "Skip tour",
     "step": {
       "attendance": {
-        "body": "Pick a session and mark each assigned member Present, Absent, or Late, and whether the trainer was there. A session with nobody assigned cannot be marked. Trainer-present sessions count toward pay. The buttons beside the session picker edit or delete the picked session. Below, a dashboard totals attendance per member and course.",
+        "body": "Pick a course, then a session from the list, and mark each assigned member Present, Absent, or Late, and whether the trainer was there. A session with nobody assigned cannot be marked. Trainer-present sessions count toward pay. Marked sessions stay in the list, open one again to adjust its marks. Below, a dashboard totals attendance per member and course.",
         "title": "Attendance"
       },
       "courses": {

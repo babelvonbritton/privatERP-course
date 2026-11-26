@@ -553,6 +553,14 @@ export class AttendanceService extends ServiceBase {
     return this.storage.sessions.listByCourse(courseId);
   }
 
+  /** Ids of the course's sessions that already have at least one attendance row. */
+  async listMarkedSessionIds(courseId: string): Promise<string[]> {
+    const sessions = await this.storage.sessions.listByCourse(courseId);
+    const ids = new Set(sessions.map((s) => s.id));
+    const rows = await this.storage.attendance.all();
+    return [...new Set(rows.filter((r) => ids.has(r.sessionId)).map((r) => r.sessionId))];
+  }
+
   /**
    * Sessions whose attendance has not been checked yet, soonest first.
    * "Checked" means at least one attendance row exists for the session: the
@@ -780,6 +788,22 @@ export class AttendanceService extends ServiceBase {
       await this.recordKey(idempotencyKey, "attendance-batch", sessionId);
       await this.audit("attendance.mark", "attendance", sessionId, `${out.length} members marked`);
       return out;
+    });
+  }
+
+  /**
+   * Unmarks a session: deletes all its attendance rows. The session itself
+   * is never deleted; it goes back to unmarked and returns to the Sessions
+   * list, where it can be edited or deleted as a session again.
+   */
+  async unmarkSession(sessionId: string): Promise<void> {
+    requireCan(this.actor, "attendance.mark");
+    const session = await this.storage.sessions.get(sessionId);
+    if (!session) throw new AppError("NOT_FOUND", { details: `session ${sessionId}` });
+    await this.db.transaction("rw", [this.db.attendance, this.db.writeKeys, this.db.auditLog], async () => {
+      const rows = await this.storage.attendance.listBySession(sessionId);
+      for (const r of rows) await this.storage.attendance.remove(r.id);
+      await this.audit("attendance.unmark", "attendance", sessionId, `${rows.length} marks cleared`);
     });
   }
 
