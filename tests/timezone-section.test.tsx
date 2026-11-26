@@ -3,7 +3,7 @@ import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { TimezoneSection } from "@/components/settings/TimezoneSection";
-import { deviceTimezone, getTimezone, resetTimezone } from "@/lib/timezone";
+import { deviceTimezone, getTimezone, resetTimezone, zoneLabel } from "@/lib/timezone";
 import { getStorage, resetStorage } from "@/lib/storage";
 import { Providers } from "./support";
 
@@ -33,7 +33,9 @@ describe("TimezoneSection", () => {
     const trigger = screen.getByRole("combobox", { name: "Local timezone" });
     fireEvent.pointerDown(trigger);
     fireEvent.click(trigger);
-    const current = await screen.findByRole("option", { name: `${device} (UTC+00:00)` });
+    // The device zone's label carries its own offset, so the test holds on
+    // any machine, not just one set to UTC.
+    const current = await screen.findByRole("option", { name: zoneLabel(device) });
     expect(current.getAttribute("data-state")).toBe("checked");
     fireEvent.click(await screen.findByRole("option", { name: "Asia/Jakarta (UTC+07:00)" }));
     await waitFor(() => expect(getTimezone()).toBe("Asia/Jakarta"));
