@@ -911,52 +911,52 @@
     "skip": "Lewati tur",
     "step": {
       "attendance": {
-        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap anggota yang ditentukan Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi di mana pengajar hadir dihitung untuk gaji mereka. Di bawah formulir penandaan, dasbor merangkum kehadiran per member dan kursus, dengan tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar.",
+        "body": "Pilih sesi lalu tandai setiap anggota yang ditentukan Hadir, Tidak Hadir, atau Terlambat, dan apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi dengan pengajar hadir dihitung untuk gaji. Di bawahnya, dasbor merangkum kehadiran per member dan kursus.",
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Di sinilah kelas Anda berada (kursus). Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Setiap sesi memiliki waktu mulai dan selesai, dan durasinya dihitung dari rentang tersebut. Di bawah tabel kursus, bagian Sesi menampilkan sesi yang belum ditandai selesai, agar Anda bisa melihat anggota mana saja yang akan hadir di setiap sesi dan menentukannya di sana.",
+        "body": "Kelas Anda. Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Di bawah tabel, Sesi menampilkan sesi yang belum ditandai, agar Anda bisa melihat anggota mana saja yang akan hadir di setiap sesi dan menentukannya di sana.",
         "title": "Kursus"
       },
       "dashboard": {
-        "body": "Ini adalah ringkasan Anda (dasbor). Di sini terlihat uang yang terkumpul bulan ini, tagihan yang belum dibayar, seberapa sering member hadir, dan apa yang akan datang. Selama nama bisnis Anda kosong, pengingat di sini membuka pengaturan cepat untuk profil bisnis Anda.",
+        "body": "Uang yang terkumpul bulan ini, tagihan yang belum dibayar, kehadiran, dan apa yang akan datang. Selama nama bisnis Anda kosong, pengingat di sini membuka pengaturan cepat untuk profil Anda.",
         "title": "Dasbor"
       },
       "drive": {
-        "body": "Di sinilah cadangan Anda juga bisa disimpan (Google Drive). Hubungkan akun Anda untuk mencadangkan dan memulihkan dari folder aplikasi Drive Anda sendiri, lalu nyalakan sinkronisasi otomatis untuk mengunggah salinan terenkripsi yang baru beberapa detik setelah setiap perubahan — kata sandi cadangan harus diatur dulu.",
+        "body": "Cadangan juga bisa disimpan di Google Drive. Hubungkan akun Anda untuk mencadangkan dan memulihkan dari folder aplikasi Drive Anda, lalu nyalakan sinkronisasi otomatis untuk salinan terenkripsi yang baru beberapa detik setelah setiap perubahan. Atur kata sandi cadangan dulu.",
         "title": "Google Drive"
       },
       "invoices": {
-        "body": "Di sinilah Anda menagih member (tagihan). Buat tagihan dari member atau pendaftaran, tambahkan biaya, dan catat pembayaran. Tagihan jatuh tempo ditandai otomatis saat tanggal jatuh tempo lewat.",
+        "body": "Tagih member di sini. Buat tagihan dari member atau pendaftaran, tambahkan biaya, dan catat pembayaran. Tagihan jatuh tempo ditandai otomatis.",
         "title": "Tagihan"
       },
       "members": {
-        "body": "Ini adalah daftar murid Anda (member). Tambahkan member di sini, cari berdasarkan nama, email, atau telepon, dan buka satu member untuk melihat pendaftaran dan tagihannya.",
+        "body": "Daftar murid Anda. Tambahkan member, cari berdasarkan nama, email, atau telepon, dan buka satu member untuk melihat pendaftaran dan tagihannya.",
         "title": "Member"
       },
       "payroll": {
-        "body": "Di sinilah pengajar dibayar (penggajian). Pilih pengajar dan periode, lalu run penggajian dibuat dari sesi di mana pengajar hadir, dikali tarif per sesi mereka.",
+        "body": "Bayar pengajar di sini. Pilih pengajar dan periode, lalu run penggajian dibuat dari sesi di mana pengajar hadir, dikali tarif per sesi mereka.",
         "title": "Penggajian"
       },
       "settings": {
-        "body": "Di sinilah Anda mengganti bahasa, membuat cadangan, dan mengulang tur ini (pengaturan). Profil bisnis Anda ada di paling atas: nama, logo, dan kontaknya tampil di tagihan Anda. Cadangan adalah berkas ZIP yang Anda simpan di perangkat sendiri.",
+        "body": "Ganti bahasa, buat cadangan, dan ulangi tur ini di sini. Profil bisnis Anda ada di paling atas, dan cadangan adalah berkas ZIP yang Anda simpan di perangkat sendiri.",
         "title": "Pengaturan"
       },
       "trainers": {
-        "body": "Ini adalah daftar guru Anda (pengajar). Setiap pengajar memiliki mata pelajaran yang diajarkan dan tarif per sesi, yang dipakai penggajian untuk menghitung upah mereka.",
+        "body": "Daftar guru Anda. Setiap pengajar memiliki mata pelajaran yang diajarkan dan tarif per sesi, yang dipakai penggajian untuk menghitung upah mereka.",
         "title": "Pengajar"
       },
       "trash": {
         "title": "Tempat sampah",
-        "body": "Di sinilah catatan yang dihapus menunggu (tempat sampah). Catatan tetap di sini sampai waktu hapus otomatis habis, jadi kesalahan masih bisa dibatalkan. Pulihkan satu item, atau hapus permanen."
+        "body": "Catatan yang dihapus menunggu di sini sampai waktu hapus otomatis habis, jadi kesalahan masih bisa dibatalkan. Pulihkan satu item, atau hapus permanen."
       },
       "profile": {
         "title": "Profil bisnis",
-        "body": "Ini adalah profil bisnis Anda (profil bisnis). Atur nama bisnis, logo, slogan, alamat, dan kontak di sini. Nama bisnis dan nama pemilik juga menjadi identitas catatan baru, dan nama serta kontak muncul di setiap tagihan."
+        "body": "Atur nama bisnis, logo, slogan, alamat, dan kontak di sini. Nama bisnis dan nama pemilik menjadi identitas catatan baru, dan nama serta kontak muncul di setiap tagihan."
       },
       "courseSessions": {
         "title": "Sesi",
-        "body": "Bagian ini menampilkan semua sesi yang kehadirannya belum diperiksa, dari yang paling dekat, beserta kursus masing-masing. Setelah sebuah sesi ditandai, sesi itu keluar dari daftar ini. Buka sesi di sini untuk memilih anggota mana saja yang akan hadir."
+        "body": "Sesi yang belum ditandai, dari yang paling dekat, beserta kursus masing-masing. Sesi yang sudah ditandai keluar dari daftar ini. Buka satu sesi untuk memilih anggota mana saja yang akan hadir."
       }
     },
     "title": "Kenali Olaseena"
