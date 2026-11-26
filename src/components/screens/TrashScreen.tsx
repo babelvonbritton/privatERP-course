@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices } from "@/lib/domain/services";
+import { ORG_ID, OWNER_ID } from "@/lib/domain/types";
+import { getStorage } from "@/lib/storage";
+import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { trashDaysRemaining, type TrashEntry } from "@/lib/domain/trash";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatDate } from "@/lib/dates";
@@ -91,12 +94,36 @@ function kindLabel(kind: TrashEntry["kind"], t: (key: MessageKey) => string): st
   return t(`trash.types.${key}` as MessageKey);
 }
 
+/**
+ * A trash snapshot shows the org/owner ids stamped when the record was
+ * created, which predate the business profile. The detail view shows the
+ * current profile names instead, falling back to the stamped ids and
+ * then the constants when the profile field is empty. Stored records are
+ * never rewritten; this only reshapes what the detail renders.
+ */
+function withCurrentProfileIds(value: unknown, profile: BusinessProfile): unknown {
+  if (Array.isArray(value)) return value.map((item) => withCurrentProfileIds(item, profile));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [field, fieldValue] of Object.entries(value)) {
+    if (field === "orgId" && typeof fieldValue === "string") {
+      out[field] = profile.businessName.trim() !== "" ? profile.businessName : fieldValue || ORG_ID;
+    } else if (field === "ownerId" && typeof fieldValue === "string") {
+      out[field] = profile.ownerName.trim() !== "" ? profile.ownerName : fieldValue || OWNER_ID;
+    } else {
+      out[field] = withCurrentProfileIds(fieldValue, profile);
+    }
+  }
+  return out;
+}
+
 /** Trash screen: deleted records waiting out their retention window, with restore and permanent delete. */
 export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => void }) {
   const { t, has, locale } = useI18n();
   const [entries, setEntries] = useState<TrashEntry[]>([]);
   const [retentionDays, setRetentionDays] = useState(7);
   const [loaded, setLoaded] = useState(false);
+  const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
   const [guideOpen, setGuideOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<TrashEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TrashEntry | null>(null);
@@ -104,9 +131,14 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      const [list, days] = await Promise.all([getServices().trash.list(), getServices().trash.getRetentionDays()]);
+      const [list, days, { profile: stored }] = await Promise.all([
+        getServices().trash.list(),
+        getServices().trash.getRetentionDays(),
+        getStorage().profile.load(),
+      ]);
       setEntries(list);
       setRetentionDays(days);
+      setProfile(stored);
     } catch (e) {
       errorCenter.report(e, { action: "trash.list" });
     }
@@ -160,6 +192,11 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
       errorCenter.report(e, { action: "trash.empty" });
     }
   }
+
+  // The detail reshapes the snapshot through the current profile ids;
+  // the stored entry itself is untouched.
+  const detailSnapshot = detailTarget ? withCurrentProfileIds(detailTarget.snapshot, profile) : null;
+  const detailRelated = detailTarget ? withCurrentProfileIds(detailTarget.related, profile) : null;
 
   return (
     <div data-tour="trash" className="flex flex-col gap-4">
@@ -231,16 +268,16 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
             </p>
             <section>
               <h2 className="mb-3 text-sm font-semibold text-plum-900">{t("trash.detail")}</h2>
-              {isRecord(detailTarget.snapshot) ? (
-                <DetailFields record={detailTarget.snapshot} t={t} has={has} locale={locale} />
+              {isRecord(detailSnapshot) ? (
+                <DetailFields record={detailSnapshot} t={t} has={has} locale={locale} />
               ) : (
-                <DetailValue value={detailTarget.snapshot} field="snapshot" t={t} has={has} locale={locale} />
+                <DetailValue value={detailSnapshot} field="snapshot" t={t} has={has} locale={locale} />
               )}
             </section>
             {detailTarget.related.length > 0 && (
               <section>
                 <h2 className="mb-3 text-sm font-semibold text-plum-900">{t("trash.relatedData")}</h2>
-                <DetailValue value={detailTarget.related} field="related" t={t} has={has} locale={locale} />
+                <DetailValue value={detailRelated} field="related" t={t} has={has} locale={locale} />
               </section>
             )}
           </div>
