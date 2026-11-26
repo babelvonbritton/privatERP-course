@@ -3,8 +3,9 @@
  * Serves the static export separately (python3 -m http.server 8901 --directory out)
  * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
  * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
- * The bundled Chromium is used through its cached executable when the
- * playwright package revision does not match the cache.
+ * The bundled Chromium is used through the path the installed playwright
+ * package reports, so the executable follows a playwright upgrade instead
+ * of a frozen cache revision.
  */
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, statSync } from "node:fs";
