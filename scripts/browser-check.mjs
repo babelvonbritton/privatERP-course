@@ -138,11 +138,13 @@ async function pickTime(page, label, time) {
   await panel.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
 }
 
-async function pickDate(page, date) {
+async function pickDate(page, date, label = "Date") {
   // The DatePicker is a popover calendar with no text input: open it, step
   // to the target month, then click the in-month day button. Out-of-month
   // spillover days share the number, so the in-month class disambiguates.
-  await page.getByLabel("Date", { exact: true }).click();
+  // The session form's picker is labeled "Date"; the enroll form's is
+  // labeled "Start date".
+  await page.getByLabel(label, { exact: true }).click();
   const panel = page.locator(".anim-pop[data-state='open']");
   await panel.waitFor();
   const targetMonth = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date);
@@ -174,6 +176,33 @@ async function toast(page, text, role = "status") {
   // accessibility tree, so getByRole("status") sees zero toasts even though
   // they are rendered and visible on screen.
   await page.locator(`[role="${role}"]`, { hasText: text }).first().waitFor({ timeout: 8000 });
+}
+
+/** Wait until no toast is on screen, so a later toast() call cannot match a stale one. */
+async function waitNoToast(page) {
+  await page.locator('[role="status"]').first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+}
+
+// Enroll one member in the open course detail. The enroll form defaults its
+// start date to today, and the app refuses a start date outside the course's
+// weekly slot (v0.8.0), so the caller passes a real course day. The "Saved"
+// toast from the course save lives 4.5s and is still on screen when the
+// enroll runs, so wait for toasts to clear before Add: the old inline enroll
+// false-passed on that stale toast (plus the member select's own text) while
+// the enroll itself was rejected, leaving the course with no enrollments and
+// no Assign button in the Sessions section. A rejected enroll leaves the form
+// open with the error, so assert it closed.
+async function enrollMember(page, name, date) {
+  await page.getByRole("button", { name: "Enroll member" }).click();
+  if (date) await pickDate(page, date, "Start date");
+  await pickSelect(page, "Member", name);
+  await waitNoToast(page);
+  await page.getByRole("button", { name: "Add", exact: true }).last().click();
+  await toast(page, "Saved");
+  if (await page.getByRole("combobox", { name: "Member", exact: true }).count()) {
+    throw new Error(`enroll form stayed open for ${name} (start date outside the course's weekly slot?)`);
+  }
+  await page.getByText(name, { exact: true }).waitFor();
 }
 
 /** Records every error toast (role=alert) into window.__alerts for the final check. */
@@ -402,11 +431,9 @@ async function desktop(browser) {
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
       await page.getByText("Mon, Wed, Fri").waitFor();
-      await page.getByRole("button", { name: "Enroll member" }).click();
-      await pickSelect(page, "Member", "Ayu Lestari");
-      await page.getByRole("button", { name: "Add", exact: true }).last().click();
-      await toast(page, "Saved");
-      await page.getByText("Ayu Lestari").waitFor();
+      // Piano Basics meets Mon/Wed/Fri: the enroll start date must be a
+      // course day, not the form's default (today).
+      await enrollMember(page, "Ayu Lestari", upcomingSlotDates(3)[0]);
     } finally {
       // Close the course detail modal even when an assertion above failed,
       // so a stuck modal cannot block every later nav click.
@@ -473,10 +500,8 @@ async function desktop(browser) {
       await nav(page, "Courses");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
-      await page.getByRole("button", { name: "Enroll member" }).click();
-      await pickSelect(page, "Member", "Citra Kirana");
-      await page.getByRole("button", { name: "Add", exact: true }).last().click();
-      await toast(page, "Saved");
+      // Same course-day rule as the Ayu enrollment above.
+      await enrollMember(page, "Citra Kirana", upcomingSlotDates(3)[0]);
     } finally {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
@@ -1313,10 +1338,9 @@ async function mobileScreensWithData(browser) {
     await page.locator("tr", { hasText: "Piano Basics" }).click();
     await page.getByText("Enrollments").first().waitFor();
     await page.getByText("Mon, Wed").waitFor();
-    await page.getByRole("button", { name: "Enroll member" }).click();
-    await pickSelect(page, "Member", "Ayu Lestari");
-    await page.getByRole("button", { name: "Add", exact: true }).last().click();
-    await toast(page, "Saved");
+    // This course meets Mon/Wed: the enroll start date must be a course day,
+    // not the form's default (today).
+    await enrollMember(page, "Ayu Lestari", upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3));
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
     await moreNav("Attendance");
     await pickSessionCourse(page, "Piano Basics");
@@ -1407,7 +1431,9 @@ async function mobileScreensWithData(browser) {
     try {
       // A fresh unmarked session on a course day (Piano Basics meets
       // Mondays and Wednesdays): Scales was already marked during the seed.
-      const nextCourseDay = upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3);
+      // One course cannot have two sessions on the same date, and the seed's
+      // Scales sits on the first Mon/Wed slot, so take the second one.
+      const nextCourseDay = upcomingSlotDates(5).filter((d) => d.getDay() === 1 || d.getDay() === 3)[1];
       await createSession(page, "Arpeggios", nextCourseDay, true);
       await nav(page, "Courses");
       await pending.getByText("Arpeggios").waitFor();
