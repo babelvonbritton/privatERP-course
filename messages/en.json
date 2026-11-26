@@ -909,7 +909,7 @@
     "skip": "Skip tour",
     "step": {
       "attendance": {
-        "body": "Pick a session and mark each assigned member Present, Absent, or Late, and whether the trainer was there. A session with nobody assigned cannot be marked. Trainer-present sessions count toward pay. Below, a dashboard totals attendance per member and course.",
+        "body": "Pick a session and mark each assigned member Present, Absent, or Late, and whether the trainer was there. A session with nobody assigned cannot be marked. Trainer-present sessions count toward pay. The buttons beside the session picker edit or delete the picked session. Below, a dashboard totals attendance per member and course.",
         "title": "Attendance"
       },
       "courses": {

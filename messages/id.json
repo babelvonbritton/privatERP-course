@@ -909,7 +909,7 @@
     "skip": "Lewati tur",
     "step": {
       "attendance": {
-        "body": "Pilih sesi lalu tandai setiap anggota yang ditentukan Hadir, Tidak Hadir, atau Terlambat, dan apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi dengan pengajar hadir dihitung untuk gaji. Di bawahnya, dasbor merangkum kehadiran per member dan kursus.",
+        "body": "Pilih sesi lalu tandai setiap anggota yang ditentukan Hadir, Tidak Hadir, atau Terlambat, dan apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi dengan pengajar hadir dihitung untuk gaji. Tombol di samping pemilih sesi mengubah atau menghapus sesi yang dipilih. Di bawahnya, dasbor merangkum kehadiran per member dan kursus.",
         "title": "Kehadiran"
       },
       "courses": {

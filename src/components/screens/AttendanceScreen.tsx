@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { Button } from "../ui/Button";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Modal } from "../ui/Modal";
 import { Field, inputClass } from "../ui/Field";
 import { Select } from "../ui/Select";
@@ -55,6 +56,10 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [newCapacity, setNewCapacity] = useState("");
   const [newTrainerId, setNewTrainerId] = useState("");
   const [newSessionError, setNewSessionError] = useState<string | null>(null);
+  /** The session being edited in the session form, or null when creating one. */
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  /** The delete confirmation for the open session. */
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
   const [trainerSummary, setTrainerSummary] = useState<TrainerDashboardSummary | null>(null);
@@ -215,6 +220,48 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     }
   };
 
+  /**
+   * Opens the same session form pre-filled, to edit the open session. The
+   * course is fixed: the form's trainer picker already follows the course
+   * the session belongs to, and updateSession never moves a session.
+   */
+  const openEditSession = (s: Session) => {
+    setEditingSession(s);
+    setNewDate(s.date);
+    setNewTopic(s.topic);
+    setNewStartTime(s.startTime);
+    setNewEndTime(s.endTime);
+    setNewCapacity(s.capacity === null ? "" : String(s.capacity));
+    setNewTrainerId(s.trainerId);
+    setNewSessionError(null);
+    setNewSessionOpen(true);
+  };
+
+  /** Deletes the open session after confirmation, with its attendance rows. */
+  const confirmDeleteSession = async () => {
+    if (!session) return;
+    const label = session.topic;
+    const course = selectedCourse;
+    try {
+      await getServices().attendance.removeSession(session.id);
+      errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
+      setDeleteOpen(false);
+      setEditingSession(null);
+      setSessionId(NONE);
+      setSession(null);
+      setEnrollments([]);
+      setMarks({});
+      setTrainerPresent(false);
+      if (course) {
+        const found = await getServices().attendance.listSessionsByCourse(course.id);
+        setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
+      }
+      void loadDashboard(filterTrainer, filterMember, filterCourse);
+    } catch (e) {
+      errorCenter.report(e, { action: "session.delete" });
+    }
+  };
+
   const createNewSession = async () => {
     if (!selectedCourse || !newDate || !newTopic.trim()) return;
     const days = courseWeekdays(selectedCourse);
@@ -246,17 +293,35 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       return;
     }
     try {
-      const created = await getServices().attendance.createSession({
-        courseId: selectedCourse.id,
-        date: newDate,
-        topic: newTopic.trim(),
-        trainerId: newTrainerId,
-        trainerPresent: false,
-        startTime: newStartTime,
-        endTime: newEndTime,
-        capacity,
-        idempotencyKey: createId(),
-      });
+      const edited = editingSession;
+      let openId: string;
+      if (edited) {
+        // Editing keeps the session's assignment and attendance rows;
+        // updateSession validates the merged values like creation.
+        await getServices().attendance.updateSession(edited.id, {
+          date: newDate,
+          topic: newTopic.trim(),
+          trainerId: newTrainerId,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          capacity,
+          idempotencyKey: createId(),
+        });
+        openId = edited.id;
+      } else {
+        const created = await getServices().attendance.createSession({
+          courseId: selectedCourse.id,
+          date: newDate,
+          topic: newTopic.trim(),
+          trainerId: newTrainerId,
+          trainerPresent: false,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          capacity,
+          idempotencyKey: createId(),
+        });
+        openId = created.id;
+      }
       errorCenter.notify({ key: "toast.saved" });
       setNewSessionOpen(false);
       setNewTopic("");
@@ -264,12 +329,13 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       setNewCapacity("");
       setNewTrainerId("");
       setNewSessionError(null);
+      setEditingSession(null);
       const found = await getServices().attendance.listSessionsByCourse(selectedCourse.id);
       setSessions([...found].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "") || b.topic.localeCompare(a.topic)));
-      await chooseSession(created.id);
+      await chooseSession(openId);
       void loadDashboard(filterTrainer, filterMember, filterCourse);
     } catch (e) {
-      errorCenter.report(e, { action: "session.create" });
+      errorCenter.report(e, { action: editingSession ? "session.update" : "session.create" });
     }
   };
 
@@ -339,12 +405,33 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               setNewTrainerId("");
               setNewSessionError(null);
             }
+            setEditingSession(null);
             setNewSessionOpen(true);
           }}
           className="shrink-0 max-sm:min-h-11"
         >
           {t("attendance.newSession")}
         </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            variant="soft"
+            icon="pencil"
+            disabled={!session}
+            onClick={() => session && openEditSession(session)}
+            className="max-sm:min-h-11"
+          >
+            {t("session.edit")}
+          </Button>
+          <Button
+            variant="dangerSoft"
+            icon="trash"
+            disabled={!session}
+            onClick={() => setDeleteOpen(true)}
+            className="max-sm:min-h-11"
+          >
+            {t("session.delete")}
+          </Button>
+        </div>
       </div>
 
       {!session ? (
@@ -591,7 +678,14 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
 
       <GuideDialog open={guideOpen} section="attendance" onClose={() => setGuideOpen(false)} />
 
-      <Modal open={newSessionOpen} onOpenChange={setNewSessionOpen} title={t("session.add")}>
+      <Modal
+        open={newSessionOpen}
+        onOpenChange={(open) => {
+          setNewSessionOpen(open);
+          if (!open) setEditingSession(null);
+        }}
+        title={editingSession ? t("session.edit") : t("session.add")}
+      >
         <div className="flex flex-col gap-4">
           <Field label={t("field.date")} htmlFor="new-session-date">
             <DatePicker id="new-session-date" value={newDate} onChange={setNewDate} />
@@ -635,11 +729,22 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
               onClick={() => void createNewSession()}
               disabled={!newDate || !newTopic.trim() || !/^\d{2}:\d{2}$/.test(newStartTime) || !/^\d{2}:\d{2}$/.test(newEndTime) || rankedNewSessionTrainers.length === 0}
             >
-              {t("action.add")}
+              {editingSession ? t("action.save") : t("action.add")}
             </Button>
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title={t("session.delete")}
+        body={t("session.deleteBody")}
+        confirmLabel={t("action.delete")}
+        cancelLabel={t("action.cancel")}
+        danger
+        onConfirm={() => void confirmDeleteSession()}
+        onCancel={() => setDeleteOpen(false)}
+      />
     </div>
   );
 }
