@@ -530,7 +530,7 @@ describe("course menu session list", () => {
     await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
     fireEvent.click(within(pending).getByRole("button", { name: "Delete session" }));
     const confirm2 = await screen.findByRole("alertdialog", {}, { timeout: 3000 });
-    fireEvent.click(within(confirm2).getByRole("button", { name: "Delete", exact: true }));
+    fireEvent.click(within(confirm2).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(within(pending).queryByText(/Scales/)).toBeNull());
     expect(await s.attendance.getSession(session.id)).toBeUndefined();
   });
