@@ -41,5 +41,14 @@ describe("TimezoneSection", () => {
     await waitFor(() => expect(getTimezone()).toBe("Asia/Jakarta"));
     const { preferences } = await getStorage().preferences.load();
     expect(preferences.timezone).toBe("Asia/Jakarta");
+    // Reopening shows the newly selected zone as the checked option, and the
+    // long menu is capped to the space available so the list can scroll to
+    // it. Whether the option is actually in view is a layout fact, so the
+    // browser check asserts it in a real browser.
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    const jakarta = await screen.findByRole("option", { name: "Asia/Jakarta (UTC+07:00)" });
+    expect(jakarta.getAttribute("data-state")).toBe("checked");
+    expect(screen.getByRole("listbox").className).toContain("max-h-[var(--radix-select-content-available-height)]");
   }, 15000);
 });

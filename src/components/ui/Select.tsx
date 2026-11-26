@@ -18,10 +18,21 @@ interface Props<T extends string> {
   ariaLabel: string;
   className?: string;
   prefix?: ReactNode;
+  /**
+   * Lets the menu scroll to the selected option on open. Only for long
+   * lists: Radix already scrolls the selected option into view once the
+   * menu is placed, but without a height cap a long menu renders at its
+   * full natural height, so there is nothing to scroll and the selected
+   * option sits below the fold, unreachable. The cap limits the menu to
+   * the space Radix reports as available, which makes the list scrollable
+   * and Radix's own scroll work. Short lists leave this off and behave
+   * exactly as before.
+   */
+  scrollToSelectedOnOpen?: boolean;
 }
 
 /** Fully themed dropdown (Radix Select, no native menu). */
-export function Select<T extends string>({ value, onChange, options, ariaLabel, className = "", prefix }: Props<T>) {
+export function Select<T extends string>({ value, onChange, options, ariaLabel, className = "", prefix, scrollToSelectedOnOpen = false }: Props<T>) {
   return (
     <RSelect.Root value={value} onValueChange={(v) => onChange(v as T)}>
       <RSelect.Trigger
@@ -40,7 +51,7 @@ export function Select<T extends string>({ value, onChange, options, ariaLabel, 
         <RSelect.Content
           position="popper"
           sideOffset={6}
-          className="anim-pop z-[80] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-control border border-line bg-surface p-1 shadow-[0_16px_36px_-14px_rgba(43,30,43,0.3)]"
+          className={`anim-pop z-[80] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-control border border-line bg-surface p-1 shadow-[0_16px_36px_-14px_rgba(43,30,43,0.3)] ${scrollToSelectedOnOpen ? "max-h-[var(--radix-select-content-available-height)]" : ""}`}
         >
           <RSelect.Viewport>
             {options.map((o) => (

@@ -4,7 +4,13 @@
 
 Money rounding fixes, currency-switch status re-derivation, a Local timezone
 setting in Settings, removal of the dead Guard validation class, refreshed
-changelog and security doc, and the browser check wired into CI.
+changelog and security doc, and the browser check wired into CI. The timezone
+picker now opens with the selected zone in view: the shared dropdown caps a
+long menu to the space available, which lets Radix scroll to the selected
+option. A currency switch also converts the money inside live trash entries,
+so a payment, invoice, pay run, course, or trainer restored after a switch
+comes back in the new currency instead of smuggling old-currency amounts
+into a converted invoice.
 
 ## 1.0.6
 

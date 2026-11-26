@@ -133,6 +133,31 @@ async function pickLongListOption(page, label, option) {
   await trigger.filter({ hasText: option }).waitFor({ timeout: 8000 });
 }
 
+/** Opening a long-list picker must show the selected option inside the
+ * visible menu, not the top of the list: the menu is capped to the space
+ * available, so the option's box has to sit within the menu viewport's box. */
+async function selectedOptionInView(page, label, option) {
+  const trigger = page.getByRole("combobox", { name: label, exact: true });
+  await trigger.click();
+  const item = page.getByRole("option", { name: option, exact: true });
+  await item.waitFor({ state: "attached", timeout: 8000 });
+  await page.waitForTimeout(400);
+  const box = await page.evaluate((name) => {
+    const el = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent?.trim() === name);
+    const viewport = document.querySelector("[data-radix-select-viewport]");
+    if (!el || !viewport) return null;
+    const r = el.getBoundingClientRect();
+    const v = viewport.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, vTop: v.top, vBottom: v.bottom, checked: el.getAttribute("data-state") };
+  }, option);
+  await page.keyboard.press("Escape");
+  if (!box) throw new Error(`${label}: selected option ${option} or menu viewport not found`);
+  if (box.checked !== "checked") throw new Error(`${label}: ${option} is not the checked option`);
+  if (box.top < box.vTop - 1 || box.bottom > box.vBottom + 1) {
+    throw new Error(`${label}: selected option ${option} is outside the visible menu (option ${Math.round(box.top)}-${Math.round(box.bottom)}, menu ${Math.round(box.vTop)}-${Math.round(box.vBottom)})`);
+  }
+}
+
 /** TagInput: type a skill into the tagged field and confirm it with Enter. */
 async function addRequiredSkill(page, skill) {
   await page.getByLabel("Required skills", { exact: true }).fill(skill);
@@ -1046,6 +1071,21 @@ async function desktop(browser) {
     }
   });
 
+  await check("desktop: timezone picker opens with the selected zone in view", async () => {
+    const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    try {
+      await nav(page, "Settings");
+      await page.getByRole("heading", { name: "Local timezone" }).waitFor();
+      await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
+      await selectedOptionInView(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
+      await noOverflow(page, "settings timezone picker", 1280);
+    } finally {
+      await page.keyboard.press("Escape").catch(() => {});
+      await nav(page, "Settings").catch(() => {});
+      await pickLongListOption(page, "Local timezone", zoneLabel(deviceZone)).catch(() => {});
+    }
+  });
+
   await check("desktop: backup downloads a zip", async () => {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Backup and restore" }).click();
@@ -1298,6 +1338,23 @@ async function mobile(browser) {
       // Close any open menu first: while a Radix menu is open it hides the
       // rest of the page from the accessibility tree, so a stuck menu would
       // make every later check time out on getByRole lookups.
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  });
+
+  await check("mobile: timezone picker opens with the selected zone in view", async () => {
+    const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    try {
+      await navMobile(page, "Settings");
+      await page.getByRole("heading", { name: "Local timezone" }).waitFor();
+      await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
+      await selectedOptionInView(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
+      await noOverflow(page, "mobile settings timezone picker", 390);
+      // Restore the device zone so later mobile checks see the usual dates.
+      await pickLongListOption(page, "Local timezone", zoneLabel(deviceZone));
+      await noOverflow(page, "mobile settings timezone picker restored", 390);
+    } finally {
       await page.keyboard.press("Escape").catch(() => {});
       await page.waitForTimeout(300);
     }
@@ -2396,20 +2453,80 @@ async function currencyChecks(browser) {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 
+  await check("currency: a trashed payment restores in the new currency after a switch", async () => {
+    // Currency is EUR here (switch 1); the invoice below is built in EUR,
+    // one of its two payments is trashed, and the switch to IDR has to
+    // convert the trashed payment too, or the restore brings EUR money back.
+    try {
+      await nav(page, "Members");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Sari Wulandari");
+    await page.getByLabel("Email", { exact: true }).fill("sari@example.com");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await nav(page, "Invoices");
+    await page.getByRole("button", { name: "New invoice" }).click();
+    await pickSelect(page, "Member", "Sari Wulandari");
+    await pickSelect(page, "Status", "Sent");
+    await page.getByLabel("Description", { exact: true }).fill("Trash switch check");
+    await page.getByLabel("Amount", { exact: true }).fill("50");
+    await page.getByRole("button", { name: "Create invoice" }).click();
+    await toast(page, "Saved");
+    await page.locator("tr", { hasText: "Sari Wulandari" }).first().click();
+    await page.getByText("Trash switch check").first().waitFor();
+    for (let i = 0; i < 2; i++) {
+      await page.getByLabel("Payment amount", { exact: true }).fill("25");
+      await page.getByRole("button", { name: "Record payment", exact: true }).click();
+      await toast(page, "Payment recorded");
+      // The toast can still be the previous one, so wait for the new row itself.
+      await page.locator("li", { hasText: "€25.00" }).nth(i).waitFor({ timeout: 8000 });
+    }
+    await page.getByRole("button", { name: "Delete payment" }).first().click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await toast(page, "€25.00 moved to the trash bin");
+    // Close the detail first: while a modal is open it hides the rest of the
+    // page from the accessibility tree, so the Settings nav button is not found.
+    await page.getByRole("button", { name: "Close", exact: true }).first().click();
+    await switchTo(page, "IDR");
+    await nav(page, "Trash");
+    await page.getByRole("button", { name: "Restore", exact: true }).first().click();
+    await toast(page, "Restored");
+    await nav(page, "Invoices");
+    const row = page.locator("tr", { hasText: "Sari Wulandari" }).first();
+    const rowText = (await row.textContent()) ?? "";
+    // Intl separates the IDR code from the number with a non-breaking space,
+    // so the match allows any whitespace there.
+    const fullAmounts = (rowText.match(/IDR\s1,000,000/g) ?? []).length;
+    if (fullAmounts < 2) throw new Error(`restored invoice row does not show IDR 1,000,000 for total and paid: ${rowText}`);
+    if (!/Paid/.test(rowText)) throw new Error(`restored invoice row does not show Paid: ${rowText}`);
+    await row.click();
+    await page.getByText("Trash switch check").first().waitFor();
+    if ((await page.getByText(/IDR\s500,000/).count()) < 2) throw new Error("restored invoice does not show two IDR 500,000 payments");
+    } finally {
+      // The check ends with the invoice detail open; close it so the next
+      // check can reach the nav again.
+      await page.keyboard.press("Escape").catch(() => {});
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  });
+
   await check("currency: 10 switches allowed, 11th shows the limit and changes nothing", async () => {
-    // Switch 1 (IDR to EUR) is done; 9 more alternating switches reach 10.
-    const sequence = ["USD", "EUR", "USD", "EUR", "USD", "EUR", "USD", "EUR", "USD"];
+    // Switches 1 and 2 are done (IDR to EUR, then EUR to IDR in the trash
+    // check); 8 more alternating switches reach 10.
+    const sequence = ["USD", "EUR", "USD", "EUR", "USD", "EUR", "USD", "EUR"];
     for (const code of sequence) await switchTo(page, code);
     await nav(page, "Settings");
-    await page.getByRole("button", { name: "EUR", exact: true }).click();
+    await page.getByRole("button", { name: "USD", exact: true }).click();
     await page.getByText("Daily limit reached. You have used all 10 currency switches for today. Try again tomorrow.").waitFor({ timeout: 5000 });
     if (await page.getByRole("button", { name: "Switch and convert", exact: true }).count()) {
       throw new Error("limit dialog still offers a Switch button");
     }
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
-    // Currency is still USD after 10 switches (last one was to USD).
+    // Currency is still EUR after 10 switches (last one was to EUR).
     await nav(page, "Invoices");
-    await page.getByText("$").first().waitFor({ timeout: 5000 });
+    await page.getByText("€").first().waitFor({ timeout: 5000 });
   });
 
   await check("currency: no console errors or page errors", async () => {

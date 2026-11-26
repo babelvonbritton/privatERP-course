@@ -54,7 +54,7 @@ export function TimezoneSection() {
       <h2 className="text-base font-semibold text-plum-900">{t("settings.timezone")}</h2>
       <p className="mt-1 text-sm text-muted">{t("settings.timezoneHint")}</p>
       <div className="mt-4">
-        <Select value={zone} onChange={(v) => void choose(v)} options={options} ariaLabel={t("settings.timezone")} className="w-full max-w-full max-sm:h-11" />
+        <Select value={zone} onChange={(v) => void choose(v)} options={options} ariaLabel={t("settings.timezone")} className="w-full max-w-full max-sm:h-11" scrollToSelectedOnOpen />
       </div>
     </section>
   );

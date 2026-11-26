@@ -46,7 +46,7 @@ import {
   type TrainerPatch,
 } from "./schemas";
 import { requireCan } from "./permissions";
-import { createTrashEntry } from "./trash";
+import { MONEY_TRASH_KINDS, convertTrashEntry, createTrashEntry } from "./trash";
 import { TrashService } from "./trashService";
 import { AttachmentService } from "@/lib/attachments/service";
 import type {
@@ -1271,16 +1271,18 @@ export class CurrencyService extends ServiceBase {
     return Math.max(0, DAILY_SWITCH_LIMIT - used);
   }
 
-  /** True when any amount-bearing record exists: invoices, payments, courses, trainers or pay runs. */
+  /** True when any amount-bearing record exists: invoices, payments, courses, trainers, pay runs, or money in the trash. */
   async hasConvertibleData(): Promise<boolean> {
-    const [invoices, payments, courses, trainers, payrollRuns] = await Promise.all([
+    const [invoices, payments, courses, trainers, payrollRuns, trash] = await Promise.all([
       this.storage.invoices.count(),
       this.storage.payments.count(),
       this.storage.courses.count(),
       this.storage.trainers.count(),
       this.storage.payrollRuns.count(),
+      this.storage.trash.all(),
     ]);
-    return invoices + payments + courses + trainers + payrollRuns > 0;
+    const trashMoney = trash.filter((e) => MONEY_TRASH_KINDS.includes(e.kind)).length;
+    return invoices + payments + courses + trainers + payrollRuns + trashMoney > 0;
   }
 
   async switchCurrency(to: CurrencyCode): Promise<CurrencySwitchResult> {
@@ -1305,7 +1307,7 @@ export class CurrencyService extends ServiceBase {
     if (remaining <= 0) throw new AppError("CURRENCY_LIMIT_REACHED");
     // The rate is fetched before any write: a failed fetch changes nothing.
     const rate = await fetchRate(from, to);
-    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.courses, this.db.trainers, this.db.payrollRuns, this.db.settings, this.db.auditLog], async () => {
+    await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.courses, this.db.trainers, this.db.payrollRuns, this.db.trash, this.db.settings, this.db.auditLog], async () => {
       const payments = await this.storage.payments.all();
       const paidByInvoice = new Map<string, number>();
       for (const p of payments) {
@@ -1338,6 +1340,13 @@ export class CurrencyService extends ServiceBase {
       for (const run of await this.storage.payrollRuns.all()) {
         const ratePerSession = convert(run.ratePerSession, rate, to);
         await this.storage.payrollRuns.put({ ...touched(run, this.now()), ratePerSession, total: roundMoney(run.sessionCount * ratePerSession, to) });
+      }
+      // Trashed money converts in the same transaction, so a record restored
+      // after the switch comes back in the new currency instead of smuggling
+      // old-currency amounts into a converted invoice.
+      for (const entry of await this.storage.trash.all()) {
+        const converted = convertTrashEntry(entry, rate, to);
+        if (converted !== entry) await this.storage.trash.put(converted);
       }
       await this.storage.settings.write(PREFERENCE_KEYS.currency, to);
       await this.storage.settings.write(PREFERENCE_KEYS.currencySwitchDate, today);
