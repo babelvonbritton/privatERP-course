@@ -689,6 +689,11 @@
     "empty": "No payments yet",
     "title": "Payments"
   },
+  "paycheck": {
+    "draftHint": "This is a draft. It is recomputed from current attendance when the run is generated again, and its amounts may change.",
+    "noPaidSessions": "No paid sessions in this period.",
+    "title": "Paycheck"
+  },
   "payroll": {
     "alreadyExists": "A pay run already exists for this trainer and period.",
     "empty": "No pay runs yet",
@@ -699,6 +704,8 @@
     "paidSessions": "Paid sessions",
     "period": "Period",
     "pickTrainer": "Choose a trainer",
+    "printPaycheck": "Print paycheck",
+    "printTitle": "Paycheck preview",
     "rate": "Rate per session",
     "review": "Review pay run",
     "sessionCount": "Sessions",
@@ -938,7 +945,7 @@
         "title": "Members"
       },
       "payroll": {
-        "body": "Pay trainers here. Pick a trainer and a period, and a pay run is generated from the sessions where the trainer was present, times their rate per session.",
+        "body": "Pay trainers here. Pick a trainer and a period, and a pay run is generated from the sessions where the trainer was present, times their rate per session. Print a paycheck for the trainer from the run review, for a draft or a paid run.",
         "title": "Payroll"
       },
       "settings": {

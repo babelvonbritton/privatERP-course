@@ -689,6 +689,11 @@
     "empty": "Belum ada pembayaran",
     "title": "Pembayaran"
   },
+  "paycheck": {
+    "draftHint": "Ini adalah draf. Jumlahnya dihitung ulang dari kehadiran terbaru saat run dibuat lagi, dan dapat berubah.",
+    "noPaidSessions": "Tidak ada sesi berbayar pada periode ini.",
+    "title": "Slip gaji"
+  },
   "payroll": {
     "alreadyExists": "Run penggajian untuk pengajar dan periode ini sudah ada.",
     "empty": "Belum ada run penggajian",
@@ -699,6 +704,8 @@
     "paidSessions": "Sesi yang dibayar",
     "period": "Periode",
     "pickTrainer": "Pilih pengajar",
+    "printPaycheck": "Cetak slip gaji",
+    "printTitle": "Pratinjau slip gaji",
     "rate": "Tarif per sesi",
     "review": "Tinjau run penggajian",
     "sessionCount": "Sesi",
@@ -938,7 +945,7 @@
         "title": "Member"
       },
       "payroll": {
-        "body": "Bayar pengajar di sini. Pilih pengajar dan periode, lalu run penggajian dibuat dari sesi di mana pengajar hadir, dikali tarif per sesi mereka.",
+        "body": "Bayar pengajar di sini. Pilih pengajar dan periode, lalu run penggajian dibuat dari sesi di mana pengajar hadir, dikali tarif per sesi mereka. Cetak slip gaji pengajar dari tinjauan run, untuk run draf maupun yang sudah dibayar.",
         "title": "Penggajian"
       },
       "settings": {

@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { getServices, today } from "@/lib/domain/services";
+import { getStorage } from "@/lib/storage";
 import type { Course, PayrollRun, Session, Trainer } from "@/lib/domain/types";
+import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
+import { downloadPaycheckPdf, downloadPaycheckPng } from "@/lib/invoiceExport";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
@@ -16,6 +19,7 @@ import { DatePicker } from "../ui/DatePicker";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
+import { PaycheckDocument } from "../payroll/PaycheckDocument";
 import type { NavId } from "../nav";
 
 /** Turns a millisecond timestamp into a YYYY-MM-DD date for display. */
@@ -60,6 +64,11 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [detail, setDetail] = useState<PayrollRun | null>(null);
   const [detailSessions, setDetailSessions] = useState<Session[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<PayrollRun | null>(null);
+  const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
+  const [logoBlob, setLogoBlob] = useState<Blob | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const docRef = useRef<HTMLDivElement>(null);
 
   const trainerById = useMemo(() => new Map(trainers.map((tr) => [tr.id, tr])), [trainers]);
   const courseById = useMemo(() => new Map(courses.map((c) => [c.id, c])), [courses]);
@@ -118,6 +127,29 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       cancelled = true;
     };
   }, [detail]);
+
+  // The paycheck shows the business profile, so it loads with the lists
+  // and the logo bytes travel with it.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { profile: stored } = await getStorage().profile.load();
+        if (cancelled) return;
+        setProfile(stored);
+        if (stored.logoAttachmentId) {
+          const blob = await s.attachments.getBlob(stored.logoAttachmentId);
+          if (!cancelled && blob) setLogoBlob(blob);
+        }
+      } catch (e) {
+        errorCenter.report(e, { action: "profile.load" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sortedRuns = useMemo(
     () =>
@@ -182,6 +214,30 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     } catch (e) {
       setConfirmDelete(null);
       errorCenter.report(e, { action: "payroll.delete" });
+    }
+  }
+
+  /** File base for the paycheck download: trainer name and period start, safe for a file name. */
+  function paycheckFileName(run: PayrollRun): string {
+    const trainerName = trainerById.get(run.trainerId)?.name ?? run.trainerId;
+    const safe = trainerName.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return `paycheck-${safe}-${run.periodStart}`;
+  }
+
+  /** Exports the open paycheck; the download itself is the success feedback. */
+  async function runPaycheckExport(kind: "pdf" | "png") {
+    if (!detail || !docRef.current || exporting) return;
+    setExporting(true);
+    try {
+      const node = docRef.current.firstElementChild as HTMLElement | null;
+      if (!node) throw new Error("paycheck document is missing");
+      if (kind === "pdf") await downloadPaycheckPdf(node, paycheckFileName(detail));
+      else await downloadPaycheckPng(node, paycheckFileName(detail));
+      setPrintOpen(false);
+    } catch (e) {
+      errorCenter.report(e, { action: "payroll.export" });
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -355,12 +411,53 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
             <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
               <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setDetail(null)}>{t("action.close")}</Button>
+              <Button className="max-sm:min-h-11" variant="soft" icon="receipt" onClick={() => setPrintOpen(true)}>{t("payroll.printPaycheck")}</Button>
               {detail.status === "draft" && (
                 <>
                   <Button className="max-sm:min-h-11" variant="dangerSoft" icon="trash" onClick={() => setConfirmDelete(detail)}>{t("action.delete")}</Button>
                   <Button className="max-sm:min-h-11" icon="check" onClick={() => void submitMarkPaid()}>{t("payroll.markPaid")}</Button>
                 </>
               )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={printOpen && detail !== null}
+        onOpenChange={(open) => { if (!open) setPrintOpen(false); }}
+        title={t("payroll.printTitle")}
+        width="md:max-w-2xl"
+      >
+        {detail && (
+          <div className="flex flex-col gap-4">
+            <div ref={docRef} className="w-full min-w-0">
+              <PaycheckDocument
+                run={detail}
+                trainerName={trainerById.get(detail.trainerId)?.name ?? ""}
+                paidSessions={detailPaidSessions}
+                unpaidSessions={detailUnpaidSessions}
+                courseById={courseById}
+                profile={profile}
+                logoBlob={logoBlob}
+              />
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button className="max-sm:min-h-11"
+                icon="download"
+                disabled={exporting}
+                onClick={() => void runPaycheckExport("pdf")}
+              >
+                {t("invoice.downloadPdf")}
+              </Button>
+              <Button className="max-sm:min-h-11"
+                variant="soft"
+                icon="download"
+                disabled={exporting}
+                onClick={() => void runPaycheckExport("png")}
+              >
+                {t("invoice.downloadPng")}
+              </Button>
             </div>
           </div>
         )}
