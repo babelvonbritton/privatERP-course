@@ -34,9 +34,26 @@ jobs:
         with:
           path: out
 
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: nohup python3 -m http.server 8901 --directory out > /tmp/http.log 2>&1 &
+      - run: for i in $(seq 1 30); do curl -fsS http://localhost:8901/en > /dev/null && break; sleep 1; done
+      - run: npm run verify:browser
+        env:
+          BASE_URL: http://localhost:8901
+
   deploy:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build, browser]
     runs-on: ubuntu-latest
     permissions:
       pages: write
