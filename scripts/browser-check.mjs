@@ -846,6 +846,15 @@ async function desktop(browser) {
       await page.getByText("IDR 150,000").first().waitFor();
       await page.getByText("Paid sessions").waitFor();
       await page.getByText("Scales").first().waitFor();
+      await page.getByRole("button", { name: "Print paycheck" }).click();
+      await page.getByText("Paycheck preview").waitFor();
+      const draftDoc = page.getByRole("dialog").last().getByTestId("paycheck-document");
+      await draftDoc.getByText("Draft", { exact: true }).waitFor();
+      await draftDoc.getByText("Budi Santoso").waitFor();
+      await draftDoc.getByText("Scales").waitFor();
+      await draftDoc.getByText("IDR 150,000").first().waitFor();
+      await noOverflow(page, "paycheck draft", 1280);
+      await page.getByRole("dialog").last().getByRole("button", { name: "Close", exact: true }).first().click();
       await page.getByRole("button", { name: "Close" }).first().click();
 
       // Mark the trainer absent: regenerating the draft run must drop the session.
@@ -881,6 +890,15 @@ async function desktop(browser) {
       await page.getByRole("button", { name: "Mark as paid" }).click();
       await toast(page, "Saved");
       await page.getByText("Budi Santoso").first().waitFor();
+      await page.getByRole("button", { name: "Print paycheck" }).click();
+      await page.getByText("Paycheck preview").waitFor();
+      const paidDoc = page.getByRole("dialog").last().getByTestId("paycheck-document");
+      await paidDoc.getByText("Paid", { exact: true }).waitFor();
+      await paidDoc.getByText("Budi Santoso").waitFor();
+      await paidDoc.getByText("Scales").waitFor();
+      if (await paidDoc.getByText("Draft", { exact: true }).count()) throw new Error("paid paycheck still shows Draft");
+      await noOverflow(page, "paycheck paid", 1280);
+      await page.getByRole("dialog").last().getByRole("button", { name: "Close", exact: true }).first().click();
     } finally {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
@@ -1661,6 +1679,14 @@ async function mobileScreensWithData(browser) {
       await noOverflow(page, "mobile data payroll review", 390);
       await fixedTargetsAtLeast44(page, "payroll review");
       await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-payroll-390.png` });
+      await page.getByRole("button", { name: "Print paycheck" }).click();
+      await page.getByText("Paycheck preview").waitFor();
+      const mobileDoc = page.getByRole("dialog").last().getByTestId("paycheck-document");
+      await mobileDoc.getByText("Paid", { exact: true }).waitFor();
+      await mobileDoc.getByText("Budi Santoso").waitFor();
+      await noOverflow(page, "mobile data paycheck", 390);
+      await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-paycheck-390.png` });
+      await page.getByRole("dialog").last().getByRole("button", { name: "Close", exact: true }).first().click();
       await page.getByRole("button", { name: "Close", exact: true }).last().click();
     } finally {
       const close = page.getByRole("button", { name: "Close" });
