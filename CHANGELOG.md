@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.0.7
+
+Money rounding fixes, currency-switch status re-derivation, a Local timezone
+setting in Settings, removal of the dead Guard validation class, refreshed
+changelog and security doc, and the browser check wired into CI.
+
+## 1.0.6
+
+Print paycheck from payroll, for draft and paid runs, with Download PDF and
+PNG.
+
+## 1.0.5
+
+Attendance is marking only, with an unmark action that clears a session's
+marks and sends it back to the Sessions section.
+
+## 1.0.4
+
+Edit and delete a marked session from attendance.
+
+## 1.0.3
+
+Sessions are managed from the Sessions section, not from attendance.
+
+## 1.0.2
+
+Capacity is enforced at assignment, unassigned sessions hand nothing to
+attendance, trash shows the business profile names, the tour copy is
+compact with no scrolling tooltips, and every em dash is removed.
+
+## 1.0.1
+
+The session list moves to the course menu.
+
+## 1.0.0
+
+Business profile with a dashboard reminder and quick setup, and session
+attendee assignment with capacity.
+
+## 0.9.0
+
+Required-skill tags on courses, a qualified-trainer picker on sessions,
+session capacity replacing course capacity, and dashboard pagination with
+the latest three invoices.
+
+## 0.8.0
+
+The trainer rate label follows the currency setting, sessions and
+enrollments enforce the course weekly slot, and a custom time picker
+replaces the native time inputs.
+
+## 0.7.0
+
+Google Drive backup and restore with auto-sync, a passphrase setup dialog
+for sync, a refreshed tour, and a Terms page.
+
+## 0.6.0
+
+Courses keep weekdays only, the dashboard gains a Trainers tab, draft pay
+runs refresh from current attendance, and trainer detail shows hours taught
+per course.
+
+## 0.5.0
+
+Session start and end times with duration derived from the range, multi-day
+course schedules, attended hours per course on the member detail, and the
+attendance dashboard below the marking section.
+
 ## 0.4.1
 
 Trash details: open any item in the trash bin to inspect its saved record and
