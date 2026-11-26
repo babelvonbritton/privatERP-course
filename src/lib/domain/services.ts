@@ -2,6 +2,7 @@ import { AppError } from "@/lib/errors/AppError";
 import { ValidationError } from "@/lib/storage/Guard";
 import { createId } from "@/lib/storage/utils";
 import { monthRange, todayIso, dateOf } from "@/lib/dates";
+import { dayEndMs, dayStartMs } from "@/lib/timezone";
 import { nextInvoiceNumber, clampPaidAmount, roundMoney, statusAfterPayment } from "@/lib/money";
 import { DAILY_SWITCH_LIMIT, convert, fetchRate, localDateString, setCurrency } from "@/lib/currency";
 import { PREFERENCE_KEYS } from "@/lib/storage/PreferenceService";
@@ -1385,8 +1386,8 @@ export interface DashboardData {
 export class DashboardService extends ServiceBase {
   async get(today: string): Promise<DashboardData> {
     const { start, end } = monthRange(today);
-    const startAt = new Date(`${start}T00:00:00`).getTime();
-    const endAt = new Date(`${end}T23:59:59`).getTime();
+    const startAt = dayStartMs(start);
+    const endAt = dayEndMs(end);
     const [payments, invoices, attendance, members, courses, sessions] = await Promise.all([
       this.storage.payments.listInRange(startAt, endAt),
       this.storage.invoices.all(),

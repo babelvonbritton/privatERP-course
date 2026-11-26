@@ -1,7 +1,3 @@
-# Agent skills
-
-Agent skills for this repo: issue tracker, triage labels, and domain docs.
-
 ## Agent skills
 
 ### Issue tracker

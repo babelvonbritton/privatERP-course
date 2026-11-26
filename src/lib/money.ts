@@ -1,4 +1,4 @@
-import { fractionDigits, getCurrency } from "./currency";
+import { convert, fractionDigits, getCurrency } from "./currency";
 import type { CurrencyCode, InvoiceStatus } from "./domain/types";
 
 /** Money formatted per locale in the current currency: "IDR 150,000" in English, "Rp150.000" in Indonesian. */
@@ -12,12 +12,11 @@ export function formatMoney(amount: number, locale: string, currency: CurrencyCo
 /**
  * Rounds an amount to the currency's precision, the way the converter does.
  * Every money total written to storage goes through this, so 1.10 + 2.20
- * stores 3.30 and never 3.3000000000000003.
+ * stores 3.30 and never 3.3000000000000003. A rate of 1 converts nothing,
+ * so the converter's own rounding is the implementation.
  */
 export function roundMoney(amount: number, currency: CurrencyCode = getCurrency()): number {
-  const digits = fractionDigits(currency);
-  const factor = 10 ** digits;
-  return Math.round(amount * factor) / factor;
+  return convert(amount, 1, currency);
 }
 
 /** Whether two amounts are equal once rounded to the currency's precision. */
