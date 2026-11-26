@@ -2,7 +2,7 @@ import { AppError } from "@/lib/errors/AppError";
 import { ValidationError } from "@/lib/storage/Guard";
 import { createId } from "@/lib/storage/utils";
 import { monthRange, todayIso } from "@/lib/dates";
-import { nextInvoiceNumber, roundMoney, statusAfterPayment } from "@/lib/money";
+import { nextInvoiceNumber, clampPaidAmount, roundMoney, statusAfterPayment } from "@/lib/money";
 import { DAILY_SWITCH_LIMIT, convert, fetchRate, localDateString, setCurrency } from "@/lib/currency";
 import { PREFERENCE_KEYS } from "@/lib/storage/PreferenceService";
 import { actorForProfile, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
@@ -1319,7 +1319,14 @@ export class CurrencyService extends ServiceBase {
           lineItems.reduce((sum, item) => sum + item.amount, 0),
           to,
         );
-        const updated: Invoice = { ...touched(inv, this.now()), lineItems, total, paidAmount: paidByInvoice.get(inv.id) ?? 0 };
+        // Conversion rounding can push the paid amount a cent past the total
+        // or leave a hair under it, so the paid amount is clamped to the
+        // total when the gap is dust and the status is re-derived from the
+        // converted amounts instead of carried over.
+        const paidAmount = clampPaidAmount(paidByInvoice.get(inv.id) ?? 0, total, to);
+        // A draft has no payments, so its status is not derived from them.
+        const status = inv.status === "draft" ? "draft" : statusAfterPayment(total, paidAmount, to);
+        const updated: Invoice = { ...touched(inv, this.now()), lineItems, total, paidAmount, status };
         await this.storage.invoices.put(updated);
       }
       for (const course of await this.storage.courses.all()) {
