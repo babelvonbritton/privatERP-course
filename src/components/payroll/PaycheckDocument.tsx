@@ -107,7 +107,7 @@ export function PaycheckDocument({
     <div
       data-testid="paycheck-document"
       data-attachments-ready={attachmentStatus}
-      style={{ width: "min(640px, 100%)", maxWidth: 640, minWidth: 0, backgroundColor: "#FFFFFF", color: ink, fontFamily: "system-ui, -apple-system, sans-serif", padding: "clamp(16px, 5vw, 32px)", boxSizing: "border-box" }}
+      style={{ width: "min(640px, 100%)", maxWidth: 640, minWidth: 0, backgroundColor: "#FFFFFF", color: ink, fontFamily: "system-ui, -apple-system, sans-serif", padding: "clamp(8px, 3vw, 32px)", boxSizing: "border-box" }}
     >
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, color: accent }}>
@@ -175,14 +175,14 @@ export function PaycheckDocument({
           <p style={{ marginTop: 8, fontSize: 14, color: muted }}>{t("paycheck.noPaidSessions")}</p>
         ) : (
           <div role="region" tabIndex={0} aria-label={t("payroll.paidSessions")} style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${ink}`, textAlign: "left" }}>
-                  <th scope="col" style={{ padding: "8px 4px 8px 0", fontWeight: 600 }}>{t("field.date")}</th>
-                  <th scope="col" style={{ padding: "8px 4px", fontWeight: 600 }}>{t("field.course")}</th>
-                  <th scope="col" style={{ padding: "8px 4px", fontWeight: 600, textAlign: "right" }}>{t("field.duration")}</th>
-                  <th scope="col" style={{ padding: "8px 4px", fontWeight: 600, textAlign: "right" }}>{t("payroll.rate")}</th>
-                  <th scope="col" style={{ padding: "8px 0 8px 4px", fontWeight: 600, textAlign: "right" }}>{t("field.amount")}</th>
+                  <th scope="col" style={{ padding: "8px 2px 8px 0", fontWeight: 600 }}>{t("field.date")}</th>
+                  <th scope="col" style={{ padding: "8px 2px", fontWeight: 600 }}>{t("field.course")}</th>
+                  <th scope="col" style={{ padding: "8px 2px", fontWeight: 600, textAlign: "right" }}>{t("field.duration")}</th>
+                  <th scope="col" style={{ padding: "8px 2px", fontWeight: 600, textAlign: "right" }}>{t("payroll.rate")}</th>
+                  <th scope="col" style={{ padding: "8px 0 8px 2px", fontWeight: 600, textAlign: "right" }}>{t("field.amount")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -190,19 +190,21 @@ export function PaycheckDocument({
                   const hours = sessionDurationHours(s);
                   return (
                     <tr key={s.id} style={{ borderBottom: `1px solid ${line}` }}>
-                      <td style={{ padding: "8px 4px 8px 0", whiteSpace: "nowrap" }}>
-                        {formatDate(s.date, locale)}
-                        {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""}
+                      <td style={{ padding: "8px 2px 8px 0" }}>
+                        <div style={{ whiteSpace: "nowrap" }}>{formatDate(s.date, locale)}</div>
+                        {s.startTime && s.endTime && (
+                          <div style={{ fontSize: 11, color: muted, whiteSpace: "nowrap" }}>{s.startTime}–{s.endTime}</div>
+                        )}
                       </td>
-                      <td style={{ padding: "8px 4px" }}>
+                      <td style={{ padding: "8px 2px" }}>
                         <div style={{ fontWeight: 600 }}>{courseById.get(s.courseId)?.title ?? ""}</div>
                         <div style={{ fontSize: 12, color: muted }}>{s.topic}</div>
                       </td>
-                      <td style={{ padding: "8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "8px 2px", textAlign: "right", whiteSpace: "nowrap" }}>
                         {hours === null ? "-" : t("duration.hours", { hours })}
                       </td>
-                      <td style={{ padding: "8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>{formatMoney(run.ratePerSession, locale)}</td>
-                      <td style={{ padding: "8px 0 8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>{formatMoney(run.ratePerSession, locale)}</td>
+                      <td style={{ padding: "8px 2px", textAlign: "right" }}>{formatMoney(run.ratePerSession, locale)}</td>
+                      <td style={{ padding: "8px 0 8px 2px", textAlign: "right" }}>{formatMoney(run.ratePerSession, locale)}</td>
                     </tr>
                   );
                 })}

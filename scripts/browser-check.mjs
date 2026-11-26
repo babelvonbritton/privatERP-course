@@ -900,8 +900,12 @@ async function desktop(browser) {
       await noOverflow(page, "paycheck paid", 1280);
       await page.getByRole("dialog").last().getByRole("button", { name: "Close", exact: true }).first().click();
     } finally {
-      const close = page.getByRole("button", { name: "Close" });
-      if (await close.count()) await close.first().click().catch(() => {});
+      for (let i = 0; i < 3; i++) {
+        const dialogs = page.getByRole("dialog");
+        if ((await dialogs.count()) === 0) break;
+        await dialogs.last().getByRole("button", { name: "Close", exact: true }).first().click().catch(() => {});
+        await page.waitForTimeout(200);
+      }
     }
     await noOverflow(page, "payroll", 1280);
   });
@@ -1682,15 +1686,20 @@ async function mobileScreensWithData(browser) {
       await page.getByRole("button", { name: "Print paycheck" }).click();
       await page.getByText("Paycheck preview").waitFor();
       const mobileDoc = page.getByRole("dialog").last().getByTestId("paycheck-document");
-      await mobileDoc.getByText("Paid", { exact: true }).waitFor();
+      await mobileDoc.getByText("Draft", { exact: true }).waitFor();
       await mobileDoc.getByText("Budi Santoso").waitFor();
+      if (await mobileDoc.getByText("Paid", { exact: true }).count()) throw new Error("draft paycheck shows Paid");
       await noOverflow(page, "mobile data paycheck", 390);
       await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-paycheck-390.png` });
       await page.getByRole("dialog").last().getByRole("button", { name: "Close", exact: true }).first().click();
       await page.getByRole("button", { name: "Close", exact: true }).last().click();
     } finally {
-      const close = page.getByRole("button", { name: "Close" });
-      if (await close.count()) await close.first().click().catch(() => {});
+      for (let i = 0; i < 3; i++) {
+        const dialogs = page.getByRole("dialog");
+        if ((await dialogs.count()) === 0) break;
+        await dialogs.last().getByRole("button", { name: "Close", exact: true }).first().click().catch(() => {});
+        await page.waitForTimeout(200);
+      }
     }
   });
 
