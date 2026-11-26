@@ -114,6 +114,25 @@ async function pickSelect(page, label, option) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+/** Radix Select with a long list (the 400-plus timezone list): picking by
+ * Playwright click never settles (the option's box keeps moving while the
+ * list scrolls), and keyboard typeahead races the async focus moves, so it
+ * lands on the first match under load. Instead, scroll the option into view
+ * and dispatch a DOM click: the item's click handler selects it, the menu
+ * closes, and no stability check is involved. The final wait confirms the
+ * trigger shows the picked option, which only renders after the save. */
+async function pickLongListOption(page, label, option) {
+  const trigger = page.getByRole("combobox", { name: label, exact: true });
+  await trigger.click();
+  const item = page.getByRole("option", { name: option, exact: true });
+  await item.waitFor({ state: "attached", timeout: 8000 });
+  await item.evaluate((el) => {
+    el.scrollIntoView({ block: "nearest" });
+    el.click();
+  });
+  await trigger.filter({ hasText: option }).waitFor({ timeout: 8000 });
+}
+
 /** TagInput: type a skill into the tagged field and confirm it with Enter. */
 async function addRequiredSkill(page, skill) {
   await page.getByLabel("Required skills", { exact: true }).fill(skill);
@@ -246,6 +265,14 @@ function invoicePrefix() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   return `INV-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+}
+
+/** A zone as shown in the picker: name plus its current UTC offset. */
+function zoneLabel(zone) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+  const match = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(name);
+  if (!match) return `${zone} (UTC+00:00)`;
+  return `${zone} (UTC${match[1]}${match[2].padStart(2, "0")}:${match[3] ?? "00"})`;
 }
 
 const MORE_NAV = new Set(["Trainers", "Attendance", "Payroll", "Trash", "Settings"]);
@@ -959,6 +986,66 @@ async function desktop(browser) {
     await noOverflow(page, "settings profile", 1280);
   });
 
+  await check("desktop: timezone setting picks a zone, persists, and the invoice date follows it", async () => {
+    const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    const deviceLabel = zoneLabel(deviceZone);
+    try {
+      await nav(page, "Settings");
+      await page.getByRole("heading", { name: "Local timezone" }).waitFor();
+      await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
+      // The save is async: wait until the trigger shows the new zone, which
+      // only renders after the preference write lands, before reloading.
+      await page
+        .getByRole("combobox", { name: "Local timezone", exact: true })
+        .filter({ hasText: "Asia/Jakarta (UTC+07:00)" })
+        .waitFor({ timeout: 8000 });
+      // Persists across a reload: the saved zone is still the checked option.
+      await page.reload({ waitUntil: "networkidle" });
+      await nav(page, "Settings");
+      // The section renders the device zone until the saved preference loads;
+      // wait for the saved zone to appear before opening the menu.
+      await page
+        .getByRole("combobox", { name: "Local timezone", exact: true })
+        .filter({ hasText: "Asia/Jakarta (UTC+07:00)" })
+        .waitFor({ timeout: 8000 });
+      await page.getByRole("combobox", { name: "Local timezone", exact: true }).click();
+      const picked = page.getByRole("option", { name: "Asia/Jakarta (UTC+07:00)", exact: true });
+      if ((await picked.getAttribute("data-state")) !== "checked") throw new Error("saved timezone is not the checked option after reload");
+      await page.keyboard.press("Escape");
+      await noOverflow(page, "settings timezone", 1280);
+      // The invoice created now carries the Jakarta day in its number and its printed issue date.
+      await createInvoice(page, "Ayu Lestari", "Timezone check", 100000, false);
+      // The list is newest-first and rows show the member, not the line
+      // description: open the first Ayu row and confirm it is this invoice.
+      await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
+      await page.getByText("Timezone check").first().waitFor();
+      await page.getByRole("button", { name: "Print invoice", exact: true }).click();
+      const doc = page.getByTestId("invoice-document");
+      await doc.waitFor();
+      const docText = (await doc.textContent()) ?? "";
+      const jakartaDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+      if (!docText.includes(`INV-${jakartaDay.replaceAll("-", "")}-`)) {
+        throw new Error(`invoice number does not carry the Jakarta day: ${docText.match(/INV-\d{8}-\d{3}/)?.[0]}`);
+      }
+      const [y, m, d] = jakartaDay.split("-").map(Number);
+      const expectedDate = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(y, m - 1, d));
+      if (!docText.includes(expectedDate)) throw new Error(`printed issue date is not ${expectedDate}`);
+      await noOverflow(page, "printed invoice timezone", 1280);
+    } finally {
+      // Close any open menu first: while a Radix menu is open it hides the
+      // rest of the page from the accessibility tree, so a stuck menu would
+      // make every later check time out on getByRole lookups.
+      await page.keyboard.press("Escape").catch(() => {});
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.last().click().catch(() => {});
+      await page.waitForTimeout(300);
+      if (await close.count()) await close.first().click().catch(() => {});
+      // Restore the device zone so later checks see the usual dates.
+      await nav(page, "Settings").catch(() => {});
+      await pickLongListOption(page, "Local timezone", deviceLabel).catch(() => {});
+    }
+  });
+
   await check("desktop: backup downloads a zip", async () => {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Backup and restore" }).click();
@@ -1196,6 +1283,25 @@ async function mobile(browser) {
       await noOverflow(page, overflowLabel, 390);
     });
   }
+
+  await check("mobile: timezone section fits 390px and saves a pick", async () => {
+    const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    try {
+      await navMobile(page, "Settings");
+      await page.getByRole("heading", { name: "Local timezone" }).waitFor();
+      await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
+      await noOverflow(page, "mobile settings timezone", 390);
+      // Restore the device zone so later mobile checks see the usual dates.
+      await pickLongListOption(page, "Local timezone", zoneLabel(deviceZone));
+      await noOverflow(page, "mobile settings timezone restored", 390);
+    } finally {
+      // Close any open menu first: while a Radix menu is open it hides the
+      // rest of the page from the accessibility tree, so a stuck menu would
+      // make every later check time out on getByRole lookups.
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  });
 
   for (const [moreName, overflowLabel] of [
     ["Trainers", "mobile trainers"],
