@@ -15,7 +15,7 @@ mkdirSync(`${process.env.HOME}/workspace/olaseena-check-shots`, { recursive: tru
 let currentPage = null;
 
 const BASE = process.env.BASE_URL ?? "http://localhost:8901";
-const EXE = `${process.env.HOME}/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome`;
+const EXE = chromium.executablePath();
 
 const results = [];
 let failures = 0;
