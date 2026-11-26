@@ -81,8 +81,11 @@ async function seedEnrolled(s: Services) {
 async function seedSession(s: Services, date = "2026-11-09") {
   const base = await seedEnrolled(s);
   const session = await s.attendance.createSession({ courseId: base.c.id, date, topic: "Scales", trainerId: base.t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
+  await s.attendance.assignSessionAttendees(session.id, [base.m.id], createId());
   const attendance = await s.attendance.mark(session.id, [{ memberId: base.m.id, status: "present" }], createId());
-  return { ...base, session, attendance };
+  // Re-fetch: assigning touched the session, so the create-time object is stale.
+  const stored = await s.attendance.getSession(session.id);
+  return { ...base, session: stored!, attendance };
 }
 
 async function makeInvoice(s: Services, memberId: string, amount = 400000, enrollmentId: string | null = null) {

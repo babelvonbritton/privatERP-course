@@ -1,7 +1,7 @@
 import { countChars, isRealDate, stripControlChars } from "./utils";
 
 /** Thrown when input fails validation; `field` names the offending value. `vars` carries extra values for the translated message, such as the allowed weekdays. */
-export type ValidationKind = "required" | "tooLong" | "invalid" | "notScheduledDay" | "unqualifiedTrainer" | "sessionFull" | "notEnrolled" | "notAssigned";
+export type ValidationKind = "required" | "tooLong" | "invalid" | "notScheduledDay" | "unqualifiedTrainer" | "overCapacity" | "notEnrolled" | "notAssigned";
 
 export class ValidationError extends Error {
   constructor(

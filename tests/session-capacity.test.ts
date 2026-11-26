@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { getServices, resetServices } from "@/lib/domain/services";
 import { resetStorage } from "@/lib/storage";
 import { createId } from "@/lib/storage/utils";
-import { isAttendingStatus, parseSessionCapacity, sessionCapacity } from "@/lib/domain/types";
+import { parseSessionCapacity, sessionCapacity } from "@/lib/domain/types";
 
 async function freshServices() {
   await resetStorage();
@@ -66,76 +66,69 @@ const sessionOn = (courseId: string, trainerId: string, date: string, topic: str
   idempotencyKey: createId(),
 });
 
-async function expectSessionFull(promise: Promise<unknown>, attending: number, capacity: number) {
+async function expectOverCapacity(promise: Promise<unknown>, count: number, capacity: number) {
   try {
     await promise;
-    expect.unreachable("marking past the cap must be rejected");
+    expect.unreachable("assigning past the cap must be rejected");
   } catch (e) {
     const err = e as { kind?: string; vars?: Record<string, string | number> };
-    expect(err?.kind).toBe("sessionFull");
-    expect(err?.vars?.attending).toBe(attending);
+    expect(err?.kind).toBe("overCapacity");
+    expect(err?.vars?.count).toBe(count);
     expect(err?.vars?.capacity).toBe(capacity);
   }
 }
 
 describe("session capacity", () => {
-  it("cap reached rejects the next attending mark and leaves nothing half-saved", async () => {
+  it("assignment over capacity is rejected at the service layer and stores nothing", async () => {
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
-    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
-    await expectSessionFull(
-      s.attendance.mark(session.id, [{ memberId: members[1].id, status: "present" }], createId()),
+    await expectOverCapacity(
+      s.attendance.assignSessionAttendees(session.id, [members[0].id, members[1].id], createId()),
       2,
       1,
     );
-    const rows = await s.attendance.listAttendance(session.id);
-    expect(rows.map((r) => `${r.memberId}:${r.status}`)).toEqual([`${members[0].id}:present`]);
+    const stored = await s.attendance.getSession(session.id);
+    expect(stored?.attendeeMemberIds ?? null).toBeNull();
   });
 
-  it("absent does not count toward the cap, and late does", async () => {
+  it("assignment within capacity works", async () => {
     const { s, t, course, members } = await seed();
-    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
-    await s.attendance.mark(session.id, [{ memberId: members[1].id, status: "absent" }], createId());
-    await s.attendance.mark(session.id, [{ memberId: members[2].id, status: "absent" }], createId());
-    // Only absent marks so far: a late mark still fits.
-    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "late" }], createId());
-    await expectSessionFull(
-      s.attendance.mark(session.id, [{ memberId: members[1].id, status: "present" }], createId()),
-      2,
-      1,
-    );
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 2));
+    const updated = await s.attendance.assignSessionAttendees(session.id, [members[0].id, members[1].id], createId());
+    expect(updated.attendeeMemberIds).toEqual([members[0].id, members[1].id]);
   });
 
-  it("switching a member to absent frees their place", async () => {
-    const { s, t, course, members } = await seed();
-    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
-    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
-    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "absent" }], createId());
-    const rows = await s.attendance.mark(session.id, [{ memberId: members[1].id, status: "present" }], createId());
-    expect(rows.find((r) => r.memberId === members[1].id)?.status).toBe("present");
-  });
-
-  it("a batch that would overflow is rejected whole", async () => {
-    const { s, t, course, members } = await seed();
-    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
-    await expectSessionFull(
-      s.attendance.mark(
-        session.id,
-        [
-          { memberId: members[0].id, status: "present" },
-          { memberId: members[1].id, status: "present" },
-        ],
-        createId(),
-      ),
-      2,
-      1,
-    );
-    expect(await s.attendance.listAttendance(session.id)).toEqual([]);
-  });
-
-  it("a session with no capacity is uncapped", async () => {
+  it("a session with no capacity takes any number of assignees", async () => {
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Open"));
+    const updated = await s.attendance.assignSessionAttendees(session.id, members.map((m) => m.id), createId());
+    expect(updated.attendeeMemberIds).toEqual(members.map((m) => m.id));
+  });
+
+  it("marking an unassigned session is rejected: it hands nothing to attendance", async () => {
+    // An unassigned session has an empty effective list, so marking any
+    // enrolled member is refused with notAssigned and no rows are stored.
+    // This closes the old edge case where an unassigned session could be
+    // marked past its capacity.
+    const { s, t, course, members } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
+    try {
+      await s.attendance.mark(
+        session.id,
+        members.map((m) => ({ memberId: m.id, status: "present" as const })),
+        createId(),
+      );
+      expect.unreachable("marking an unassigned session must be rejected");
+    } catch (e) {
+      expect((e as { kind?: string }).kind).toBe("notAssigned");
+    }
+    expect(await s.attendance.listAttendance(session.id)).toHaveLength(0);
+  });
+
+  it("a session with no capacity is uncapped once its members are assigned", async () => {
+    const { s, t, course, members } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Open"));
+    await s.attendance.assignSessionAttendees(session.id, members.map((m) => m.id), createId());
     const rows = await s.attendance.mark(
       session.id,
       members.map((m) => ({ memberId: m.id, status: "present" as const })),
@@ -165,8 +158,5 @@ describe("session capacity", () => {
     expect(sessionCapacity({})).toBeNull();
     expect(sessionCapacity({ capacity: null })).toBeNull();
     expect(sessionCapacity({ capacity: 0 })).toBeNull();
-    expect(isAttendingStatus("present")).toBe(true);
-    expect(isAttendingStatus("late")).toBe(true);
-    expect(isAttendingStatus("absent")).toBe(false);
   });
 });

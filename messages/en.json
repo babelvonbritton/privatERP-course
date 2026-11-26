@@ -43,7 +43,7 @@
     "newSession": "New session",
     "nextPage": "Next",
     "noData": "No attendance records yet.",
-    "noEnrollments": "No members are enrolled in this course yet.",
+    "noAssignedMembers": "No member assigned to this session.",
     "page": "Page {page} of {pages}",
     "pickCourse": "Choose a course",
     "pickSession": "Choose a session",
@@ -462,7 +462,7 @@
       "dashboardDesc": "Below the marking form, totals per member and course, plus a Trainers tab for how much each trainer taught. Filter by trainer, member, or course.",
       "intro": "Attendance is the record of who showed up. It feeds the payroll, so mark it carefully.",
       "mark": "Mark who came",
-      "markDesc": "For each member listed for the session — the assigned members, or all enrolled members when nobody is assigned — choose Present, Absent, or Late. Also mark whether the trainer was there.",
+      "markDesc": "For each member assigned to the session, choose Present, Absent, or Late. A session with nobody assigned cannot be marked. Also mark whether the trainer was there.",
       "sessions": "Pick or create a session",
       "sessionsDesc": "Choose a course, then a session date and time range. If the session does not exist yet, create it first.",
       "title": "What you can do with attendance",
@@ -479,7 +479,7 @@
       "intro": "Courses are what you teach. Each one has required skills, a schedule, and a price.",
       "title": "What you can do with courses",
       "assign": "Assign who attends a session",
-      "assignDesc": "In the Sessions section below the course table, tick the members who will attend a session. Leave everyone unticked for all enrolled members. Attendance then only checks the listed members."
+      "assignDesc": "In the Sessions section below the course table, tick the members who will attend a session. Attendance only checks the listed members, and a session with nobody assigned cannot be marked."
     },
     "dashboard": {
       "intro": "The dashboard is your overview. It shows money, attendance, and what is coming next, all computed from your data.",
@@ -784,13 +784,14 @@
     "noRequiredSkills": "No required skills. Any trainer can teach this session.",
     "title": "Sessions",
     "trainerMatches": "Matches {count} of {required} required skills",
-    "attendingCount": "{attending} of {capacity} attending",
     "assign": "Assign members",
     "assignTitle": "Who attends this session",
-    "assignHint": "Leave everyone unchecked for all enrolled members.",
-    "allEnrolled": "All enrolled members",
+    "assignHint": "Tick the members who will attend. Untick everyone to clear the assignment.",
+    "assignAtCapacity": "This session allows at most {capacity, plural, one {1 member} other {# members}}.",
+    "notAssigned": "No members assigned yet",
     "assigned": "Assigned: {names}",
     "assignedCount": "{count} members assigned",
+    "selectAll": "Select all",
     "pending": "Sessions to mark",
     "pendingEmpty": "No sessions waiting to be marked. Once a session is marked, it leaves this list."
   },
@@ -910,7 +911,7 @@
     "skip": "Skip tour",
     "step": {
       "attendance": {
-        "body": "This is where you record who showed up (attendance). Pick a session, mark each listed member — the members assigned to the session, or all enrolled members when nobody is assigned — Present, Absent, or Late, and mark whether the trainer was there. Sessions where the trainer was present count toward their pay. Below the marking, a dashboard totals attendance per member and course, with a Trainers tab for how much each trainer taught.",
+        "body": "This is where you record who showed up (attendance). Pick a session, mark each assigned member Present, Absent, or Late, and mark whether the trainer was there. A session with nobody assigned cannot be marked. Sessions where the trainer was present count toward their pay. Below the marking, a dashboard totals attendance per member and course, with a Trainers tab for how much each trainer taught.",
         "title": "Attendance"
       },
       "courses": {
@@ -987,7 +988,7 @@
     "time": "{field} must be a time like 09:00.",
     "tooLong": "{field} can have at most {limit} characters.",
     "unqualifiedTrainer": "{field} does not teach any of the skills this course requires: {skills}.",
-    "sessionFull": "This session is full: {attending} of {capacity} places are already taken.",
+    "overCapacity": "Cannot assign {count} members: this session allows at most {capacity}.",
     "notEnrolled": "{field} is not enrolled in this course.",
     "notAssigned": "{field} is not on this session's attendee list."
   },

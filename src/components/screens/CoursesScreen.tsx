@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today } from "@/lib/domain/services";
 import type { Course, CourseStatus, CurrencyCode, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { allSkills, courseRequiredSkills, courseWeekdays, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
+import { allSkills, courseRequiredSkills, courseWeekdays, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionCapacity, sessionDurationHours, timeToMinutes } from "@/lib/domain/types";
 import { formatMoney } from "@/lib/money";
 import { fractionDigits, getCurrency, hasCurrencyPrecision, subscribeCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/dates";
@@ -82,7 +82,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [sessionTopic, setSessionTopic] = useState("");
   const [sessionStart, setSessionStart] = useState("09:00");
   const [sessionEnd, setSessionEnd] = useState("10:00");
-  const [sessionCapacity, setSessionCapacity] = useState("");
+  const [detailSessionCapacity, setDetailSessionCapacity] = useState("");
   const [sessionTrainerId, setSessionTrainerId] = useState("");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
@@ -458,7 +458,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setSessionError(t("validation.required", { field: t("field.trainer") }));
       return;
     }
-    const capacity = parseSessionCapacity(sessionCapacity);
+    const capacity = parseSessionCapacity(detailSessionCapacity);
     if (capacity === undefined) {
       setSessionError(t("validation.positive", { field: t("field.capacity") }));
       return;
@@ -479,7 +479,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       setShowSessionForm(false);
       setSessionTopic("");
       setSessionDate(today());
-      setSessionCapacity("");
+      setDetailSessionCapacity("");
       setSessionTrainerId("");
       setSessionError(null);
       await loadDetail(selected.id);
@@ -591,6 +591,11 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                 const assignedNames = (assigned ?? []).map((id) => memberName(id)).filter((n) => n !== "");
                 const enrolled = enrolledForCourse(s.courseId);
                 const assignOpen = assignSessionId === s.id;
+                const cap = sessionCapacity(s);
+                // Once the selection reaches the session's cap, members not
+                // yet selected cannot be added; checked members can still be
+                // removed, and the service re-checks the cap on save.
+                const atCap = cap !== null && assignChecked.length >= cap;
                 return (
                   <li key={s.id} className="flex flex-col gap-2 px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -605,7 +610,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                         </p>
                         <p className="text-xs text-muted">
                           {assigned === null
-                            ? t("session.allEnrolled")
+                            ? t("session.notAssigned")
                             : assignedNames.length > 0
                               ? t("session.assigned", { names: assignedNames.join(", ") })
                               : t("session.assignedCount", { count: assigned.length })}
@@ -632,14 +637,28 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                       <fieldset id={`assign-${s.id}`} className="rounded-card border border-line bg-canvas p-3">
                         <legend className="px-1 text-sm font-medium text-ink">{t("session.assignTitle")}</legend>
                         <p className="text-xs text-muted">{t("session.assignHint")}</p>
+                        {atCap && cap !== null && (
+                          <p role="status" className="mt-1 text-xs text-muted">{t("session.assignAtCapacity", { capacity: cap })}</p>
+                        )}
+                        <div className="mt-2 flex">
+                          <Button
+                            variant="ghost"
+                            className="max-sm:min-h-11"
+                            onClick={() => setAssignChecked(enrolled.slice(0, cap ?? enrolled.length).map((m) => m.id))}
+                          >
+                            {t("session.selectAll")}
+                          </Button>
+                        </div>
                         <div className="mt-1 flex flex-col">
                           {enrolled.map((m) => {
                             const checked = assignChecked.includes(m.id);
+                            const rowDisabled = atCap && !checked;
                             return (
-                              <label key={m.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink">
+                              <label key={m.id} className={`flex min-h-11 items-center gap-2.5 text-sm text-ink ${rowDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
                                 <input
                                   type="checkbox"
                                   checked={checked}
+                                  disabled={rowDisabled}
                                   onChange={() => setAssignChecked((prev) => (checked ? prev.filter((id) => id !== m.id) : [...prev, m.id]))}
                                   className="size-4 shrink-0 accent-plum-600"
                                 />
@@ -952,7 +971,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                     </Field>
                   </div>
                   <Field label={t("field.capacity")} htmlFor="session-capacity" hint={t("hint.sessionCapacity")}>
-                    <input id="session-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={sessionCapacity} onChange={(e) => setSessionCapacity(e.target.value)} />
+                    <input id="session-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={detailSessionCapacity} onChange={(e) => setDetailSessionCapacity(e.target.value)} />
                   </Field>
                   <Field label={t("field.trainer")}>
                     <TrainerPicker
@@ -1006,7 +1025,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                             </p>
                             <p className="text-xs text-muted">
                               {assigned === null
-                                ? t("session.allEnrolled")
+                                ? t("session.notAssigned")
                                 : assignedNames.length > 0
                                   ? t("session.assigned", { names: assignedNames.join(", ") })
                                   : t("session.assignedCount", { count: assigned.length })}

@@ -82,18 +82,18 @@ async function expectValidationKind(promise: Promise<unknown>, kind: string) {
 }
 
 describe("session attendee assignment", () => {
-  it("a new session starts unassigned and covers every enrolled member", async () => {
+  it("a new session starts unassigned and hands nothing to attendance", async () => {
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Open"));
     expect(session.attendeeMemberIds ?? null).toBeNull();
     expect(sessionAttendees(session)).toBeNull();
-    expect(sessionEffectiveAttendees(session, members.map((m) => m.id))).toEqual(members.map((m) => m.id));
-    const rows = await s.attendance.mark(
-      session.id,
-      members.map((m) => ({ memberId: m.id, status: "present" as const })),
-      createId(),
+    expect(sessionEffectiveAttendees(session, members.map((m) => m.id))).toEqual([]);
+    // Marking anyone is refused: the session has no attendee list yet.
+    await expectValidationKind(
+      s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId()),
+      "notAssigned",
     );
-    expect(rows).toHaveLength(3);
+    expect(await s.attendance.listAttendance(session.id)).toHaveLength(0);
   });
 
   it("assigning members stores the list and narrows the effective list", async () => {
@@ -112,7 +112,7 @@ describe("session attendee assignment", () => {
     await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
     const cleared = await s.attendance.assignSessionAttendees(session.id, [], createId());
     expect(cleared.attendeeMemberIds).toBeNull();
-    expect(sessionEffectiveAttendees(cleared, members.map((m) => m.id))).toEqual(members.map((m) => m.id));
+    expect(sessionEffectiveAttendees(cleared, members.map((m) => m.id))).toEqual([]);
   });
 
   it("assigning a member who is not enrolled is rejected and changes nothing", async () => {
@@ -137,6 +137,24 @@ describe("session attendee assignment", () => {
     const rows = await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
     expect(rows).toHaveLength(1);
     expect(await s.attendance.listAttendance(session.id)).toHaveLength(1);
+  });
+
+  it("a member with an existing row stays markable after the assignment is cleared", async () => {
+    const { s, t, course, members } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Assigned"));
+    await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
+    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
+    // Clearing the assignment hands nothing new to marking, but the member
+    // who already has a row keeps theirs: the old mark stays visible and
+    // can still be changed.
+    await s.attendance.assignSessionAttendees(session.id, [], createId());
+    const rows = await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "late" }], createId());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("late");
+    await expectValidationKind(
+      s.attendance.mark(session.id, [{ memberId: members[1].id, status: "present" }], createId()),
+      "notAssigned",
+    );
   });
 
   it("marking a member who is not enrolled is rejected", async () => {
@@ -164,20 +182,19 @@ describe("session attendee assignment", () => {
     );
   });
 
-  it("the capacity cap still applies to an assigned session", async () => {
+  it("assigning past the capacity is rejected, and marking the assigned members works", async () => {
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
-    await s.attendance.assignSessionAttendees(session.id, [members[0].id, members[1].id], createId());
-    await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
-    try {
-      await s.attendance.mark(session.id, [{ memberId: members[1].id, status: "present" }], createId());
-      expect.unreachable("marking past the cap must be rejected");
-    } catch (e) {
-      const err = e as { kind?: string; vars?: Record<string, string | number> };
-      expect(err?.kind).toBe("sessionFull");
-      expect(err?.vars?.attending).toBe(2);
-      expect(err?.vars?.capacity).toBe(1);
-    }
+    // The cap bites at assignment: two members into a one-place session is
+    // refused and the session stays unassigned.
+    await expectValidationKind(
+      s.attendance.assignSessionAttendees(session.id, [members[0].id, members[1].id], createId()),
+      "overCapacity",
+    );
+    expect((await s.attendance.getSession(session.id))?.attendeeMemberIds ?? null).toBeNull();
+    await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
+    const rows = await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
+    expect(rows).toHaveLength(1);
   });
 
   it("a legacy session row without the field loads as unassigned, with no Dexie migration", async () => {
@@ -203,13 +220,13 @@ describe("session attendee assignment", () => {
     const loaded = await s.attendance.getSession(legacy.id);
     expect(loaded).toBeDefined();
     expect(sessionAttendees(loaded!)).toBeNull();
-    expect(sessionEffectiveAttendees(loaded!, members.map((m) => m.id))).toEqual(members.map((m) => m.id));
-    const rows = await s.attendance.mark(
-      legacy.id,
-      members.map((m) => ({ memberId: m.id, status: "present" as const })),
-      createId(),
+    expect(sessionEffectiveAttendees(loaded!, members.map((m) => m.id))).toEqual([]);
+    // A legacy unassigned session hands nothing to marking either.
+    await expectValidationKind(
+      s.attendance.mark(legacy.id, [{ memberId: members[0].id, status: "present" }], createId()),
+      "notAssigned",
     );
-    expect(rows).toHaveLength(3);
+    expect(await s.attendance.listAttendance(legacy.id)).toHaveLength(0);
   });
 
   it("helpers: missing or null means unassigned, duplicates and blanks are dropped", () => {
@@ -218,7 +235,7 @@ describe("session attendee assignment", () => {
     expect(sessionAttendees({ attendeeMemberIds: ["a", "b", "a", "", "c"] })).toEqual(["a", "b", "c"]);
     // A malformed row (not a list at all) is tolerated at runtime, like the capacity helper does.
     expect(sessionAttendees({ attendeeMemberIds: "not-a-list" } as never)).toBeNull();
-    expect(sessionEffectiveAttendees({}, ["a", "b"])).toEqual(["a", "b"]);
+    expect(sessionEffectiveAttendees({}, ["a", "b"])).toEqual([]);
     expect(sessionEffectiveAttendees({ attendeeMemberIds: ["b", "gone"] }, ["a", "b"])).toEqual(["b"]);
   });
 });
@@ -296,9 +313,11 @@ describe("unmarked sessions", () => {
     expect(pending.map((x) => x.topic)).toEqual(["Past", "Soon", "Later"]);
     // One mark is enough: the service accepts partial marks, so done means
     // at least one attendance row, not a full batch.
+    await s.attendance.assignSessionAttendees(soon.id, [members[0].id], createId());
     await s.attendance.mark(soon.id, [{ memberId: members[0].id, status: "present" }], createId());
     pending = await s.attendance.listUnmarkedSessions();
     expect(pending.map((x) => x.topic)).toEqual(["Past", "Later"]);
+    await s.attendance.assignSessionAttendees(past.id, members.map((m) => m.id), createId());
     await s.attendance.mark(
       past.id,
       members.map((m) => ({ memberId: m.id, status: "present" as const })),
@@ -310,7 +329,7 @@ describe("unmarked sessions", () => {
 });
 
 describe("course menu session list", () => {
-  it("assigns members from the Sessions section below the course table and returns to all enrolled when all are unchecked", async () => {
+  it("assigns members from the Sessions section below the course table and returns to unassigned when all are unchecked", async () => {
     const { s, t, course } = await seed();
     await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
     const { container } = render(
@@ -321,11 +340,11 @@ describe("course menu session list", () => {
     const scope = within(container);
     await scope.findByRole("region", { name: "Courses" }, { timeout: 3000 });
     const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
-    // The row names the course it belongs to, and a fresh session lists every enrolled member.
+    // The row names the course it belongs to, and a fresh session has nobody assigned.
     await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
     expect(within(pending).getByText("Piano")).toBeTruthy();
-    expect(within(pending).getByText("All enrolled members")).toBeTruthy();
-    fireEvent.click(within(pending).getByRole("button", { name: "Assign members" }));
+    expect(within(pending).getByText("No members assigned yet")).toBeTruthy();
+    fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
     expect(within(pending).getByRole("checkbox", { name: "Ana" })).toBeTruthy();
     expect(within(pending).getByRole("checkbox", { name: "Budi" })).toBeTruthy();
     expect(within(pending).getByRole("checkbox", { name: "Cici" })).toBeTruthy();
@@ -333,17 +352,84 @@ describe("course menu session list", () => {
     fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
     await within(pending).findByText("Assigned: Ana", {}, { timeout: 3000 });
     // Unchecking the only assigned member returns the session to unassigned.
-    fireEvent.click(within(pending).getByRole("button", { name: "Assign members" }));
+    fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
     expect((within(pending).getByRole("checkbox", { name: "Ana" }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(within(pending).getByRole("checkbox", { name: "Ana" }));
     fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
-    await within(pending).findByText("All enrolled members", {}, { timeout: 3000 });
+    await within(pending).findByText("No members assigned yet", {}, { timeout: 3000 });
+  });
+
+  it("the assign picker disables further members once the session's capacity is reached", async () => {
+    const { s, t, course } = await seed();
+    await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    await within(pending).findByText(/Capped/, {}, { timeout: 3000 });
+    // The Assign button only renders once the enrollments have loaded,
+    // after the session row appears, so wait for the button itself.
+    fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
+    const ana = within(pending).getByRole("checkbox", { name: "Ana" }) as HTMLInputElement;
+    const budi = within(pending).getByRole("checkbox", { name: "Budi" }) as HTMLInputElement;
+    expect(budi.disabled).toBe(false);
+    fireEvent.click(ana);
+    expect(budi.disabled).toBe(true);
+    expect(within(pending).getByText("This session allows at most 1 member.")).toBeTruthy();
+    // Unchecking frees the place again.
+    fireEvent.click(ana);
+    expect(budi.disabled).toBe(false);
+  });
+
+  it("Select all picks every enrolled member when the session has no capacity", async () => {
+    const { s, t, course } = await seed();
+    await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Open"));
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    await within(pending).findByText(/Open/, {}, { timeout: 3000 });
+    fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
+    fireEvent.click(within(pending).getByRole("button", { name: "Select all" }));
+    for (const name of ["Ana", "Budi", "Cici"]) {
+      expect((within(pending).getByRole("checkbox", { name }) as HTMLInputElement).checked).toBe(true);
+    }
+    fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
+    await within(pending).findByText("Assigned: Ana, Budi, Cici", {}, { timeout: 3000 });
+  });
+
+  it("Select all stops at the capacity when one is set, and the cap is shown", async () => {
+    const { s, t, course } = await seed();
+    await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions to mark" }, { timeout: 3000 });
+    await within(pending).findByText(/Capped/, {}, { timeout: 3000 });
+    fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
+    fireEvent.click(within(pending).getByRole("button", { name: "Select all" }));
+    expect((within(pending).getByRole("checkbox", { name: "Ana" }) as HTMLInputElement).checked).toBe(true);
+    expect((within(pending).getByRole("checkbox", { name: "Budi" }) as HTMLInputElement).checked).toBe(false);
+    expect((within(pending).getByRole("checkbox", { name: "Budi" }) as HTMLInputElement).disabled).toBe(true);
+    expect(within(pending).getByText("This session allows at most 1 member.")).toBeTruthy();
+    fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
+    await within(pending).findByText("Assigned: Ana", {}, { timeout: 3000 });
   });
 
   it("a marked session leaves the section and an unmarked one stays, in date order", async () => {
     const { s, t, course, members } = await seed();
     const marked = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Marked"));
     await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-16", "Waiting"));
+    await s.attendance.assignSessionAttendees(marked.id, members.map((m) => m.id), createId());
     await s.attendance.mark(
       marked.id,
       members.map((m) => ({ memberId: m.id, status: "present" as const })),
@@ -387,7 +473,7 @@ describe("course menu session list", () => {
     const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
     // The detail still lists the course's sessions, with the assigned status, but no assign control.
     await within(dialog).findByText(/Scales/, {}, { timeout: 3000 });
-    expect(within(dialog).getByText("All enrolled members")).toBeTruthy();
+    expect(within(dialog).getByText("No members assigned yet")).toBeTruthy();
     expect(within(dialog).queryByRole("button", { name: "Assign members" })).toBeNull();
   });
 });

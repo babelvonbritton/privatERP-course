@@ -97,6 +97,7 @@ describe("services", () => {
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     const session = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: false, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     await s.attendance.setTrainerPresent(session.id, true, createId());
+    await s.attendance.assignSessionAttendees(session.id, [m.id], createId());
     await s.attendance.mark(session.id, [{ memberId: m.id, status: "present" }], createId());
     const run = await s.payroll.generate({ trainerId: t.id, periodStart: "2026-11-01", periodEnd: "2026-11-30", idempotencyKey: createId() });
     expect(run.sessionCount).toBe(1);
@@ -115,6 +116,8 @@ describe("services", () => {
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
     const present = await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     const absent = await s.attendance.createSession({ courseId: c.id, date: "2026-11-16", topic: "Arpeggios", trainerId: t.id, trainerPresent: false, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
+    await s.attendance.assignSessionAttendees(present.id, [m.id], createId());
+    await s.attendance.assignSessionAttendees(absent.id, [m.id], createId());
     await s.attendance.mark(present.id, [{ memberId: m.id, status: "present" }], createId());
     await s.attendance.mark(absent.id, [{ memberId: m.id, status: "present" }], createId());
     const run = await s.payroll.generate({ trainerId: t.id, periodStart: "2026-11-01", periodEnd: "2026-11-30", idempotencyKey: createId() });
@@ -351,6 +354,7 @@ describe("session times, weekdays, and attended hours", () => {
     const s2 = await s.attendance.createSession(makeSession(piano.id, t.id, "2026-11-11", "Two", "09:00", "10:30"));
     const s3 = await s.attendance.createSession(makeSession(piano.id, t.id, "2026-11-18", "Three", "09:00", "09:45"));
     const g1 = await s.attendance.createSession(makeSession(guitar.id, t.id, "2026-11-10", "Strings", "09:00", "10:30"));
+    for (const sess of [s1, s2, s3, g1]) await s.attendance.assignSessionAttendees(sess.id, [m.id], createId());
     await s.attendance.mark(s1.id, [{ memberId: m.id, status: "present" }], createId());
     await s.attendance.mark(s2.id, [{ memberId: m.id, status: "late" }], createId());
     await s.attendance.mark(s3.id, [{ memberId: m.id, status: "absent" }], createId());
@@ -377,6 +381,9 @@ describe("session times, weekdays, and attended hours", () => {
     const p1 = await s.attendance.createSession(makeSession(piano.id, budi.id, "2026-11-09", "One", "09:00", "10:30"));
     const p2 = await s.attendance.createSession(makeSession(piano.id, budi.id, "2026-11-16", "Two", "09:00", "10:30"));
     const g1 = await s.attendance.createSession(makeSession(guitar.id, siti.id, "2026-11-10", "Strings", "09:00", "09:45"));
+    await s.attendance.assignSessionAttendees(p1.id, [ana.id, ben.id], createId());
+    await s.attendance.assignSessionAttendees(p2.id, [ana.id, ben.id], createId());
+    await s.attendance.assignSessionAttendees(g1.id, [ana.id], createId());
     await s.attendance.mark(p1.id, [{ memberId: ana.id, status: "present" }, { memberId: ben.id, status: "absent" }], createId());
     await s.attendance.mark(p2.id, [{ memberId: ana.id, status: "late" }, { memberId: ben.id, status: "present" }], createId());
     await s.attendance.mark(g1.id, [{ memberId: ana.id, status: "present" }], createId());

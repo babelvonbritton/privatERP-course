@@ -64,7 +64,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, isAttendingStatus, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, trainerSkillMatchCount } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -607,7 +607,9 @@ export class AttendanceService extends ServiceBase {
   /**
    * Assigns which members attend a session. Every assigned member must hold
    * an active enrollment in the session's course; an empty list clears the
-   * assignment back to unassigned, so every enrolled member attends.
+   * assignment back to unassigned, so every enrolled member attends. The
+   * session's capacity is the assignment limit: assigning more members than
+   * the session allows is rejected here, never at marking.
    */
   async assignSessionAttendees(sessionId: string, memberIds: string[], idempotencyKey: string): Promise<Session> {
     requireCan(this.actor, "session.update");
@@ -619,6 +621,10 @@ export class AttendanceService extends ServiceBase {
     const unique = [...new Set(memberIds.filter((id) => typeof id === "string" && id !== ""))];
     for (const id of unique) {
       if (!enrolledIds.has(id)) throw new ValidationError("memberId", "member is not enrolled in this course", "notEnrolled");
+    }
+    const cap = sessionCapacity(session);
+    if (cap !== null && unique.length > cap) {
+      throw new ValidationError("memberId", "too many members for this session's capacity", "overCapacity", undefined, { count: unique.length, capacity: cap });
     }
     return this.db.transaction("rw", [this.db.sessions, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(idempotencyKey, "session");
@@ -672,8 +678,10 @@ export class AttendanceService extends ServiceBase {
 
   /**
    * Marks attendance for one session. Every member listed must be on the
-   * session's effective list: its assigned members when assigned, otherwise
-   * every member holding an active enrollment in the session's course.
+   * session's list: its assigned members who are still enrolled, plus any
+   * member who already has an attendance row for the session (so a session
+   * marked before assignment was required keeps its marks). An unassigned
+   * session with no rows has an empty list, so nothing can be marked for it.
    */
   async mark(sessionId: string, marks: Array<{ memberId: string; status: AttendanceStatus }>, idempotencyKey: string): Promise<Attendance[]> {
     requireCan(this.actor, "attendance.mark");
@@ -683,10 +691,11 @@ export class AttendanceService extends ServiceBase {
     const enrolled = await this.storage.enrollments.listActiveByCourse(session.courseId);
     const enrolledIds = new Set(enrolled.map((e) => e.memberId));
     const effective = new Set(sessionEffectiveAttendees(session, enrolled.map((e) => e.memberId)));
+    const alreadyMarked = new Set((await this.storage.attendance.listBySession(sessionId)).map((r) => r.memberId));
     for (const m of marks) {
       const data = parseInput(attendanceInput, { sessionId, memberId: m.memberId, status: m.status, idempotencyKey });
       if (!enrolledIds.has(m.memberId)) throw new ValidationError("memberId", "member is not enrolled in this course", "notEnrolled");
-      if (!effective.has(m.memberId)) throw new ValidationError("memberId", "member is not on this session's attendee list", "notAssigned");
+      if (!effective.has(m.memberId) && !alreadyMarked.has(m.memberId)) throw new ValidationError("memberId", "member is not on this session's attendee list", "notAssigned");
     }
     return this.db.transaction("rw", [this.db.attendance, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(idempotencyKey, "attendance-batch");
@@ -694,19 +703,8 @@ export class AttendanceService extends ServiceBase {
         const existing = await this.storage.attendance.listBySession(sessionId);
         if (existing.length > 0) return existing;
       }
-      // A capped session counts present + late marks only: absent never takes
-      // a place. The check runs on the marks as they would land, so switching
-      // a member to absent frees their place, and a batch that would overflow
-      // is rejected whole instead of half-applied.
-      const cap = sessionCapacity(session);
-      if (cap !== null) {
-        const byMember = new Map((await this.storage.attendance.listBySession(sessionId)).map((r) => [r.memberId, r.status]));
-        for (const m of marks) byMember.set(m.memberId, m.status);
-        const attending = [...byMember.values()].filter(isAttendingStatus).length;
-        if (attending > cap) {
-          throw new ValidationError("capacity", "session is full", "sessionFull", undefined, { attending, capacity: cap });
-        }
-      }
+      // The cap lives at assignment, not here: marking covers exactly the
+      // members on the session's list, however many that is.
       const now = this.now();
       const out: Attendance[] = [];
       for (const m of marks) {

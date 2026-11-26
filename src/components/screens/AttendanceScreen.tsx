@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices, today, type AttendanceDashboardSummary, type TrainerDashboardSummary } from "@/lib/domain/services";
 import type { AttendanceStatus, Course, Enrollment, Member, Session, Trainer } from "@/lib/domain/types";
-import { courseRequiredSkills, courseWeekdays, isAttendingStatus, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes } from "@/lib/domain/types";
+import { courseRequiredSkills, courseWeekdays, isDateOnSchedule, parseSessionCapacity, rankTrainersForCourse, sessionAttendees, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
@@ -70,11 +70,6 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
     const hours = sessionDurationHours(s);
     return hours === null ? ` ${s.startTime}–${s.endTime}` : ` ${s.startTime}–${s.endTime} (${t("duration.hours", { hours })})`;
   };
-
-  /** Pending attending count against the open session's cap, for the marking UI. */
-  const markingCap = session ? sessionCapacity(session) : null;
-  const attendingCount = useMemo(() => Object.values(marks).filter(isAttendingStatus).length, [marks]);
-  const capReached = markingCap !== null && attendingCount >= markingCap;
 
   const loadDashboard = useCallback(
     async (trainerId: string, memberId: string, courseIdValue: string) => {
@@ -175,30 +170,19 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       const active = allEnrollments.filter((e) => e.status === "active");
       setSession(found ?? null);
       setTrainerPresent(found?.trainerPresent ?? false);
-      // The marking list is the session's assigned members when assigned,
-      // otherwise every enrolled member. Assigned members who left the
-      // course drop out of the list.
-      const effectiveIds = found ? new Set(sessionEffectiveAttendees(found, active.map((a) => a.memberId))) : null;
-      const listed = effectiveIds === null ? active : active.filter((e) => effectiveIds.has(e.memberId));
+      // The marking list is the session's assigned members who are still
+      // enrolled, plus any member who already has an attendance row for
+      // this session (so a session marked before assignment was required
+      // keeps its marks). An unassigned session with no rows lists nobody.
+      const effectiveIds = found ? new Set(sessionEffectiveAttendees(found, active.map((a) => a.memberId))) : new Set<string>();
+      const rowIds = new Set(rows.map((r) => r.memberId));
+      const listed = active.filter((e) => effectiveIds.has(e.memberId) || rowIds.has(e.memberId));
       setEnrollments(listed);
       const saved = new Map(rows.map((r) => [r.memberId, r.status]));
       const next: Record<string, AttendanceStatus> = {};
-      // Unmarked members default to present, but only up to the session cap:
-      // the rest start absent, so the form never opens already over the cap.
-      const cap = found ? sessionCapacity(found) : null;
-      let attending = 0;
-      for (const e of listed) {
-        const savedMark = saved.get(e.memberId);
-        if (savedMark) {
-          next[e.memberId] = savedMark;
-          if (isAttendingStatus(savedMark)) attending++;
-        } else if (cap === null || attending < cap) {
-          next[e.memberId] = "present";
-          attending++;
-        } else {
-          next[e.memberId] = "absent";
-        }
-      }
+      // Unmarked members default to present; the session's capacity is
+      // enforced when members are assigned, not here.
+      for (const e of listed) next[e.memberId] = saved.get(e.memberId) ?? "present";
       setMarks(next);
     } catch (e) {
       errorCenter.report(e, { action: "attendance.load" });
@@ -371,7 +355,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       ) : enrollments.length === 0 ? (
         <div className="rounded-card border border-line bg-surface px-6 py-12 text-center">
           <p className="text-base font-medium text-ink">
-            {session && sessionAttendees(session) !== null ? t("attendance.noListedMembers") : t("attendance.noEnrollments")}
+            {session && sessionAttendees(session) === null ? t("attendance.noAssignedMembers") : t("attendance.noListedMembers")}
           </p>
         </div>
       ) : (
@@ -384,13 +368,6 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
             <p className="text-xs text-muted">{selectedCourse?.title ?? ""}</p>
             {sessionAttendees(session) !== null && (
               <p className="mt-1 text-xs text-muted">{t("attendance.assignedOnly")}</p>
-            )}
-            {markingCap !== null && (
-              <p role="status" className="mt-1 text-xs text-muted">
-                {capReached
-                  ? t("validation.sessionFull", { attending: attendingCount, capacity: markingCap })
-                  : t("session.attendingCount", { attending: attendingCount, capacity: markingCap })}
-              </p>
             )}
           </div>
           <div className="border-b border-line px-4 py-2">
@@ -407,10 +384,6 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
                       type="button"
                       role="radio"
                       aria-checked={marks[e.memberId] === status}
-                      // At the cap, present/late are unavailable for members
-                      // not already attending; absent stays open so a place
-                      // can be freed, and the reason is shown above the list.
-                      disabled={capReached && isAttendingStatus(status) && marks[e.memberId] !== status}
                       onClick={() => setMarks((prev) => ({ ...prev, [e.memberId]: status }))}
                       className={`px-3 py-2 text-sm transition-colors duration-200 max-sm:min-h-11 max-sm:px-4 disabled:cursor-not-allowed disabled:opacity-50 ${
                         marks[e.memberId] === status ? "bg-plum-600 text-white" : "bg-surface text-ink hover:bg-plum-50"

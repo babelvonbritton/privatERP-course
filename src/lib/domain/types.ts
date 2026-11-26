@@ -143,11 +143,6 @@ export function sessionDurationHours(session: Pick<Session, "startTime" | "endTi
   return Math.round(((end - start) / 60) * 100) / 100;
 }
 
-/** A member counts toward the session cap only when present or late; absent does not. */
-export function isAttendingStatus(status: AttendanceStatus): boolean {
-  return status === "present" || status === "late";
-}
-
 /** A session's attendance cap, or null when it has none. Tolerates rows written before capacity existed. */
 export function sessionCapacity(session: Pick<Session, "capacity"> & { capacity?: unknown }): number | null {
   const cap = session.capacity;
@@ -163,12 +158,13 @@ export function sessionAttendees(session: Pick<Session, "attendeeMemberIds"> & {
 
 /**
  * The members a session's attendance covers: its assigned members who are
- * still enrolled, or every enrolled member when the session is unassigned.
- * An assigned member who left the course drops out of the list.
+ * still enrolled. An unassigned session covers nobody: attendance marking
+ * needs an assignment first. An assigned member who left the course drops
+ * out of the list.
  */
 export function sessionEffectiveAttendees(session: Pick<Session, "attendeeMemberIds"> & { attendeeMemberIds?: unknown }, enrolledMemberIds: string[]): string[] {
   const assigned = sessionAttendees(session);
-  if (assigned === null) return [...enrolledMemberIds];
+  if (assigned === null) return [];
   const enrolled = new Set(enrolledMemberIds);
   return assigned.filter((id) => enrolled.has(id));
 }

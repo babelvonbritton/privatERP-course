@@ -43,7 +43,7 @@
     "newSession": "Sesi baru",
     "nextPage": "Berikutnya",
     "noData": "Belum ada data kehadiran.",
-    "noEnrollments": "Belum ada member yang terdaftar di kursus ini.",
+    "noAssignedMembers": "Tidak ada anggota yang ditugaskan ke sesi ini.",
     "page": "Halaman {page} dari {pages}",
     "pickCourse": "Pilih kursus",
     "pickSession": "Pilih sesi",
@@ -462,7 +462,7 @@
       "dashboardDesc": "Di bawah formulir penandaan, total per member dan kursus, plus tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar. Saring berdasarkan pengajar, member, atau kursus.",
       "intro": "Kehadiran adalah catatan siapa yang datang. Data ini menjadi dasar penggajian, jadi tandai dengan teliti.",
       "mark": "Tandai yang hadir",
-      "markDesc": "Untuk setiap anggota yang tercantum pada sesi — anggota yang ditentukan, atau semua anggota terdaftar bila tidak ada yang ditentukan — pilih Hadir, Tidak Hadir, atau Terlambat. Tandai juga apakah pengajar hadir.",
+      "markDesc": "Untuk setiap anggota yang ditentukan untuk sesi ini, pilih Hadir, Tidak Hadir, atau Terlambat. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Tandai juga apakah pengajar hadir.",
       "sessions": "Pilih atau buat sesi",
       "sessionsDesc": "Pilih kursus, lalu tanggal dan rentang waktu sesi. Jika sesi belum ada, buat dulu.",
       "title": "Yang bisa Anda lakukan dengan kehadiran",
@@ -479,7 +479,7 @@
       "intro": "Kursus adalah yang Anda ajarkan. Setiap kursus memiliki keterampilan wajib, jadwal, dan harga.",
       "title": "Yang bisa Anda lakukan dengan kursus",
       "assign": "Tentukan siapa yang hadir di sesi",
-      "assignDesc": "Di bagian Sesi di bawah tabel kursus, centang anggota yang akan hadir di sebuah sesi. Kosongkan semua pilihan untuk semua anggota terdaftar. Kehadiran kemudian hanya memeriksa anggota yang tercantum."
+      "assignDesc": "Di bagian Sesi di bawah tabel kursus, centang anggota yang akan hadir di sebuah sesi. Kehadiran hanya memeriksa anggota yang tercantum, dan sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai."
     },
     "dashboard": {
       "intro": "Dasbor adalah ringkasan Anda. Di sini terlihat uang, kehadiran, dan apa yang akan datang, semuanya dihitung dari data Anda.",
@@ -784,13 +784,14 @@
     "noRequiredSkills": "Tidak ada keterampilan wajib. Pengajar mana pun bisa mengajar sesi ini.",
     "title": "Sesi",
     "trainerMatches": "Cocok {count} dari {required} keterampilan wajib",
-    "attendingCount": "{attending} dari {capacity} hadir",
     "assign": "Tentukan anggota",
     "assignTitle": "Siapa yang hadir di sesi ini",
-    "assignHint": "Kosongkan semua pilihan untuk semua anggota terdaftar.",
-    "allEnrolled": "Semua anggota terdaftar",
+    "assignHint": "Centang anggota yang akan hadir. Hapus semua centang untuk menghapus penugasan.",
+    "assignAtCapacity": "Sesi ini mengizinkan paling banyak {capacity, plural, one {1 anggota} other {# anggota}}.",
+    "notAssigned": "Belum ada anggota yang ditugaskan",
     "assigned": "Ditentukan: {names}",
     "assignedCount": "{count} anggota ditentukan",
+    "selectAll": "Pilih semua",
     "pending": "Sesi yang belum ditandai",
     "pendingEmpty": "Tidak ada sesi yang menunggu ditandai. Setelah sebuah sesi ditandai, sesi itu keluar dari daftar ini."
   },
@@ -910,7 +911,7 @@
     "skip": "Lewati tur",
     "step": {
       "attendance": {
-        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap member yang tercantum — anggota yang ditentukan untuk sesi tersebut, atau semua anggota terdaftar bila tidak ada yang ditentukan — Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi di mana pengajar hadir dihitung untuk gaji mereka. Di bawah formulir penandaan, dasbor merangkum kehadiran per member dan kursus, dengan tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar.",
+        "body": "Di sinilah Anda mencatat siapa yang datang (kehadiran). Pilih sesi, tandai setiap anggota yang ditentukan Hadir, Tidak Hadir, atau Terlambat, dan tandai apakah pengajar hadir. Sesi yang tidak memiliki anggota yang ditentukan tidak dapat ditandai. Sesi di mana pengajar hadir dihitung untuk gaji mereka. Di bawah formulir penandaan, dasbor merangkum kehadiran per member dan kursus, dengan tab Pengajar untuk melihat seberapa banyak setiap pengajar mengajar.",
         "title": "Kehadiran"
       },
       "courses": {
@@ -987,7 +988,7 @@
     "time": "{field} harus berupa jam seperti 09:00.",
     "tooLong": "{field} maksimal {limit} karakter.",
     "unqualifiedTrainer": "{field} tidak mengajar satu pun keterampilan yang dibutuhkan kursus ini: {skills}.",
-    "sessionFull": "Sesi ini sudah penuh: {attending} dari {capacity} tempat sudah terisi.",
+    "overCapacity": "Tidak dapat menetapkan {count} anggota: sesi ini mengizinkan paling banyak {capacity}.",
     "notEnrolled": "{field} tidak terdaftar di kursus ini.",
     "notAssigned": "{field} tidak ada di daftar hadir sesi ini."
   },
