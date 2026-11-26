@@ -417,22 +417,47 @@ async function desktop(browser) {
   });
 
   await check("desktop: create session and mark attendance", async () => {
-    await nav(page, "Attendance");
-    await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("button", { name: "New session" }).click();
-    await page.getByLabel("Topic", { exact: true }).fill("Scales");
-    await pickTime(page, "Start time", "10:00");
-    await pickTime(page, "End time", "11:30");
-    await page.getByRole("radio", { name: "Budi Santoso" }).click();
-    await page.getByRole("button", { name: "Add", exact: true }).last().click();
-    await toast(page, "Saved");
-    await page.locator("p", { hasText: "Scales" }).waitFor();
-    await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
-    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
-    await page.getByRole("switch", { name: "Trainer present" }).click();
-    await page.getByRole("button", { name: "Mark attendance" }).click();
-    await toast(page, "Attendance saved");
-    await noOverflow(page, "attendance", 1280);
+    // Today is not always a Piano Basics day (Mon/Wed/Fri), so pick the
+    // next course day instead of relying on the form's default date.
+    const sessionDay = upcomingSlotDates(1)[0];
+    try {
+      await nav(page, "Attendance");
+      await pickSessionCourse(page, "Piano Basics");
+      await page.getByRole("button", { name: "New session" }).click();
+      await pickDate(page, sessionDay);
+      await page.getByLabel("Topic", { exact: true }).fill("Scales");
+      await pickTime(page, "Start time", "10:00");
+      await pickTime(page, "End time", "11:30");
+      await page.getByRole("radio", { name: "Budi Santoso" }).click();
+      await page.getByRole("button", { name: "Add", exact: true }).last().click();
+      await toast(page, "Saved");
+      // A fresh session hands nothing to marking until members are
+      // assigned, so assign Ayu in the Sessions section first.
+      const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+      await nav(page, "Courses");
+      await pending.getByText("Scales").waitFor();
+      await pending.getByRole("button", { name: "Assign members" }).click();
+      await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
+      await pending.getByRole("button", { name: "Save changes" }).click();
+      await toast(page, "Saved");
+      await pending.getByText("Assigned: Ayu Lestari").waitFor();
+      await nav(page, "Attendance");
+      await pickSessionCourse(page, "Piano Basics");
+      await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+      await page.getByRole("option", { name: "Scales" }).click();
+      await page.locator("p", { hasText: "Scales" }).waitFor();
+      await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
+      await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
+      await page.getByRole("switch", { name: "Trainer present" }).click();
+      await page.getByRole("button", { name: "Mark attendance" }).click();
+      await toast(page, "Attendance saved");
+      await noOverflow(page, "attendance", 1280);
+    } finally {
+      // Close the New session modal even when an assertion above failed,
+      // so a stuck modal cannot block every later nav click.
+      const close = page.getByRole("button", { name: "Close" });
+      if (await close.count()) await close.first().click().catch(() => {});
+    }
   });
 
   await check("desktop: session list below the course table drives assignment and drops marked sessions", async () => {
@@ -801,8 +826,8 @@ async function desktop(browser) {
   });
 
   await check("desktop: dashboard upcoming sessions paginate 5 per page, invoices show latest 3", async () => {
-    // One session (Scales, today) and one invoice (-001) already exist.
-    const dates = upcomingSlotDates(5);
+    // One session (Scales, on the next course day) and one invoice (-001) already exist.
+    const dates = upcomingSlotDates(6).slice(1);
     const topics = ["Dash S2", "Dash S3", "Dash S4", "Dash S5", "Dash S6"];
     for (let i = 0; i < 5; i++) await createSession(page, topics[i], dates[i], false);
     for (let i = 2; i <= 4; i++) await createInvoice(page, "Ayu Lestari", `Dashboard check ${i}`, 100000 * i, false);
@@ -1042,10 +1067,10 @@ async function mobile(browser) {
     await page.getByRole("checkbox", { name: "Fri" }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
-    const dates = upcomingSlotDates(5);
+    const dates = upcomingSlotDates(6);
     const topics = ["Mobile S2", "Mobile S3", "Mobile S4", "Mobile S5", "Mobile S6"];
-    await createSession(page, "Mobile S1", null, true);
-    for (let i = 0; i < 5; i++) await createSession(page, topics[i], dates[i], true);
+    await createSession(page, "Mobile S1", dates[0], true);
+    for (let i = 0; i < 5; i++) await createSession(page, topics[i], dates[i + 1], true);
     for (let i = 1; i <= 4; i++) await createInvoice(page, "Mobile User", `Mobile check ${i}`, 100000 * i, true);
     await assertDashboardPagination(page, 390, ["Mobile S1", "Mobile S2", "Mobile S3", "Mobile S4", "Mobile S5"], ["Mobile S6"]);
   });
@@ -1296,12 +1321,29 @@ async function mobileScreensWithData(browser) {
     await moreNav("Attendance");
     await pickSessionCourse(page, "Piano Basics");
     await page.getByRole("button", { name: "New session" }).click();
+    // Today is not always a Piano Basics day (Mon/Wed), so pick the next
+    // one instead of relying on the form's default date.
+    await pickDate(page, upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3));
     await page.getByLabel("Topic", { exact: true }).fill("Scales");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:30");
     await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
+    // A fresh session hands nothing to marking until members are
+    // assigned, so assign Ayu in the Sessions section first.
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+    await nav(page, "Courses");
+    await pending.getByText("Scales").waitFor();
+    await pending.getByRole("button", { name: "Assign members" }).click();
+    await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
+    await pending.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await pending.getByText("Assigned: Ayu Lestari").waitFor();
+    await moreNav("Attendance");
+    await pickSessionCourse(page, "Piano Basics");
+    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
+    await page.getByRole("option", { name: /Scales/ }).click();
     await page.locator("p", { hasText: "Scales" }).waitFor();
     await page.getByText("10:00–11:30 (1.5 h)").first().waitFor();
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
@@ -2914,7 +2956,6 @@ async function capacityChecks(browser) {
     await page.getByRole("radio", { name: "Dewi Lestari" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    await page.locator("p", { hasText: "Trio" }).waitFor();
 
     // A fresh session hands nothing to attendance marking until members
     // are assigned: the attendance view says so instead of listing anyone.
