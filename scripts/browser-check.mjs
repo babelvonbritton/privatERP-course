@@ -732,6 +732,9 @@ async function desktop(browser) {
       await nav(page, "Courses");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
+      // The heading renders before the enrollment rows land, so wait for
+      // the list itself before counting it.
+      await page.locator('[role="dialog"] ul').first().waitFor({ timeout: 8000 });
       // Sessions moved out of the detail: no sessions section and no
       // session controls anywhere in the dialog.
       const dialog = page.getByRole("dialog");
@@ -3010,7 +3013,10 @@ async function attachmentChecks(browser) {
       await page.locator('[aria-label="Close"]').last().click({ force: true });
       await viewer.waitFor({ state: "detached", timeout: 5000 });
     }
-    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    // Close the detail behind the viewer the same way: its header button.
+    // A role lookup can wait forever for a button that is on screen when
+    // the accessible tree lags on a slow run.
+    await page.locator('[aria-label="Close"]').last().click({ force: true });
   });
 
   await check("attachments: no console errors or page errors", async () => {
