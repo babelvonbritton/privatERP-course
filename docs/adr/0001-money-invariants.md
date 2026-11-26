@@ -22,6 +22,9 @@ because the validator re-summed payments in a different order.
   round to the same value at the currency's precision.
 - A paid amount that exceeds its total by at most one minor unit (rounding
   dust) is clamped to the total instead of being treated as an overpayment.
+  The same tolerance applies when a payments sum is checked against the
+  stored paid amount, in the integrity checker and in backup validation, so
+  a state the clamp can create is never reported as a mismatch.
 - Invoice status is derived from payments, never set directly: paid when the
   rounded paid amount reaches the rounded total, partial when some payment
   exists, sent otherwise. Overdue is derived from the due date and never

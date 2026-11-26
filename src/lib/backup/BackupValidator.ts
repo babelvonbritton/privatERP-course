@@ -33,7 +33,7 @@ import {
 import { ATTACHMENT_ENTITY_TYPES, MAX_ATTACHMENT_BYTES, type Attachment } from "@/lib/domain/attachments";
 import { TRASH_KINDS, type TrashEntry } from "@/lib/domain/trash";
 import { hasCurrencyPrecision } from "@/lib/currency";
-import { moneyEquals } from "@/lib/money";
+import { moneyEquals, paidMatches } from "@/lib/money";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, BACKUP_STORE_NAMES, CONFIGURATION_NAME, DATA_NAME, DB_SCHEMA_VERSION, MAX_RECORDS_PER_STORE, STORE_NAMES, STORE_TO_FILE, type BackupStoreName, type StoreName } from "./constants";
 import { BACKUP_KDF_ITERATIONS } from "./BackupCrypto";
 import type { BackupEncryption, BackupKind, BackupManifest, BackupManifestFile } from "./types";
@@ -323,7 +323,7 @@ class DataValidation {
     const paidByInvoice = new Map<string, number>();
     for (const p of payments) paidByInvoice.set(p.invoiceId, (paidByInvoice.get(p.invoiceId) ?? 0) + p.amount);
     invoices.forEach((i, idx) => {
-      if (!moneyEquals(paidByInvoice.get(i.id) ?? 0, i.paidAmount, this.currency)) this.log.add(`invoices[${idx}].paidAmount`, "does not match its payments");
+      if (!paidMatches(paidByInvoice.get(i.id) ?? 0, i.paidAmount, this.currency)) this.log.add(`invoices[${idx}].paidAmount`, "does not match its payments");
     });
     // An attachment may point at a live invoice or at one held in the
     // trash: trashed invoices keep their attachments until permanently

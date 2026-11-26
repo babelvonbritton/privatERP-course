@@ -3,6 +3,7 @@ import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import { BackupValidator } from "@/lib/backup/BackupValidator";
 import { effectiveInvoiceStatus, getServices, resetServices } from "@/lib/domain/services";
+import { paidMatches } from "@/lib/money";
 import { getStorage, resetStorage } from "@/lib/storage";
 import { resetCurrency, setCurrency } from "@/lib/currency";
 import { createId } from "@/lib/storage/utils";
@@ -100,6 +101,43 @@ describe("money rounding: EUR invoices", () => {
     await expect(pay(s, invoice.id, 3.31)).rejects.toMatchObject({ name: "ValidationError" });
   });
 
+  it("restoring a payment that leaves the sum one cent over the total keeps the data consistent", async () => {
+    setCurrency("EUR");
+    const s = await freshServices();
+    const m = await s.members.create(memberInput("Ana"));
+    const invoice = await s.invoices.create({
+      memberId: m.id,
+      enrollmentId: null,
+      lineItems: [{ description: "Fee", amount: 101 }],
+      dueDate: "2026-12-01",
+      status: "sent",
+      idempotencyKey: createId(),
+    });
+    await pay(s, invoice.id, 99);
+    const cent = await pay(s, invoice.id, 1.01);
+    await s.invoices.removePayment(cent.id);
+    const entry = (await s.trash.list()).find((e) => e.kind === "payment" && e.originalId === cent.id)!;
+    // No service call lowers an invoice total: shrink it through storage
+    // directly, as if an edit had lowered the invoice after the payment
+    // was trashed. The trashed payment (1.01) now leaves the sum (100.01)
+    // one cent over the total (100.00).
+    const current = (await s.invoices.get(invoice.id))!;
+    await getStorage().invoices.put({ ...current, total: 100 });
+    await s.trash.restore(entry.id);
+    const restored = (await s.invoices.get(invoice.id))!;
+    expect(restored.paidAmount).toBe(100);
+    expect(restored.status).toBe("paid");
+    expect((await getStorage().integrity.run()).ok).toBe(true);
+  });
+
+  it("paidMatches tolerates one minor unit over the paid amount and no more", () => {
+    setCurrency("EUR");
+    expect(paidMatches(3.31, 3.3)).toBe(true);
+    expect(paidMatches(3.32, 3.3)).toBe(false);
+    expect(paidMatches(3.3, 3.3)).toBe(true);
+    expect(paidMatches(3.29, 3.3)).toBe(false);
+  });
+
   it("a dusty stored invoice reads as Paid", async () => {
     setCurrency("EUR");
     const s = await freshServices();
@@ -185,6 +223,46 @@ describe("money rounding: backup validation", () => {
       ],
       // File order sums to 6.6000000000000005 in plain addition.
       payments: [1.1, 2.2, 3.3].map((amount) => ({ ...base, id: createId(), invoiceId, amount, at: now, method: "cash" })),
+      payrollRuns: [],
+      auditLog: [],
+      writeKeys: [],
+      settings: [{ key: "pref.currency", value: "EUR" }],
+      attachments: [],
+      trash: [],
+    };
+    expect(() => BackupValidator.validateData(raw, now)).not.toThrow();
+  });
+
+  it("a EUR backup validates when its payments sum one cent over the stored paid amount", () => {
+    const now = Date.now();
+    const memberId = createId();
+    const invoiceId = createId();
+    const base = { orgId: "org-owner", ownerId: "owner", createdAt: now, updatedAt: now, rev: 1 };
+    const raw = {
+      members: [{ ...base, id: memberId, name: "Ana", email: "ana@example.com", phone: "0812000000", notes: "", status: "active" }],
+      trainers: [],
+      courses: [],
+      enrollments: [],
+      sessions: [],
+      attendance: [],
+      invoices: [
+        {
+          ...base,
+          id: invoiceId,
+          number: "INV-20261120-001",
+          memberId,
+          enrollmentId: null,
+          lineItems: [{ description: "Fee", amount: 100 }],
+          total: 100,
+          paidAmount: 100,
+          dueDate: "2026-12-01",
+          status: "paid",
+          paymentMethod: "cash",
+          paymentDetails: "",
+        },
+      ],
+      // One cent over the stored paid amount: the same dust the restore clamp tolerates.
+      payments: [99, 1.01].map((amount) => ({ ...base, id: createId(), invoiceId, amount, at: now, method: "cash" })),
       payrollRuns: [],
       auditLog: [],
       writeKeys: [],

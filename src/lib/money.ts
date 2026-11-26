@@ -24,6 +24,15 @@ export function moneyEquals(a: number, b: number, currency: CurrencyCode = getCu
   return roundMoney(a, currency) === roundMoney(b, currency);
 }
 
+/**
+ * Whether a payments sum matches the stored paid amount, allowing the same
+ * dust the clamp tolerates: at most one minor unit over. A larger gap, or
+ * any shortfall, is still a mismatch.
+ */
+export function paidMatches(sum: number, paidAmount: number, currency: CurrencyCode = getCurrency()): boolean {
+  return moneyEquals(clampPaidAmount(sum, paidAmount, currency), paidAmount, currency);
+}
+
 /** One minor unit of the currency: 1 rupiah, 1 cent. */
 function minorUnit(currency: CurrencyCode): number {
   return 10 ** -fractionDigits(currency);
