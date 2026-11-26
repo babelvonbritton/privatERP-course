@@ -1,6 +1,7 @@
 import { ValidationError } from "./Guard";
 import { isCurrencyCode, type CurrencyCode } from "@/lib/domain/types";
 import { DEFAULT_TRASH_RETENTION_DAYS, type TrashRetentionDays } from "@/lib/domain/trash";
+import { deviceTimezone, isTimezone } from "@/lib/timezone";
 import type { SettingsStore } from "./repositories";
 
 export interface Preferences {
@@ -14,9 +15,11 @@ export interface Preferences {
   currencySwitchCount: number;
   /** Days a deleted record stays in the trash before it is purged. */
   trashRetentionDays: TrashRetentionDays;
+  /** IANA timezone dates are derived in. Defaults to the device timezone. */
+  timezone: string;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { tourSeen: false, currency: "IDR", currencySwitchDate: "", currencySwitchCount: 0, trashRetentionDays: DEFAULT_TRASH_RETENTION_DAYS };
+export const DEFAULT_PREFERENCES: Preferences = { tourSeen: false, currency: "IDR", currencySwitchDate: "", currencySwitchCount: 0, trashRetentionDays: DEFAULT_TRASH_RETENTION_DAYS, timezone: deviceTimezone() };
 
 const KEYS: Record<keyof Preferences, string> = {
   tourSeen: "pref.tourSeen",
@@ -24,6 +27,7 @@ const KEYS: Record<keyof Preferences, string> = {
   currencySwitchDate: "pref.currencySwitchDate",
   currencySwitchCount: "pref.currencySwitchCount",
   trashRetentionDays: "pref.trashRetentionDays",
+  timezone: "pref.timezone",
 };
 
 /** Storage keys for each preference, for writers that update settings directly. */
@@ -39,6 +43,7 @@ const READERS: { [K in keyof Preferences]: (v: Stored) => Preferences[K] | null 
   currencySwitchDate: (v) => (typeof v === "string" && (v === "" || DATE_RE.test(v)) ? v : null),
   currencySwitchCount: (v) => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 && v <= 10_000 ? v : null),
   trashRetentionDays: (v) => (v === 7 || v === 30 ? v : null),
+  timezone: (v) => (isTimezone(v) ? v : null),
 };
 
 /**

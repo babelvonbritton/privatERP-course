@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
 import { LOCALE_NAMES, type Locale } from "@/i18n/routing";
 import { setCurrency, subscribeCurrency } from "@/lib/currency";
+import { setTimezone, subscribeTimezone } from "@/lib/timezone";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { getServices, applyBusinessProfile } from "@/lib/domain/services";
 import { startDriveSync } from "@/lib/driveSync";
@@ -32,20 +33,24 @@ export function AppShell() {
   const [nav, setNav] = useState<NavId>("dashboard");
   const [moreOpen, setMoreOpen] = useState(false);
   const [, setCurrencyTick] = useState(0);
+  const [, setTimezoneTick] = useState(0);
 
   // Loads the stored currency at boot so amounts format in it, and re-renders
   // every screen when a switch or a restore changes it. Expired trash entries
   // are purged on boot too, so the bin never shows items past their time.
   // Drive auto-sync also starts here: it listens for data changes for the
   // whole session and uploads only while Drive is connected and the toggle
-  // is on.
+  // is on. The stored timezone loads the same way, so dates render in it.
   useEffect(() => {
     const stopSync = startDriveSync();
     let cancelled = false;
     void getStorage()
       .preferences.load()
       .then(({ preferences }) => {
-        if (!cancelled) setCurrency(preferences.currency);
+        if (!cancelled) {
+          setCurrency(preferences.currency);
+          setTimezone(preferences.timezone);
+        }
       })
       .catch((e) => errorCenter.report(e, { action: "currency.load" }));
     // New records are stamped with the business and owner names from the
@@ -61,9 +66,11 @@ export function AppShell() {
       .trash.purgeExpired()
       .catch((e) => errorCenter.report(e, { action: "trash.purge" }));
     const stopCurrency = subscribeCurrency(() => setCurrencyTick((n) => n + 1));
+    const stopTimezone = subscribeTimezone(() => setTimezoneTick((n) => n + 1));
     return () => {
       stopSync();
       stopCurrency();
+      stopTimezone();
     };
   }, []);
 

@@ -10,7 +10,7 @@ import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/Bu
 import { getStorage } from "@/lib/storage";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
-import { formatDate, parseDate } from "@/lib/dates";
+import { formatDate, dateOf, parseDate } from "@/lib/dates";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Field, inputClass } from "../ui/Field";
@@ -44,11 +44,6 @@ function addDays(iso: string, days: number): string {
   const d = parseDate(iso);
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** Turns a millisecond timestamp into a YYYY-MM-DD date for display. */
-function dateOf(at: number): string {
-  return new Date(at).toISOString().slice(0, 10);
 }
 
 const STATUS_STYLES: Record<InvoiceDisplayStatus, string> = {

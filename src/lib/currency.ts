@@ -1,5 +1,6 @@
 import { AppError } from "@/lib/errors/AppError";
 import { CURRENCIES, isCurrencyCode, type CurrencyCode, type SettingRecord } from "@/lib/domain/types";
+import { dateOf } from "@/lib/timezone";
 
 /** How many currency switches are allowed per local day. */
 export const DAILY_SWITCH_LIMIT = 10;
@@ -29,10 +30,9 @@ export function convert(amount: number, rate: number, to: CurrencyCode): number 
   return Math.round(amount * rate * factor) / factor;
 }
 
-/** Local date as YYYY-MM-DD, used to count switches per day. */
+/** Local date as YYYY-MM-DD in the chosen timezone, used to count switches per day. */
 export function localDateString(now = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return dateOf(now.getTime());
 }
 
 type FetchFn = typeof fetch;

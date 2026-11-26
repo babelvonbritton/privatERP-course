@@ -1,6 +1,9 @@
 import { isRealDate } from "@/lib/storage/utils";
+import { dateOf, getTimezone } from "@/lib/timezone";
 
 /** Dates are stored as YYYY-MM-DD strings so they sort, compare and index as plain text. */
+
+export { dateOf } from "@/lib/timezone";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -16,9 +19,9 @@ export function formatDate(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(parseDate(iso));
 }
 
-/** Today as YYYY-MM-DD in local time. */
+/** Today as YYYY-MM-DD in the chosen timezone. */
 export function todayIso(now = new Date()): string {
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return dateOf(now.getTime(), getTimezone());
 }
 
 /** The first and last day of the month containing the given YYYY-MM-DD date. */

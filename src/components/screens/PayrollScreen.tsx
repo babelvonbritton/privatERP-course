@@ -10,7 +10,7 @@ import { downloadPaycheckPdf, downloadPaycheckPng } from "@/lib/invoiceExport";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { formatMoney } from "@/lib/money";
-import { formatDate, monthRange } from "@/lib/dates";
+import { formatDate, dateOf, monthRange } from "@/lib/dates";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Field } from "../ui/Field";
@@ -21,11 +21,6 @@ import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
 import { PaycheckDocument } from "../payroll/PaycheckDocument";
 import type { NavId } from "../nav";
-
-/** Turns a millisecond timestamp into a YYYY-MM-DD date for display. */
-function dateOf(at: number): string {
-  return new Date(at).toISOString().slice(0, 10);
-}
 
 /** Formats a pay period as a start to end range. */
 function periodLabel(run: Pick<PayrollRun, "periodStart" | "periodEnd">, locale: string): string {

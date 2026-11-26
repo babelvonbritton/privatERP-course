@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
-import { formatDate } from "@/lib/dates";
+import { formatDate, dateOf } from "@/lib/dates";
 import { sessionDurationHours, type Course, type PayrollRun, type Session } from "@/lib/domain/types";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { LambdaMark } from "@/components/Logo";
@@ -92,7 +92,7 @@ export function PaycheckDocument({
   const tagline = profile.tagline.trim();
   const address = profile.address.trim();
   const contacts = profile.contacts.map((c) => c.trim()).filter((c) => c.length > 0);
-  const paidAt = run.paidAt ? new Date(run.paidAt).toISOString().slice(0, 10) : null;
+  const paidAt = run.paidAt ? dateOf(run.paidAt) : null;
   const sortedPaid = sortSessions(paidSessions);
   const sortedUnpaid = sortSessions(unpaidSessions);
   const isPaid = run.status === "paid";

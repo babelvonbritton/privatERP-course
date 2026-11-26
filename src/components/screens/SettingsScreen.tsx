@@ -13,6 +13,7 @@ import { CurrencySection } from "../settings/CurrencySection";
 import { DriveSection } from "../settings/DriveSection";
 import { RetentionSection } from "../settings/RetentionSection";
 import { ThemeSection } from "../settings/ThemeSection";
+import { TimezoneSection } from "../settings/TimezoneSection";
 import type { NavId } from "../nav";
 import { useTour } from "../Tour";
 import { Button } from "../ui/Button";
@@ -89,6 +90,8 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       </SectionCard>
 
       <ThemeSection />
+
+      <TimezoneSection />
 
       <CurrencySection />
 

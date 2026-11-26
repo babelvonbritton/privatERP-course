@@ -1,7 +1,7 @@
 import { AppError } from "@/lib/errors/AppError";
 import { ValidationError } from "@/lib/storage/Guard";
 import { createId } from "@/lib/storage/utils";
-import { monthRange, todayIso } from "@/lib/dates";
+import { monthRange, todayIso, dateOf } from "@/lib/dates";
 import { nextInvoiceNumber, clampPaidAmount, roundMoney, statusAfterPayment } from "@/lib/money";
 import { DAILY_SWITCH_LIMIT, convert, fetchRate, localDateString, setCurrency } from "@/lib/currency";
 import { PREFERENCE_KEYS } from "@/lib/storage/PreferenceService";
@@ -1008,14 +1008,13 @@ export class InvoiceService extends ServiceBase {
         if (existing) return existing;
       }
       const now = this.now();
-      const created = new Date(now);
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const prefix = `INV-${created.getFullYear()}${pad(created.getMonth() + 1)}${pad(created.getDate())}-`;
+      const dayStamp = dateOf(now).replaceAll("-", "");
+      const prefix = `INV-${dayStamp}-`;
       const numbers = await this.storage.invoices.numbersWithPrefix(prefix);
       const total = roundMoney(data.lineItems.reduce((sum, item) => sum + item.amount, 0));
       const invoice: Invoice = {
         ...baseFields(this.actor, now),
-        number: nextInvoiceNumber(numbers, new Date(now)),
+        number: nextInvoiceNumber(numbers, dayStamp),
         memberId: data.memberId,
         enrollmentId: data.enrollmentId,
         lineItems: data.lineItems.map((item) => ({ ...item })),

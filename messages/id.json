@@ -822,6 +822,8 @@
     "terms": "Ketentuan layanan",
     "theme": "Tema",
     "themeHint": "Pilih tampilan Olaseena. Ikuti sistem memakai pengaturan perangkat.",
+    "timezone": "Zona waktu lokal",
+    "timezoneHint": "Tanggal memakai zona waktu ini. Awalnya mengikuti zona waktu perangkat, dan bisa diubah kapan saja.",
     "title": "Pengaturan",
     "tour": "Kenali fitur-fiturnya",
     "tourHint": "Jelajahi lagi layar-layar utama dengan penjelasan singkat."

@@ -822,6 +822,8 @@
     "terms": "Terms of service",
     "theme": "Theme",
     "themeHint": "Choose how Olaseena looks. Follow system uses your device setting.",
+    "timezone": "Local timezone",
+    "timezoneHint": "Dates use this timezone. It starts as your device timezone, and you can change it anytime.",
     "title": "Settings",
     "tour": "Get to know the features",
     "tourHint": "Walk through the main screens again with short explanations."

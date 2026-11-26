@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
-import { formatDate } from "@/lib/dates";
+import { formatDate, dateOf } from "@/lib/dates";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 import type { Invoice } from "@/lib/domain/types";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
@@ -52,7 +52,7 @@ export function InvoiceDocument({
 }) {
   const { t, locale } = useI18n();
   const remaining = invoice.total - invoice.paidAmount;
-  const issueDate = new Date(invoice.createdAt).toISOString().slice(0, 10);
+  const issueDate = dateOf(invoice.createdAt);
   const method = paymentMethodOf(invoice);
   const details = paymentDetailsOf(invoice);
   const showPayment = method !== "cash";

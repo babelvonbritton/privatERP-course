@@ -47,11 +47,9 @@ export function statusAfterPayment(total: number, paidAmount: number, currency: 
   return "sent";
 }
 
-/** Allocates the next invoice number for a day: INV-YYYYMMDD-###, sequential per day. */
-export function nextInvoiceNumber(existing: string[], date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
-  const prefix = `INV-${stamp}-`;
+/** Allocates the next invoice number for a day: INV-YYYYMMDD-###, sequential per day. `dayStamp` is the day in YYYYMMDD form, already derived in the chosen timezone. */
+export function nextInvoiceNumber(existing: string[], dayStamp: string): string {
+  const prefix = `INV-${dayStamp}-`;
   let max = 0;
   for (const n of existing) {
     if (!n.startsWith(prefix)) continue;

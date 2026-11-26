@@ -1,6 +1,7 @@
 import type { Msg } from "@/i18n/types";
 import type { BackupData } from "@/lib/domain/types";
 import { courseWeekdays, sessionAttendees } from "@/lib/domain/types";
+import { dateOf } from "@/lib/dates";
 import { STORE_NAMES, type StoreName } from "./constants";
 
 export type Decision = "replace" | "skip";
@@ -206,7 +207,7 @@ export class MergePlanner {
 
     classify("payment", byId, (v) => `${v.invoiceId} ${v.amount}`, [
       { field: "amount", kind: "money", get: (v) => v.amount },
-      { field: "date", kind: "date", get: (v) => new Date(v.at).toISOString().slice(0, 10) },
+      { field: "date", kind: "date", get: (v) => dateOf(v.at) },
       { field: "method", kind: "text", get: (v) => v.method },
     ], current.payments, incoming.payments);
 
@@ -232,7 +233,7 @@ export class MergePlanner {
     classify("trash", byId, (v) => v.label, [
       { field: "status", kind: "status", get: (v) => v.kind },
       { field: "name", kind: "text", get: (v) => v.label },
-      { field: "date", kind: "date", get: (v) => new Date(v.deletedAt).toISOString().slice(0, 10) },
+      { field: "date", kind: "date", get: (v) => dateOf(v.deletedAt) },
     ], current.trash ?? [], incoming.trash ?? []);
 
     return { entries, totals, byKind };
