@@ -1861,7 +1861,12 @@ async function weeklySlotChecks(browser) {
   });
 
   await check("weekly slot: session outside the slot shows the error naming the allowed days", async () => {
+    // The enrollment check leaves the course detail open. Sessions live
+    // outside the detail now, so close it and use the standalone form.
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
     await page.getByRole("button", { name: "New session" }).click();
+    await pickSelect(page, "Course", "Weekend Piano");
     await page.getByLabel("Topic", { exact: true }).fill("Off-slot scales");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await page.getByText(`Date must be on a day this course meets: ${offNames}.`, { exact: true }).waitFor({ timeout: 5000 });
@@ -1877,17 +1882,23 @@ async function weeklySlotChecks(browser) {
     await pickSelect(page, "Member", "Ayu Lestari");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
+    // Sessions live outside the detail now: close it and use the standalone
+    // New session button on the Courses screen.
+    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
     await page.getByRole("button", { name: "New session" }).click();
+    await pickSelect(page, "Course", "Today Piano");
     await page.getByLabel("Topic", { exact: true }).fill("On-slot scales");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:00");
     await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    // The session also appears in the Sessions section behind this dialog, so scope to the dialog.
-    await page.locator('[role="dialog"]').getByText("On-slot scales").waitFor();
+    // The standalone modal closes on save, so the session is asserted in the
+    // Sessions section on the Courses screen, not inside a dialog.
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+    await pending.getByText("On-slot scales").waitFor();
     await page.getByText("10:00–11:00").first().waitFor();
-    await page.getByRole("button", { name: "Close", exact: true }).last().click();
     await noOverflow(page, "weekly slot", 1280);
   });
 
@@ -2848,24 +2859,26 @@ async function skillsSessionChecks(browser) {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 
-  await check("skills: course-detail session form picks a qualified trainer too", async () => {
+  await check("skills: standalone session form picks a qualified trainer too", async () => {
     const cancel = page.getByRole("button", { name: "Cancel", exact: true });
     if (await cancel.count()) await cancel.first().click().catch(() => {});
-    await page.locator("tr", { hasText: "Music Skills" }).click();
-    await page.getByText("Enrollments").first().waitFor();
-    await page.getByRole("button", { name: "New session" }).click();
+    // The course-detail session form is gone in v1.0.3, so the qualified
+    // trainer pick is exercised through the standalone form instead.
+    await page.getByRole("button", { name: "New session", exact: true }).first().click();
+    await pickSelect(page, "Course", "Music Skills");
     // Today already has the standalone session for this course (one session
     // per course per date), so use the same weekday next week instead.
     await pickDate(page, nextWeek);
-    await page.getByLabel("Topic", { exact: true }).fill("Detail session");
+    await page.getByLabel("Topic", { exact: true }).fill("Skills session");
     await pickTime(page, "Start time", "10:00");
     await pickTime(page, "End time", "11:00");
     await page.getByRole("radio", { name: "Siti Rahma" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    // The session also appears in the Sessions section behind this dialog, so scope to the dialog.
-    await page.locator('[role="dialog"]').getByText("Detail session").waitFor();
-    await page.getByRole("button", { name: "Close", exact: true }).last().click();
+    // The standalone modal closes on save, so the session is asserted in the
+    // Sessions section on the Courses screen.
+    const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
+    await pending.getByText("Skills session").waitFor();
   });
 
   await check("skills: no console errors or page errors", async () => {
