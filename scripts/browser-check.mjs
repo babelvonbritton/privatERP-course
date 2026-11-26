@@ -2807,7 +2807,7 @@ async function capacityChecks(browser) {
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     // No required skills: any trainer qualifies. The course form no longer
-    // has a capacity field — the cap lives on the session instead.
+    // has a capacity field, so the cap lives on the session instead.
     if (await page.getByLabel("Capacity", { exact: true }).count()) throw new Error("course form still has a capacity field");
     await page.getByRole("checkbox", { name: todayShort }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -2843,7 +2843,7 @@ async function capacityChecks(browser) {
     await page.locator("p", { hasText: "Trio" }).waitFor();
 
     // The cap is already reached by the default marks, so the member without
-    // a place cannot be marked present or late — only absent. Which member
+    // a place cannot be marked present or late, only absent. Which member
     // holds the place depends on enrollment order (ids are random UUIDs), so
     // read it from the UI instead of assuming Ana is first.
     await page.getByText("This session is full: 1 of 1 places are already taken.").waitFor();

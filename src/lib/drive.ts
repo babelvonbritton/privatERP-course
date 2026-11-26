@@ -28,7 +28,7 @@ export function setupPassphraseError(passphrase: string, confirm: string): Setup
   return null;
 }
 
-/** Contents of the passphrase download: the passphrase plus enough metadata to tell what the file is. The passphrase is readable in the file, by design — the file is the recovery path. */
+/** Contents of the passphrase download: the passphrase plus enough metadata to tell what the file is. The passphrase is readable in the file, by design. The file is the recovery path. */
 export function buildDrivePassphraseFile(passphrase: string, now = new Date()): string {
   return JSON.stringify(
     {
@@ -44,7 +44,7 @@ export function buildDrivePassphraseFile(passphrase: string, now = new Date()): 
 
 /**
  * Shared OAuth client ID for the app's single sign-on. A Client ID is a
- * public identifier, not a secret — it ships in the bundle, and Google only
+ * public identifier, not a secret. It ships in the bundle, and Google only
  * issues tokens to the JavaScript origins registered for it in the Cloud
  * console.
  */
@@ -384,7 +384,7 @@ export function stripDriveSecrets(data: BackupData): BackupData {
 /**
  * Returns a usable access token: the stored one while it is still valid,
  * otherwise a silent refresh (the fresh token is saved through `persist`).
- * Returns null when there is no token or the grant is gone — the user has
+ * Returns null when there is no token or the grant is gone. The user has
  * to connect again. Never throws: a failed refresh is a null, not an error.
  */
 export async function ensureDriveToken(

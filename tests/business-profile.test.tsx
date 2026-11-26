@@ -229,7 +229,7 @@ describe("settings business profile section", () => {
 });
 
 describe("invoice shows the profile", () => {
-  it("shows logo, name, tagline, address, and contacts — but never the owner's name", async () => {
+  it("shows logo, name, tagline, address, and contacts, but never the owner's name", async () => {
     const logoBlob = new Blob(["fake-png-bytes"], { type: "image/png" });
     const { container } = render(
       <Providers>

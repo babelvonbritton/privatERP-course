@@ -302,7 +302,7 @@ export class BackupService {
 
   // ---------------------------------------------------------------- create a backup
 
-  /** Steps that build and verify a backup archive: collect, self-check, package, encrypt, compress, verify. The save step (downloading the file) is not one of them — file export adds it, Drive upload does not need it. */
+  /** Steps that build and verify a backup archive: collect, self-check, package, encrypt, compress, verify. The save step (downloading the file) is not one of them. File export adds it, and Drive upload does not need it. */
   private archiveSteps(kind: BackupKind, passphrase?: string, assets?: BackupAsset[]): StepDef<ArchiveCtx>[] {
     return [
       {

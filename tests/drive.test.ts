@@ -417,7 +417,7 @@ describe("alphanumeric passphrase rule", () => {
     expect(isAlphanumericPassphrase("")).toBe(false);
   });
 
-  it("setup validation rejects empty, symbols, whitespace, and mismatch — in that order", () => {
+  it("setup validation rejects empty, symbols, whitespace, and mismatch, in that order", () => {
     expect(setupPassphraseError("", "")).toBe("required");
     expect(setupPassphraseError("abc12345", "")).toBe("required");
     expect(setupPassphraseError("bad!pass", "bad!pass")).toBe("alphanumeric");

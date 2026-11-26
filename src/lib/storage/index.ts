@@ -49,7 +49,7 @@ export class StorageService {
   private initPromise: Promise<StorageReport> | null = null;
   /** Listeners told whenever a data store is written. The settings store never notifies. */
   private readonly dataChangeListeners = new Set<() => void>();
-  /** Passed to every data store; runs after a write lands. Listeners only set in-memory state and schedule timers — they do no database work here, so a write inside a Dexie transaction is safe. */
+  /** Passed to every data store; runs after a write lands. Listeners only set in-memory state and schedule timers. They do no database work here, so a write inside a Dexie transaction is safe. */
   private readonly notifyWrite = () => this.notifyDataChanged();
 
   constructor(readonly db: OlaseenaDatabase = new OlaseenaDatabase(), clock: Clock = Date.now) {

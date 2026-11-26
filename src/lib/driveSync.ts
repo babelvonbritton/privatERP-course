@@ -4,7 +4,7 @@
 // The manager only runs while the user is signed in to Drive and the sync
 // toggle is on; either one off means nothing syncs. Cosmetic changes
 // (theme, language, tour) live in the settings store, which never triggers
-// a sync — the trigger only watches the data stores, so that holds by
+// a sync. The trigger only watches the data stores, so that holds by
 // construction. A sync never interrupts the user: failures stay silent and
 // the data stays dirty for the next change.
 

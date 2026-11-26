@@ -39,7 +39,7 @@ interface Props {
 const formatDateTime = (ms: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ms));
 
-/** Google Drive backup section in Settings: connect, back up, restore, and auto-sync. The backup file lives in the app's hidden Drive folder and never shows on drive.google.com — the last-backup date below is the proof it is there. */
+/** Google Drive backup section in Settings: connect, back up, restore, and auto-sync. The backup file lives in the app's hidden Drive folder and never shows on drive.google.com. The last-backup date below is the proof it is there. */
 export function DriveSection({ onRestored }: Props) {
   const { t, locale } = useI18n();
   const service = useMemo(() => new BackupService(getStorage(), errorCenter, { minStepMs: process.env.NODE_ENV === "test" ? 0 : 260 }), []);
@@ -310,7 +310,7 @@ export function DriveSection({ onRestored }: Props) {
     }
     // Turning on: with a stored passphrase sync starts at once. Without one,
     // the setup dialog collects it first; sync stays off until then, and the
-    // toggle — controlled by the stored state — keeps showing off.
+    // toggle, controlled by the stored state, keeps showing off.
     try {
       const fresh = await readDriveState(getStorage().settings);
       if (fresh.passphrase) {

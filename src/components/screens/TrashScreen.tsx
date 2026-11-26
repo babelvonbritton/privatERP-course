@@ -39,9 +39,9 @@ function detailFieldLabel(field: string, t: DetailTranslate, has: DetailHas): st
 }
 
 function DetailValue({ value, field, t, has, locale }: { value: unknown; field: string; t: DetailTranslate; has: DetailHas; locale: string }) {
-  if (value === null || value === undefined) return <span className="text-muted">—</span>;
+  if (value === null || value === undefined) return <span className="text-muted">{t("trash.emptyValue")}</span>;
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-muted">—</span>;
+    if (value.length === 0) return <span className="text-muted">{t("trash.emptyValue")}</span>;
     if (value.every(isRecord)) {
       return (
         <ul className="flex flex-col gap-2">
