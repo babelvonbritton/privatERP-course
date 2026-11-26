@@ -79,8 +79,7 @@
     "delete": "Delete course",
     "deleteBody": "Delete {name}? Enrollments, sessions and invoices linked to it stay. The course will move to the trash bin, and you can restore it from there.",
     "detail": {
-      "enrollments": "Enrollments",
-      "sessions": "Sessions"
+      "enrollments": "Enrollments"
     },
     "edit": "Edit course",
     "empty": "No courses yet",
@@ -779,7 +778,6 @@
     "delete": "Delete session",
     "deleteBody": "Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.",
     "edit": "Edit session",
-    "empty": "No sessions yet",
     "noQualifiedTrainer": "No trainer teaches any of the skills this course requires. Add the skill to a trainer first.",
     "noRequiredSkills": "No required skills. Any trainer can teach this session.",
     "title": "Sessions",
@@ -915,7 +913,7 @@
         "title": "Attendance"
       },
       "courses": {
-        "body": "Your classes. Each course has required skills, weekly days, and a price. Open one to enroll members and see its sessions. Below the table, Sessions lists the sessions not yet marked, so you can see which members will attend each one and assign them there.",
+        "body": "Your classes. Each course has required skills, weekly days, and a price. Open one to enroll members. Below the table, Sessions lists the sessions not yet marked, so you can see which members will attend each one and assign them there.",
         "title": "Courses"
       },
       "dashboard": {
@@ -956,7 +954,7 @@
       },
       "courseSessions": {
         "title": "Sessions",
-        "body": "Sessions not yet marked, soonest first, with the course each belongs to. A marked session leaves this list. Open one to choose which members will attend it."
+        "body": "Sessions not yet marked, soonest first, with the course each belongs to. A marked session leaves this list. Open one to choose which members will attend it, or edit or delete it from here."
       }
     },
     "title": "Get to know Olaseena"

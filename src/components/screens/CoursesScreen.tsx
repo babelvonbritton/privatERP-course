@@ -48,7 +48,7 @@ const emptyForm = (): CourseForm => ({
   status: "active",
 });
 
-/** Course list with search, add and edit, plus a detail view for enrollments and sessions. */
+/** Course list with search, add and edit, a detail view for enrollments, and a Sessions section for the sessions not yet marked. */
 export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) => void }) {
   const { t, locale } = useI18n();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -64,7 +64,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const [selected, setSelected] = useState<Course | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
 
   /** Sessions whose attendance has not been checked yet, across all courses, soonest first. */
   const [pendingSessions, setPendingSessions] = useState<Session[]>([]);
@@ -76,21 +75,15 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [enrollStart, setEnrollStart] = useState<string | null>(today());
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [pendingEnrollment, setPendingEnrollment] = useState<Enrollment | null>(null);
-
-  const [showSessionForm, setShowSessionForm] = useState(false);
-  const [sessionDate, setSessionDate] = useState<string | null>(today());
-  const [sessionTopic, setSessionTopic] = useState("");
-  const [sessionStart, setSessionStart] = useState("09:00");
-  const [sessionEnd, setSessionEnd] = useState("10:00");
-  const [detailSessionCapacity, setDetailSessionCapacity] = useState("");
-  const [sessionTrainerId, setSessionTrainerId] = useState("");
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  /** The session awaiting delete confirmation from the Sessions section. */
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
 
   const [assignSessionId, setAssignSessionId] = useState<string | null>(null);
   const [assignChecked, setAssignChecked] = useState<string[]>([]);
 
   const [standaloneOpen, setStandaloneOpen] = useState(false);
+  /** The session being edited in the standalone form, or null when creating one. */
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [standaloneCourseId, setStandaloneCourseId] = useState(NONE);
   const [standaloneDate, setStandaloneDate] = useState<string | null>(today());
   const [standaloneTopic, setStandaloneTopic] = useState("");
@@ -128,12 +121,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const loadDetail = useCallback(async (courseId: string) => {
     try {
       const s = getServices();
-      const [foundEnrollments, foundSessions] = await Promise.all([
-        s.courses.listEnrollmentsByCourse(courseId),
-        s.attendance.listSessionsByCourse(courseId),
-      ]);
-      setEnrollments(foundEnrollments);
-      setSessions([...foundSessions].sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "")));
+      setEnrollments(await s.courses.listEnrollmentsByCourse(courseId));
     } catch (e) {
       errorCenter.report(e, { action: "course.detail" });
     }
@@ -165,12 +153,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     return () => clearTimeout(handle);
   }, [query, load]);
 
-  /** Trainers qualified for a session of the open course, ranked by matching required skills. */
-  const rankedSessionTrainers = useMemo(
-    () => (selected ? rankTrainersForCourse(trainers, courseRequiredSkills(selected)) : []),
-    [selected, trainers],
-  );
-
   const standaloneCourse = useMemo(() => courses.find((c) => c.id === standaloneCourseId) ?? null, [courses, standaloneCourseId]);
   /** Trainers qualified for a standalone session, ranked by matching required skills. */
   const rankedStandaloneTrainers = useMemo(
@@ -179,6 +161,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   );
 
   const openStandalone = () => {
+    setEditingSession(null);
     setStandaloneCourseId(NONE);
     setStandaloneDate(today());
     setStandaloneTopic("");
@@ -186,6 +169,20 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     setStandaloneEnd("10:00");
     setStandaloneCapacity("");
     setStandaloneTrainerId("");
+    setStandaloneError(null);
+    setStandaloneOpen(true);
+  };
+
+  /** Opens the same session form pre-filled, to edit a session from the Sessions section. The course is fixed: a session never moves courses. */
+  const openEditSession = (session: Session) => {
+    setEditingSession(session);
+    setStandaloneCourseId(session.courseId);
+    setStandaloneDate(session.date);
+    setStandaloneTopic(session.topic);
+    setStandaloneStart(session.startTime);
+    setStandaloneEnd(session.endTime);
+    setStandaloneCapacity(session.capacity === null ? "" : String(session.capacity));
+    setStandaloneTrainerId(session.trainerId);
     setStandaloneError(null);
     setStandaloneOpen(true);
   };
@@ -221,19 +218,32 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       return;
     }
     try {
-      await getServices().attendance.createSession({
-        courseId: standaloneCourse.id,
-        date: standaloneDate,
-        topic: standaloneTopic.trim(),
-        trainerId: standaloneTrainerId,
-        trainerPresent: false,
-        startTime: standaloneStart,
-        endTime: standaloneEnd,
-        capacity,
-        idempotencyKey: createId(),
-      });
+      if (editingSession) {
+        await getServices().attendance.updateSession(editingSession.id, {
+          date: standaloneDate,
+          topic: standaloneTopic.trim(),
+          trainerId: standaloneTrainerId,
+          startTime: standaloneStart,
+          endTime: standaloneEnd,
+          capacity,
+          idempotencyKey: createId(),
+        });
+      } else {
+        await getServices().attendance.createSession({
+          courseId: standaloneCourse.id,
+          date: standaloneDate,
+          topic: standaloneTopic.trim(),
+          trainerId: standaloneTrainerId,
+          trainerPresent: false,
+          startTime: standaloneStart,
+          endTime: standaloneEnd,
+          capacity,
+          idempotencyKey: createId(),
+        });
+      }
       errorCenter.notify({ key: "toast.saved" });
       setStandaloneOpen(false);
+      setEditingSession(null);
       setStandaloneTopic("");
       setStandaloneDate(today());
       setStandaloneCapacity("");
@@ -243,15 +253,13 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       await loadPending();
       if (selected?.id === standaloneCourse.id) await loadDetail(selected.id);
     } catch (e) {
-      errorCenter.report(e, { action: "session.create" });
+      errorCenter.report(e, { action: editingSession ? "session.update" : "session.create" });
     }
   };
 
   const openDetail = (course: Course) => {
     setSelected(course);
     setShowEnrollForm(false);
-    setShowSessionForm(false);
-    setSessionTrainerId("");
     void loadDetail(course.id);
   };
 
@@ -433,70 +441,14 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     }
   };
 
-  const submitSession = async () => {
-    if (!selected || !sessionDate || !sessionTopic.trim()) return;
-    const dayError = scheduledDayError(sessionDate, selected, "field.date");
-    if (dayError) {
-      setSessionError(dayError);
-      return;
-    }
-    if (!/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd)) {
-      setSessionError(t("validation.time", { field: t("field.startTime") }));
-      return;
-    }
-    const startMinutes = timeToMinutes(sessionStart);
-    const endMinutes = timeToMinutes(sessionEnd);
-    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
-      setSessionError(t("validation.endAfterStart"));
-      return;
-    }
-    if (rankedSessionTrainers.length === 0) {
-      setSessionError(t("session.noQualifiedTrainer"));
-      return;
-    }
-    if (!sessionTrainerId) {
-      setSessionError(t("validation.required", { field: t("field.trainer") }));
-      return;
-    }
-    const capacity = parseSessionCapacity(detailSessionCapacity);
-    if (capacity === undefined) {
-      setSessionError(t("validation.positive", { field: t("field.capacity") }));
-      return;
-    }
-    try {
-      await getServices().attendance.createSession({
-        courseId: selected.id,
-        date: sessionDate,
-        topic: sessionTopic.trim(),
-        trainerId: sessionTrainerId,
-        trainerPresent: false,
-        startTime: sessionStart,
-        endTime: sessionEnd,
-        capacity,
-        idempotencyKey: createId(),
-      });
-      errorCenter.notify({ key: "toast.saved" });
-      setShowSessionForm(false);
-      setSessionTopic("");
-      setSessionDate(today());
-      setDetailSessionCapacity("");
-      setSessionTrainerId("");
-      setSessionError(null);
-      await loadDetail(selected.id);
-      await loadPending();
-    } catch (e) {
-      errorCenter.report(e, { action: "session.create" });
-    }
-  };
-
+  /** Deletes the session awaiting confirmation from the Sessions section. */
   const confirmDeleteSession = async () => {
-    if (!selected || !pendingSession) return;
+    if (!pendingSession) return;
     const label = pendingSession.topic;
     try {
       await getServices().attendance.removeSession(pendingSession.id);
       errorCenter.notify({ key: "trash.movedToTrash", vars: { label } });
       setPendingSession(null);
-      await loadDetail(selected.id);
       await loadPending();
     } catch (e) {
       errorCenter.report(e, { action: "session.delete" });
@@ -631,6 +583,22 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                             {t("session.assign")}
                           </Button>
                         )}
+                        <Button
+                          className="max-sm:min-h-11"
+                          variant="soft"
+                          icon="pencil"
+                          onClick={() => openEditSession(s)}
+                        >
+                          {t("session.edit")}
+                        </Button>
+                        <Button
+                          className="max-sm:min-h-11"
+                          variant="dangerSoft"
+                          icon="trash"
+                          onClick={() => setPendingSession(s)}
+                        >
+                          {t("session.delete")}
+                        </Button>
                       </div>
                     </div>
                     {assignOpen && (
@@ -772,26 +740,32 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
         </form>
       </Modal>
 
-      <Modal open={standaloneOpen} onOpenChange={setStandaloneOpen} title={t("session.add")}>
+      <Modal open={standaloneOpen} onOpenChange={setStandaloneOpen} title={editingSession ? t("session.edit") : t("session.add")}>
         <div className="flex flex-col gap-4">
-          <Field label={t("field.course")} htmlFor="standalone-course">
-            <Select
-              value={standaloneCourseId}
-              onChange={(v) => {
-                setStandaloneCourseId(v);
-                setStandaloneTrainerId("");
-                setStandaloneError(null);
-              }}
-              ariaLabel={t("field.course")}
-              className="w-full"
-              options={[
-                { value: NONE, label: t("field.course") },
-                ...courses
-                  .filter((c) => c.status === "active")
-                  .map((c) => ({ value: c.id, label: c.title })),
-              ]}
-            />
-          </Field>
+          {editingSession ? (
+            <Field label={t("field.course")}>
+              <p className="text-sm text-ink">{standaloneCourse?.title ?? ""}</p>
+            </Field>
+          ) : (
+            <Field label={t("field.course")} htmlFor="standalone-course">
+              <Select
+                value={standaloneCourseId}
+                onChange={(v) => {
+                  setStandaloneCourseId(v);
+                  setStandaloneTrainerId("");
+                  setStandaloneError(null);
+                }}
+                ariaLabel={t("field.course")}
+                className="w-full"
+                options={[
+                  { value: NONE, label: t("field.course") },
+                  ...courses
+                    .filter((c) => c.status === "active")
+                    .map((c) => ({ value: c.id, label: c.title })),
+                ]}
+              />
+            </Field>
+          )}
           {standaloneCourse && (
             <p className="text-sm text-muted">
               {t("field.requiredSkills")}:{" "}
@@ -842,7 +816,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               onClick={() => void submitStandaloneSession()}
               disabled={!standaloneCourse || !standaloneDate || !standaloneTopic.trim() || !/^\d{2}:\d{2}$/.test(standaloneStart) || !/^\d{2}:\d{2}$/.test(standaloneEnd) || rankedStandaloneTrainers.length === 0}
             >
-              {t("action.add")}
+              {editingSession ? t("action.save") : t("action.add")}
             </Button>
           </div>
         </div>
@@ -934,115 +908,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
               )}
             </section>
 
-            <section>
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base font-semibold text-plum-900">{t("course.detail.sessions")}</h2>
-                <Button
-                  className="max-sm:min-h-11"
-                  variant="soft"
-                  icon="plus"
-                  onClick={() => {
-                    if (!showSessionForm && selected) {
-                      setSessionStart("09:00");
-                      setSessionEnd("10:00");
-                      setSessionTrainerId("");
-                      setSessionError(null);
-                    }
-                    setShowSessionForm((v) => !v);
-                  }}
-                >
-                  {t("session.add")}
-                </Button>
-              </div>
-              {showSessionForm && (
-                <div className="mt-3 flex flex-col gap-3 rounded-card border border-line bg-canvas p-4">
-                  <Field label={t("field.date")} htmlFor="session-date">
-                    <DatePicker id="session-date" value={sessionDate} onChange={setSessionDate} />
-                  </Field>
-                  <Field label={t("field.topic")} htmlFor="session-topic">
-                    <input id="session-topic" className={inputClass} value={sessionTopic} onChange={(e) => setSessionTopic(e.target.value)} />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label={t("field.startTime")} htmlFor="session-start">
-                      <TimePicker id="session-start" ariaLabel={t("field.startTime")} value={sessionStart} onChange={setSessionStart} />
-                    </Field>
-                    <Field label={t("field.endTime")} htmlFor="session-end">
-                      <TimePicker id="session-end" ariaLabel={t("field.endTime")} value={sessionEnd} onChange={setSessionEnd} />
-                    </Field>
-                  </div>
-                  <Field label={t("field.capacity")} htmlFor="session-capacity" hint={t("hint.sessionCapacity")}>
-                    <input id="session-capacity" type="number" min={1} step={1} inputMode="numeric" className={inputClass} value={detailSessionCapacity} onChange={(e) => setDetailSessionCapacity(e.target.value)} />
-                  </Field>
-                  <Field label={t("field.trainer")}>
-                    <TrainerPicker
-                      name="session-trainer"
-                      trainers={rankedSessionTrainers}
-                      requiredSkills={courseRequiredSkills(selected)}
-                      value={sessionTrainerId}
-                      onChange={setSessionTrainerId}
-                      label={t("field.trainer")}
-                      emptyMessage={t("session.noQualifiedTrainer")}
-                    />
-                  </Field>
-                  {sessionError && (
-                    <p role="alert" className="text-sm text-danger">
-                      {sessionError}
-                    </p>
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <Button className="max-sm:min-h-11" variant="ghost" onClick={() => setShowSessionForm(false)}>
-                      {t("action.cancel")}
-                    </Button>
-                    <Button
-                      className="max-sm:min-h-11"
-                      onClick={() => void submitSession()}
-                      disabled={!sessionDate || !sessionTopic.trim() || !/^\d{2}:\d{2}$/.test(sessionStart) || !/^\d{2}:\d{2}$/.test(sessionEnd) || rankedSessionTrainers.length === 0}
-                    >
-                      {t("action.add")}
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {sessions.length === 0 ? (
-                <p className="mt-2 text-sm text-muted">{t("session.empty")}</p>
-              ) : (
-                <ul className="mt-3 flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-card border border-line bg-surface">
-                  {sessions.map((s) => {
-                    const hours = sessionDurationHours(s);
-                    const assigned = sessionAttendees(s);
-                    const assignedNames = (assigned ?? []).map((id) => memberName(id)).filter((n) => n !== "");
-                    return (
-                      <li key={s.id} className="flex flex-col gap-2 px-4 py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-ink">
-                              {formatDate(s.date, locale)}
-                              {s.startTime && s.endTime ? ` ${s.startTime}–${s.endTime}` : ""} - {s.topic}
-                            </p>
-                            <p className="text-xs text-muted">
-                              {hours !== null ? `${t("duration.hours", { hours })} · ` : ""}
-                              {t("field.trainerPresent")}: {t(s.trainerPresent ? "status.present" : "status.absent")}
-                            </p>
-                            <p className="text-xs text-muted">
-                              {assigned === null
-                                ? t("session.notAssigned")
-                                : assignedNames.length > 0
-                                  ? t("session.assigned", { names: assignedNames.join(", ") })
-                                  : t("session.assignedCount", { count: assigned.length })}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button className="max-sm:min-h-11" variant="dangerSoft" onClick={() => setPendingSession(s)}>
-                              {t("session.delete")}
-                            </Button>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
           </div>
         )}
       </Modal>

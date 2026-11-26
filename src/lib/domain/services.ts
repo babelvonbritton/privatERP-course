@@ -24,6 +24,7 @@ import {
   payrollInput,
   payrollPatch,
   sessionInput,
+  sessionPatch,
   trainerInput,
   trainerPatch,
   type AttendanceInput,
@@ -39,6 +40,7 @@ import {
   type PayrollInput,
   type PayrollPatch,
   type SessionInput,
+  type SessionPatch,
   type TrainerInput,
   type TrainerPatch,
 } from "./schemas";
@@ -64,7 +66,7 @@ import type {
   Session,
   Trainer,
 } from "./types";
-import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, trainerSkillMatchCount } from "./types";
+import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionAttendees, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
 /**
@@ -601,6 +603,66 @@ export class AttendanceService extends ServiceBase {
       await this.recordKey(data.idempotencyKey, "session", session.id);
       await this.audit("session.create", "session", session.id, `${course.title} · ${session.date}`);
       return session;
+    });
+  }
+
+  /**
+   * Edits a session. The course never changes. The merged values must satisfy
+   * the same rules as creation: end after start, on the course's weekly slot,
+   * a trainer who teaches at least one required skill, no second session for
+   * the course on the new date, and a capacity that still fits the members
+   * already assigned. The assignment itself is untouched.
+   */
+  async updateSession(id: string, input: SessionPatch): Promise<Session> {
+    requireCan(this.actor, "session.update");
+    const data = parseInput(sessionPatch, input);
+    // The course and trainer reads happen inside the transaction, so their
+    // tables must be listed alongside the written ones.
+    return this.db.transaction("rw", [this.db.sessions, this.db.courses, this.db.trainers, this.db.writeKeys, this.db.auditLog], async () => {
+      const seenId = await this.seenKey(data.idempotencyKey, "session");
+      if (seenId === id) {
+        const existing = await this.storage.sessions.get(id);
+        if (existing) return existing;
+      }
+      const current = await this.storage.sessions.get(id);
+      if (!current) throw new AppError("NOT_FOUND", { details: `session ${id}` });
+      const course = await this.storage.courses.get(current.courseId);
+      if (!course) throw new AppError("NOT_FOUND", { details: `course ${current.courseId}` });
+      const next = {
+        date: data.date ?? current.date,
+        topic: data.topic ?? current.topic,
+        trainerId: data.trainerId ?? current.trainerId,
+        startTime: data.startTime ?? current.startTime,
+        endTime: data.endTime ?? current.endTime,
+        capacity: data.capacity !== undefined ? data.capacity : (current.capacity ?? null),
+      };
+      const startMinutes = timeToMinutes(next.startTime);
+      const endMinutes = timeToMinutes(next.endTime);
+      if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+        throw new ValidationError("endTime", "End time must be after the start time.", "invalid");
+      }
+      assertDateOnSchedule("date", next.date, course);
+      const trainer = await this.storage.trainers.get(next.trainerId);
+      if (!trainer) throw new ValidationError("trainerId", "trainer does not exist", "invalid");
+      const required = courseRequiredSkills(course);
+      if (required.length > 0 && trainerSkillMatchCount(trainer, required) === 0) {
+        throw new ValidationError("trainerId", "trainer does not teach any of the course's required skills", "unqualifiedTrainer", undefined, {
+          skills: required.join(", "),
+        });
+      }
+      if (next.date !== current.date) {
+        const duplicate = await this.storage.sessions.findByCourseAndDate(current.courseId, next.date);
+        if (duplicate && duplicate.id !== id) throw new ValidationError("date", "a session already exists for this course on this date", "invalid");
+      }
+      const assigned = sessionAttendees(current) ?? [];
+      if (next.capacity !== null && assigned.length > next.capacity) {
+        throw new ValidationError("capacity", "too many members assigned for this session's capacity", "overCapacity", undefined, { count: assigned.length, capacity: next.capacity });
+      }
+      const updated: Session = { ...touched(current, this.now()), ...next };
+      await this.storage.sessions.put(updated);
+      await this.recordKey(data.idempotencyKey, "session", id);
+      await this.audit("session.update", "session", id, `${course.title} · ${updated.date}`);
+      return updated;
     });
   }
 

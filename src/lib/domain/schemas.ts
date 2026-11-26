@@ -106,6 +106,33 @@ export const sessionInput = z
   });
 export type SessionInput = z.infer<typeof sessionInput>;
 
+/**
+ * A session edit: every field optional, the course never changes, and the
+ * end-after-start rule only applies when both times are supplied (the
+ * service checks the merged times as well).
+ */
+export const sessionPatch = z
+  .object({
+    date: isoDate.optional(),
+    topic: z.string().trim().min(1).max(LIMITS.topic).optional(),
+    trainerId: id.optional(),
+    startTime: timeString.optional(),
+    endTime: timeString.optional(),
+    /** Blank (null) means no limit; absent means unchanged. */
+    capacity: z.number().int().min(1).max(10_000).nullish(),
+    idempotencyKey: idemKey,
+  })
+  .superRefine((data, ctx) => {
+    if (data.startTime !== undefined && data.endTime !== undefined) {
+      const [startHour, startMinute] = data.startTime.split(":").map(Number);
+      const [endHour, endMinute] = data.endTime.split(":").map(Number);
+      if (endHour * 60 + endMinute <= startHour * 60 + startMinute) {
+        ctx.addIssue({ code: "custom", path: ["endTime"], message: "End time must be after the start time." });
+      }
+    }
+  });
+export type SessionPatch = z.infer<typeof sessionPatch>;
+
 export const attendanceInput = z.object({
   sessionId: id,
   memberId: id,

@@ -79,8 +79,7 @@
     "delete": "Hapus kursus",
     "deleteBody": "Hapus {name}? Pendaftaran, sesi, dan tagihan yang terkait tetap ada. Kursus akan dipindahkan ke tempat sampah, dan Anda bisa memulihkannya dari sana.",
     "detail": {
-      "enrollments": "Pendaftaran",
-      "sessions": "Sesi"
+      "enrollments": "Pendaftaran"
     },
     "edit": "Ubah kursus",
     "empty": "Belum ada kursus",
@@ -779,7 +778,6 @@
     "delete": "Hapus sesi",
     "deleteBody": "Hapus sesi ini? Sesi akan dipindahkan ke tempat sampah. Anda bisa memulihkannya dari sana. Catatan kehadirannya juga ikut terhapus.",
     "edit": "Ubah sesi",
-    "empty": "Belum ada sesi",
     "noQualifiedTrainer": "Tidak ada pengajar yang mengajar satu pun keterampilan yang dibutuhkan kursus ini. Tambahkan keterampilan itu ke seorang pengajar terlebih dahulu.",
     "noRequiredSkills": "Tidak ada keterampilan wajib. Pengajar mana pun bisa mengajar sesi ini.",
     "title": "Sesi",
@@ -915,7 +913,7 @@
         "title": "Kehadiran"
       },
       "courses": {
-        "body": "Kelas Anda. Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member dan melihat sesinya. Di bawah tabel, Sesi menampilkan sesi yang belum ditandai, agar Anda bisa melihat anggota mana saja yang akan hadir di setiap sesi dan menentukannya di sana.",
+        "body": "Kelas Anda. Setiap kursus memiliki keterampilan wajib, hari mingguan, dan harga. Buka satu kursus untuk mendaftarkan member. Di bawah tabel, Sesi menampilkan sesi yang belum ditandai, agar Anda bisa melihat anggota mana saja yang akan hadir di setiap sesi dan menentukannya di sana.",
         "title": "Kursus"
       },
       "dashboard": {
@@ -956,7 +954,7 @@
       },
       "courseSessions": {
         "title": "Sesi",
-        "body": "Sesi yang belum ditandai, dari yang paling dekat, beserta kursus masing-masing. Sesi yang sudah ditandai keluar dari daftar ini. Buka satu sesi untuk memilih anggota mana saja yang akan hadir."
+        "body": "Sesi yang belum ditandai, dari yang paling dekat, beserta kursus masing-masing. Sesi yang sudah ditandai keluar dari daftar ini. Buka satu sesi untuk memilih anggota mana saja yang akan hadir, atau ubah atau hapus sesi dari sini."
       }
     },
     "title": "Kenali Olaseena"
