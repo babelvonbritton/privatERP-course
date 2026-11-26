@@ -1,5 +1,6 @@
 import type { OlaseenaDatabase } from "./OlaseenaDatabase";
 import type { Clock } from "./types";
+import { moneyEquals } from "@/lib/money";
 
 export type IntegrityCode =
   | "ORPHAN_ENROLLMENT"
@@ -83,7 +84,7 @@ export class IntegrityChecker {
     const paidByInvoice = new Map<string, number>();
     for (const p of payments) paidByInvoice.set(p.invoiceId, (paidByInvoice.get(p.invoiceId) ?? 0) + p.amount);
     for (const i of invoices) {
-      if ((paidByInvoice.get(i.id) ?? 0) !== i.paidAmount) {
+      if (!moneyEquals(paidByInvoice.get(i.id) ?? 0, i.paidAmount)) {
         issues.push({ code: "INVOICE_PAID_MISMATCH", id: i.id, message: "Invoice paid total does not match its payments" });
       }
     }

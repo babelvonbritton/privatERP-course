@@ -2,7 +2,7 @@ import { AppError } from "@/lib/errors/AppError";
 import { ValidationError } from "@/lib/storage/Guard";
 import { createId } from "@/lib/storage/utils";
 import { monthRange, todayIso } from "@/lib/dates";
-import { nextInvoiceNumber } from "@/lib/money";
+import { nextInvoiceNumber, roundMoney, statusAfterPayment } from "@/lib/money";
 import { DAILY_SWITCH_LIMIT, convert, fetchRate, localDateString, setCurrency } from "@/lib/currency";
 import { PREFERENCE_KEYS } from "@/lib/storage/PreferenceService";
 import { actorForProfile, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
@@ -59,7 +59,6 @@ import type {
   Enrollment,
   Invoice,
   InvoiceDisplayStatus,
-  InvoiceStatus,
   Member,
   Payment,
   PayrollRun,
@@ -148,17 +147,11 @@ abstract class ServiceBase {
   }
 }
 
-/** "overdue" is derived, never stored: an open invoice past its due date. */
+/** "overdue" is derived, never stored: an open invoice past its due date. A row whose rounded paid amount already reaches its rounded total reads as paid, so an invoice stored with floating-point dust before rounding landed is not stuck. */
 export function effectiveInvoiceStatus(invoice: Invoice, today: string): InvoiceDisplayStatus {
+  if ((invoice.status === "sent" || invoice.status === "partial") && invoice.total > 0 && roundMoney(invoice.paidAmount) >= roundMoney(invoice.total)) return "paid";
   if ((invoice.status === "sent" || invoice.status === "partial") && invoice.dueDate < today) return "overdue";
   return invoice.status;
-}
-
-/** Paid state comes from payments only: full payment is paid, some payment is partial, no payment is sent. */
-function statusAfterPayment(total: number, paidAmount: number): InvoiceStatus {
-  if (paidAmount >= total) return "paid";
-  if (paidAmount > 0) return "partial";
-  return "sent";
 }
 
 // ---------------------------------------------------------------- members
@@ -1019,7 +1012,7 @@ export class InvoiceService extends ServiceBase {
       const pad = (n: number) => String(n).padStart(2, "0");
       const prefix = `INV-${created.getFullYear()}${pad(created.getMonth() + 1)}${pad(created.getDate())}-`;
       const numbers = await this.storage.invoices.numbersWithPrefix(prefix);
-      const total = data.lineItems.reduce((sum, item) => sum + item.amount, 0);
+      const total = roundMoney(data.lineItems.reduce((sum, item) => sum + item.amount, 0));
       const invoice: Invoice = {
         ...baseFields(this.actor, now),
         number: nextInvoiceNumber(numbers, new Date(now)),
@@ -1097,12 +1090,12 @@ export class InvoiceService extends ServiceBase {
       if (invoice.status !== "sent" && invoice.status !== "partial") {
         throw new ValidationError("invoiceId", "only a sent invoice can take payments", "invalid");
       }
-      const remaining = invoice.total - invoice.paidAmount;
+      const remaining = roundMoney(invoice.total - invoice.paidAmount);
       if (data.amount > remaining) throw new ValidationError("amount", "payment is more than the amount left", "invalid");
       const now = this.now();
       const payment: Payment = { ...baseFields(this.actor, now), invoiceId: data.invoiceId, amount: data.amount, at: now, method: data.method };
       await this.storage.payments.put(payment);
-      const paidAmount = invoice.paidAmount + data.amount;
+      const paidAmount = roundMoney(invoice.paidAmount + data.amount);
       // The recorded payment decides how the invoice is paid from now on; the
       // details stay as the user set them and are never invented here.
       const updated: Invoice = { ...touched(invoice, now), paidAmount, status: statusAfterPayment(invoice.total, paidAmount), paymentMethod: data.method };
@@ -1123,7 +1116,7 @@ export class InvoiceService extends ServiceBase {
       const current = await this.storage.invoices.get(payment.invoiceId);
       await this.storage.payments.remove(id);
       if (current) {
-        const paidAmount = Math.max(0, current.paidAmount - payment.amount);
+        const paidAmount = roundMoney(Math.max(0, current.paidAmount - payment.amount));
         const updated: Invoice = { ...touched(current, this.now()), paidAmount, status: statusAfterPayment(current.total, paidAmount) };
         await this.storage.invoices.put(updated);
       }
@@ -1189,7 +1182,7 @@ export class PayrollService extends ServiceBase {
           sessionIds: attended.map((s) => s.id),
           sessionCount: attended.length,
           ratePerSession: trainer.ratePerSession,
-          total: attended.length * trainer.ratePerSession,
+          total: roundMoney(attended.length * trainer.ratePerSession),
         };
         await this.storage.payrollRuns.put(refreshed);
         await this.recordKey(data.idempotencyKey, "payrollRun", refreshed.id);
@@ -1204,7 +1197,7 @@ export class PayrollService extends ServiceBase {
         sessionIds: attended.map((s) => s.id),
         sessionCount: attended.length,
         ratePerSession: trainer.ratePerSession,
-        total: attended.length * trainer.ratePerSession,
+        total: roundMoney(attended.length * trainer.ratePerSession),
         status: "draft",
         paidAt: null,
       };
@@ -1318,11 +1311,14 @@ export class CurrencyService extends ServiceBase {
       for (const p of payments) {
         const converted: Payment = { ...p, amount: convert(p.amount, rate, to) };
         await this.storage.payments.put(converted);
-        paidByInvoice.set(p.invoiceId, (paidByInvoice.get(p.invoiceId) ?? 0) + converted.amount);
+        paidByInvoice.set(p.invoiceId, roundMoney((paidByInvoice.get(p.invoiceId) ?? 0) + converted.amount, to));
       }
       for (const inv of await this.storage.invoices.all()) {
         const lineItems = inv.lineItems.map((item) => ({ ...item, amount: convert(item.amount, rate, to) }));
-        const total = lineItems.reduce((sum, item) => sum + item.amount, 0);
+        const total = roundMoney(
+          lineItems.reduce((sum, item) => sum + item.amount, 0),
+          to,
+        );
         const updated: Invoice = { ...touched(inv, this.now()), lineItems, total, paidAmount: paidByInvoice.get(inv.id) ?? 0 };
         await this.storage.invoices.put(updated);
       }
@@ -1334,7 +1330,7 @@ export class CurrencyService extends ServiceBase {
       }
       for (const run of await this.storage.payrollRuns.all()) {
         const ratePerSession = convert(run.ratePerSession, rate, to);
-        await this.storage.payrollRuns.put({ ...touched(run, this.now()), ratePerSession, total: run.sessionCount * ratePerSession });
+        await this.storage.payrollRuns.put({ ...touched(run, this.now()), ratePerSession, total: roundMoney(run.sessionCount * ratePerSession, to) });
       }
       await this.storage.settings.write(PREFERENCE_KEYS.currency, to);
       await this.storage.settings.write(PREFERENCE_KEYS.currencySwitchDate, today);

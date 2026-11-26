@@ -1,4 +1,5 @@
 import { AppError } from "@/lib/errors/AppError";
+import { clampPaidAmount, roundMoney, statusAfterPayment } from "@/lib/money";
 import { createId } from "@/lib/storage/utils";
 import type { StorageService } from "@/lib/storage";
 import type { Clock } from "@/lib/storage/types";
@@ -11,20 +12,12 @@ import type {
   Course,
   Enrollment,
   Invoice,
-  InvoiceStatus,
   Member,
   Payment,
   PayrollRun,
   Session,
   Trainer,
 } from "./types";
-
-/** Paid state comes from payments only: full payment is paid, some payment is partial, no payment is sent. */
-function statusAfterPayment(total: number, paidAmount: number): InvoiceStatus {
-  if (paidAmount >= total) return "paid";
-  if (paidAmount > 0) return "partial";
-  return "sent";
-}
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -194,13 +187,13 @@ export class TrashService {
         await this.noLive("payment", entry.originalId);
         const invoice = await this.storage.invoices.get(payment.invoiceId);
         if (!invoice) throw new AppError("RESTORE_CONFLICT", { details: `Invoice ${payment.invoiceId} no longer exists` });
-        if (invoice.paidAmount + payment.amount > invoice.total) {
+        const paidAmount = clampPaidAmount(roundMoney(invoice.paidAmount + payment.amount), invoice.total);
+        if (paidAmount > invoice.total) {
           throw new AppError("RESTORE_CONFLICT", {
             details: `Restoring this payment would overpay invoice ${invoice.number} (${invoice.paidAmount} + ${payment.amount} is more than ${invoice.total})`,
           });
         }
         await this.storage.payments.put(payment);
-        const paidAmount = invoice.paidAmount + payment.amount;
         const updated: Invoice = { ...invoice, paidAmount, status: statusAfterPayment(invoice.total, paidAmount), updatedAt: this.now(), rev: invoice.rev + 1 };
         await this.storage.invoices.put(updated);
         return;
