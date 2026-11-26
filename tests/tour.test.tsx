@@ -3,7 +3,7 @@ import "fake-indexeddb/auto";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TourProvider, TOUR_STEPS, useTour } from "@/components/Tour";
-import type { NavId } from "@/components/nav";
+import { NAV_ITEMS, type NavId } from "@/components/nav";
 import { getStorage, resetStorage } from "@/lib/storage";
 import { resetServices } from "@/lib/domain/services";
 import { Providers } from "./support";
@@ -130,7 +130,29 @@ describe("tour", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));
   });
 
-  it("does not navigate again for the Drive step on the same Settings screen", async () => {
+  it("visits each screen once, in sidebar order, with same-screen steps grouped", () => {
+    // One clean forward pass: the nav sequence never goes backward, so no
+    // screen is revisited and no step re-navigates to an earlier screen.
+    const order = new Map(NAV_ITEMS.map((item, i) => [item.id, i]));
+    const navs = TOUR_STEPS.map(({ nav }) => order.get(nav)!);
+    for (let i = 1; i < navs.length; i++) expect(navs[i]).toBeGreaterThanOrEqual(navs[i - 1]);
+    expect(TOUR_STEPS.map(({ step }) => step)).toEqual([
+      "dashboard",
+      "members",
+      "trainers",
+      "courses",
+      "courseSessions",
+      "attendance",
+      "invoices",
+      "payroll",
+      "trash",
+      "settings",
+      "profile",
+      "drive",
+    ]);
+  });
+
+  it("does not navigate again for the profile and Drive steps on the same Settings screen", async () => {
     const onNavigate = vi.fn();
     // Scope every query to this render: earlier tests in this file leave
     // their trees mounted (no auto-cleanup in this suite), so a global
@@ -142,9 +164,14 @@ describe("tour", () => {
     for (let i = 0; i < 9; i++) fireEvent.click(scope.getByRole("button", { name: "Next" }));
     expect((await scope.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Settings");
     const calls = onNavigate.mock.calls.length;
-    // The Drive step stays on Settings: no further navigation (a redundant
-    // navigate would scroll back to the top after the overlay scrolled the
-    // Drive section into view, pushing the tooltip off-screen).
+    // The profile section sits at the top of Settings, so it comes before
+    // the Drive section below it: the tour walks the screen top to bottom
+    // instead of scrolling down and back up. Neither step navigates again
+    // (a redundant navigate would scroll back to the top after the overlay
+    // scrolled the section into view, pushing the tooltip off-screen).
+    fireEvent.click(scope.getByRole("button", { name: "Next" }));
+    expect((await scope.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Business profile");
+    expect(onNavigate.mock.calls.length).toBe(calls);
     fireEvent.click(scope.getByRole("button", { name: "Next" }));
     expect((await scope.findByRole("dialog", {}, { timeout: 3000 })).textContent).toContain("Google Drive");
     expect(onNavigate.mock.calls.length).toBe(calls);

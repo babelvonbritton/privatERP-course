@@ -1,5 +1,5 @@
 /**
- * Browser verification for Olaseena v1.0.1.
+ * Browser verification for Olaseena v1.0.3.
  * Serves the static export separately (python3 -m http.server 8901 --directory out)
  * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
  * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
@@ -567,10 +567,7 @@ async function desktop(browser) {
     if (await page.getByRole("button", { name: "Mark attendance" }).count()) {
       throw new Error("unassigned session shows the Mark attendance button");
     }
-    // Select all assigns both enrolled members, so the session can be
-    // marked and drops from the Sessions section. The trainer stays
-    // absent, so the payroll and trainer-detail checks that follow still
-    // see exactly one present session.
+    // Select all assigns both enrolled members.
     await nav(page, "Courses");
     await pending.getByText("Arpeggios").waitFor();
     await pending.getByRole("button", { name: "Assign members" }).click();
@@ -580,49 +577,51 @@ async function desktop(browser) {
     await pending.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
     await pending.getByText("Assigned: Ayu Lestari, Citra Kirana").waitFor();
-    await nav(page, "Attendance");
-    await pickSessionCourse(page, "Piano Basics");
-    await page.getByRole("combobox", { name: "Sessions", exact: true }).click();
-    await page.getByRole("option", { name: "Arpeggios" }).click();
-    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
-    await page.getByRole("radiogroup", { name: "Citra Kirana" }).waitFor();
-    await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
-    await page.getByRole("radiogroup", { name: "Citra Kirana" }).getByRole("radio", { name: "Present" }).click();
-    await page.getByRole("button", { name: "Mark attendance" }).click();
-    await toast(page, "Attendance saved");
-    await nav(page, "Courses");
-    await pending.getByRole("heading", { name: "Sessions" }).waitFor();
-    if (await pending.getByText("Arpeggios").count()) {
-      throw new Error("marked session Arpeggios is still listed in the Sessions section");
+    // Edit the session from the Sessions section: the form opens pre-filled,
+    // the course is shown as text instead of a picker, and saving keeps the
+    // assignment.
+    const arpeggiosRow = pending.locator("li", { hasText: "Arpeggios" });
+    await arpeggiosRow.getByRole("button", { name: "Edit session" }).click();
+    const editDlg = page.getByRole("dialog");
+    await editDlg.getByRole("heading", { name: "Edit session" }).waitFor();
+    if ((await editDlg.getByLabel("Topic", { exact: true }).inputValue()) !== "Arpeggios") {
+      throw new Error("edit form did not pre-fill the topic");
     }
-    // Clean up: delete the check session so the dashboard pagination check
+    if (await editDlg.getByRole("combobox", { name: "Course" }).count()) {
+      throw new Error("edit form shows a course picker instead of the fixed course");
+    }
+    await editDlg.getByLabel("Topic", { exact: true }).fill("Arpeggios 2");
+    await editDlg.getByRole("button", { name: "Save changes" }).click();
+    await toast(page, "Saved");
+    await pending.getByText("Arpeggios 2").waitFor();
+    await pending.getByText("Assigned: Ayu Lestari, Citra Kirana").waitFor();
+    // Delete the session from the Sessions section: Cancel keeps it, Delete
+    // removes it. This also cleans up so the dashboard pagination check
     // that follows sees only the sessions it creates itself.
-    const detailDialog = page.locator('[role="dialog"]', { hasText: "Piano Basics" });
-    try {
-      await page.locator("tr", { hasText: "Piano Basics" }).click();
-      await page.getByText("Enrollments").first().waitFor();
-      const row = detailDialog.locator("li", { hasText: "Arpeggios" });
-      await row.getByRole("button", { name: "Delete session" }).click();
-      await page.getByRole("button", { name: "Delete", exact: true }).click();
-      // The confirm is an AlertDialog layered above the detail dialog: wait
-      // for it to leave before touching the detail dialog's own close, or
-      // the click lands while the detail is still hidden behind it.
-      await page.locator('[role="alertdialog"]').waitFor({ state: "detached", timeout: 5000 });
-      await row.waitFor({ state: "detached", timeout: 8000 });
-      await detailDialog.getByRole("button", { name: "Close" }).click();
-      await detailDialog.waitFor({ state: "detached", timeout: 5000 });
-    } finally {
-      const close = page.getByRole("button", { name: "Close" });
-      if (await close.count()) await close.first().click().catch(() => {});
-    }
+    const editedRow = pending.locator("li", { hasText: "Arpeggios 2" });
+    const confirmDlg = page.locator('[role="alertdialog"]');
+    await editedRow.getByRole("button", { name: "Delete session" }).click();
+    await confirmDlg.getByRole("button", { name: "Cancel" }).click();
+    await confirmDlg.waitFor({ state: "detached", timeout: 5000 });
+    if ((await pending.getByText("Arpeggios 2").count()) === 0) throw new Error("cancelled delete removed the session");
+    await editedRow.getByRole("button", { name: "Delete session" }).click();
+    await confirmDlg.getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmDlg.waitFor({ state: "detached", timeout: 5000 });
+    await editedRow.waitFor({ state: "detached", timeout: 8000 });
     await noOverflow(page, "attendance-assigned", 1280);
   });
 
-  await check("desktop: course detail enrollment and session lists scroll independently", async () => {
+  await check("desktop: course detail shows only the enrollments list, scrolling on its own", async () => {
     try {
       await nav(page, "Courses");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
+      // Sessions moved out of the detail: no sessions section and no
+      // session controls anywhere in the dialog.
+      const dialog = page.getByRole("dialog");
+      if (await dialog.getByText("Sessions", { exact: true }).count()) throw new Error("course detail still shows a sessions section");
+      if (await dialog.getByRole("button", { name: "New session" }).count()) throw new Error("course detail still offers a new session");
+      if (await dialog.getByRole("button", { name: "Delete session" }).count()) throw new Error("course detail still offers a session delete");
       const lists = await page.evaluate(() => {
         const modal = document.querySelector('[role="dialog"]');
         return [...(modal?.querySelectorAll("ul") ?? [])].map((ul) => {
@@ -630,11 +629,9 @@ async function desktop(browser) {
           return { overflowY: cs.overflowY, maxHeight: cs.maxHeight };
         });
       });
-      if (lists.length !== 2) throw new Error(`expected 2 scrollable lists in the course detail, found ${lists.length}`);
-      for (const [i, s] of lists.entries()) {
-        if (s.overflowY !== "auto") throw new Error(`course detail list ${i} does not scroll (overflow-y ${s.overflowY})`);
-        if (s.maxHeight !== "320px") throw new Error(`course detail list ${i} max-height is ${s.maxHeight}, expected 320px`);
-      }
+      if (lists.length !== 1) throw new Error(`expected 1 scrollable list in the course detail, found ${lists.length}`);
+      if (lists[0].overflowY !== "auto") throw new Error(`enrollments list does not scroll (overflow-y ${lists[0].overflowY})`);
+      if (lists[0].maxHeight !== "320px") throw new Error(`enrollments list max-height is ${lists[0].maxHeight}, expected 320px`);
     } finally {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
@@ -981,15 +978,22 @@ async function desktop(browser) {
     await page.getByRole("button", { name: "Get to know the features" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
     // Walk every step at desktop width: the tooltip must fit its content
-    // with no internal scrollbar on any of them.
+    // with no internal scrollbar on any of them, and the steps must run in
+    // one forward pass (sidebar order, each screen once, no revisits).
+    const titles = [];
     for (let i = 0; i < 12; i++) {
       await assertTourDialogNoScroll(page, `desktop tour step ${i + 1}`);
+      titles.push((await page.getByRole("dialog").getByRole("heading").textContent())?.trim());
       if (i < 11) {
         // Scope to the tour dialog: the dashboard behind it has its own "Next"
         // pagination button, and an unscoped click is a strict-mode race.
         await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
         await page.waitForTimeout(600);
       }
+    }
+    const expectedTour = ["Dashboard", "Members", "Trainers", "Courses", "Sessions", "Attendance", "Invoices", "Payroll", "Trash bin", "Settings", "Business profile", "Google Drive"];
+    if (titles.join(" | ") !== expectedTour.join(" | ")) {
+      throw new Error(`tour order is ${titles.join(" > ")}, expected ${expectedTour.join(" > ")}`);
     }
     await page.getByRole("dialog").getByRole("button", { name: "Finish" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
@@ -1459,21 +1463,15 @@ async function mobileScreensWithData(browser) {
       await pending.getByRole("button", { name: "Save changes" }).click();
       await toast(page, "Saved");
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
-      // Clean up: delete the check session so later mobile checks see only
-      // the sessions they create themselves.
-      const detailDialog = page.locator('[role="dialog"]', { hasText: "Piano Basics" });
-      await page.locator("tr", { hasText: "Piano Basics" }).click();
-      await page.getByText("Enrollments").first().waitFor();
-      const row = detailDialog.locator("li", { hasText: "Arpeggios" });
+      // Clean up: delete the check session from the Sessions section so
+      // later mobile checks see only the sessions they create themselves.
+      await pending.getByText("Arpeggios").waitFor();
+      const row = pending.locator("li", { hasText: "Arpeggios" });
       await row.getByRole("button", { name: "Delete session" }).click();
-      await page.getByRole("button", { name: "Delete", exact: true }).click();
-      // The confirm is an AlertDialog layered above the detail dialog: wait
-      // for it to leave before touching the detail dialog's own close, or
-      // the click lands while the detail is still hidden behind it.
-      await page.locator('[role="alertdialog"]').waitFor({ state: "detached", timeout: 5000 });
+      const confirmDlg = page.locator('[role="alertdialog"]');
+      await confirmDlg.getByRole("button", { name: "Delete", exact: true }).click();
+      await confirmDlg.waitFor({ state: "detached", timeout: 5000 });
       await row.waitFor({ state: "detached", timeout: 8000 });
-      await detailDialog.getByRole("button", { name: "Close" }).click();
-      await detailDialog.waitFor({ state: "detached", timeout: 5000 });
     } finally {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
@@ -1485,9 +1483,11 @@ async function mobileScreensWithData(browser) {
       await nav(page, "Courses");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
-      // Exact match: the detail's session list also shows "Assigned: Ayu
-      // Lestari", and a substring match resolves to both elements.
       await page.getByText("Ayu Lestari", { exact: true }).waitFor();
+      // The detail is enrollments only now: no sessions section or session controls.
+      const detail = page.getByRole("dialog");
+      if (await detail.getByText("Sessions", { exact: true }).count()) throw new Error("course detail still shows a sessions section");
+      if (await detail.getByRole("button", { name: "New session" }).count()) throw new Error("course detail still offers a new session");
       await noOverflow(page, "mobile data course detail", 390);
       await fixedTargetsAtLeast44(page, "course detail");
       await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-course-detail-390.png` });

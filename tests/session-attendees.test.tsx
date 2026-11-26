@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BackupValidator } from "@/lib/backup/BackupValidator";
 import { getServices, resetServices } from "@/lib/domain/services";
@@ -458,7 +458,7 @@ describe("course menu session list", () => {
     expect(within(pending).getByText("No sessions waiting to be marked. Once a session is marked, it leaves this list.")).toBeTruthy();
   });
 
-  it("the course-detail session list no longer offers assignment", async () => {
+  it("the course detail shows only enrollments, no sessions", async () => {
     const { s, t, course } = await seed();
     await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
     const { container } = render(
@@ -471,9 +471,174 @@ describe("course menu session list", () => {
     fireEvent.click(within(table).getByText("Piano"));
     // The detail is a Radix dialog, portaled to the body outside the render container.
     const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
-    // The detail still lists the course's sessions, with the assigned status, but no assign control.
-    await within(dialog).findByText(/Scales/, {}, { timeout: 3000 });
-    expect(within(dialog).getByText("No members assigned yet")).toBeTruthy();
+    // Enrollments are still there; the session lives only in the Sessions
+    // section below the course table now.
+    await within(dialog).findByText("Enrollments", {}, { timeout: 3000 });
+    expect(within(dialog).getByText("Ana")).toBeTruthy();
+    expect(within(dialog).queryByText(/Scales/)).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "New session" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Delete session" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Assign members" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  });
+
+  it("edits a session from the Sessions section with values pre-filled, keeping its assignment", async () => {
+    const { s, t, course, members } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales", 2));
+    await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
+    await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
+    // The course tag proves the course list (and with it the trainer list)
+    // has loaded, so the edit form's trainer picker is populated.
+    await within(pending).findByText("Piano", {}, { timeout: 3000 });
+    fireEvent.click(within(pending).getByRole("button", { name: "Edit session" }));
+    const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
+    // Pre-filled from the session; the course is shown, not picked.
+    expect((within(dialog).getByLabelText("Topic", { exact: true }) as HTMLInputElement).value).toBe("Scales");
+    expect((within(dialog).getByRole("radio", { name: /Budi/ }) as HTMLInputElement).checked).toBe(true);
+    expect(within(dialog).queryByRole("combobox", { name: "Course" })).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Topic", { exact: true }), { target: { value: "Scales 2" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await within(pending).findByText(/Scales 2/, {}, { timeout: 3000 });
+    // The assignment survives the edit.
+    expect(within(pending).getByText("Assigned: Ana")).toBeTruthy();
+    expect((await s.attendance.getSession(session.id))?.topic).toBe("Scales 2");
+  });
+
+  it("deletes a session from the Sessions section only after confirmation", async () => {
+    const { s, t, course } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
+    const { container } = render(
+      <Providers>
+        <CoursesScreen navigate={() => {}} />
+      </Providers>,
+    );
+    const scope = within(container);
+    const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
+    await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
+    fireEvent.click(within(pending).getByRole("button", { name: "Delete session" }));
+    const confirm = await screen.findByRole("alertdialog", {}, { timeout: 3000 });
+    expect(within(confirm).getByText("Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.")).toBeTruthy();
+    // Cancel keeps the session.
+    fireEvent.click(within(confirm).getByRole("button", { name: "Cancel" }));
+    await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
+    fireEvent.click(within(pending).getByRole("button", { name: "Delete session" }));
+    const confirm2 = await screen.findByRole("alertdialog", {}, { timeout: 3000 });
+    fireEvent.click(within(confirm2).getByRole("button", { name: "Delete", exact: true }));
+    await waitFor(() => expect(within(pending).queryByText(/Scales/)).toBeNull());
+    expect(await s.attendance.getSession(session.id)).toBeUndefined();
+  });
+});
+
+describe("updateSession", () => {
+  it("updates the editable fields and keeps the course and the assignment", async () => {
+    const { s, t, course, members } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales", 2));
+    await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
+    const updated = await s.attendance.updateSession(session.id, {
+      date: "2026-11-16",
+      topic: "Scales 2",
+      trainerId: t.id,
+      startTime: "10:00",
+      endTime: "11:00",
+      capacity: 3,
+      idempotencyKey: createId(),
+    });
+    expect(updated.topic).toBe("Scales 2");
+    expect(updated.date).toBe("2026-11-16");
+    expect(updated.startTime).toBe("10:00");
+    expect(updated.endTime).toBe("11:00");
+    expect(updated.capacity).toBe(3);
+    expect(updated.courseId).toBe(course.id);
+    expect(sessionAttendees(updated)).toEqual([members[0].id]);
+  });
+
+  it("rejects a date outside the course's weekly slot", async () => {
+    const { s, t, course } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
+    // The seed course meets Mondays only; 2026-11-10 is a Tuesday.
+    await expectValidationKind(
+      s.attendance.updateSession(session.id, { date: "2026-11-10", idempotencyKey: createId() }),
+      "notScheduledDay",
+    );
+    expect((await s.attendance.getSession(session.id))?.date).toBe("2026-11-09");
+  });
+
+  it("rejects an end time that is not after the merged start time", async () => {
+    const { s, t, course } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
+    await expectValidationKind(
+      s.attendance.updateSession(session.id, { endTime: "08:00", idempotencyKey: createId() }),
+      "invalid",
+    );
+    expect((await s.attendance.getSession(session.id))?.endTime).toBe("10:00");
+  });
+
+  it("rejects a second session on the new date", async () => {
+    const { s, t, course } = await seed();
+    await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "First"));
+    const second = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-16", "Second"));
+    await expectValidationKind(
+      s.attendance.updateSession(second.id, { date: "2026-11-09", idempotencyKey: createId() }),
+      "invalid",
+    );
+    expect((await s.attendance.getSession(second.id))?.date).toBe("2026-11-16");
+  });
+
+  it("rejects a trainer who teaches none of the course's required skills", async () => {
+    const s = await freshServices();
+    const piano = await s.trainers.create(trainer("Budi"));
+    const violin = await s.trainers.create({ ...trainer("Vera"), subjects: ["Violin"] });
+    const course = await s.courses.create({
+      title: "Strings",
+      description: "",
+      level: "Beginner",
+      price: 100000,
+      requiredSkills: ["Violin"],
+      scheduleWeekdays: [1],
+      status: "active",
+      idempotencyKey: createId(),
+    });
+    const session = await s.attendance.createSession(sessionOn(course.id, violin.id, "2026-11-09", "Strings"));
+    await expectValidationKind(
+      s.attendance.updateSession(session.id, { trainerId: piano.id, idempotencyKey: createId() }),
+      "unqualifiedTrainer",
+    );
+    expect((await s.attendance.getSession(session.id))?.trainerId).toBe(violin.id);
+  });
+
+  it("rejects lowering the capacity below the members already assigned", async () => {
+    const { s, t, course, members } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 2));
+    await s.attendance.assignSessionAttendees(session.id, [members[0].id, members[1].id], createId());
+    await expectValidationKind(
+      s.attendance.updateSession(session.id, { capacity: 1, idempotencyKey: createId() }),
+      "overCapacity",
+    );
+    expect((await s.attendance.getSession(session.id))?.capacity).toBe(2);
+  });
+
+  it("replays an idempotency key instead of writing twice", async () => {
+    const { s, t, course } = await seed();
+    const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
+    const key = createId();
+    const first = await s.attendance.updateSession(session.id, { topic: "Once", idempotencyKey: key });
+    const second = await s.attendance.updateSession(session.id, { topic: "Twice", idempotencyKey: key });
+    expect(second.topic).toBe("Once");
+    expect(second.updatedAt).toBe(first.updatedAt);
+    expect(second.rev).toBe(first.rev);
+  });
+
+  it("throws NOT_FOUND for a missing session", async () => {
+    const { s } = await seed();
+    await expect(s.attendance.updateSession("no-such-session", { topic: "Ghost", idempotencyKey: createId() })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 });

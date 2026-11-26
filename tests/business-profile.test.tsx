@@ -268,9 +268,11 @@ describe("invoice shows the profile", () => {
 });
 
 describe("tour profile step", () => {
-  it("has a profile step at the end of the tour, targeting the Settings section", async () => {
-    const last = TOUR_STEPS[TOUR_STEPS.length - 1];
-    expect(last).toEqual({ nav: "settings", target: "profile", step: "profile" });
+  it("has a profile step after the settings intro and before Drive, targeting the top of the Settings section", async () => {
+    // The profile section sits at the top of Settings, so the tour visits
+    // it right after the intro and before the Drive section below it.
+    expect(TOUR_STEPS[TOUR_STEPS.length - 2]).toEqual({ nav: "settings", target: "profile", step: "profile" });
+    expect(TOUR_STEPS[TOUR_STEPS.length - 1]).toEqual({ nav: "settings", target: "drive", step: "drive" });
     await freshServices();
     const { container } = render(
       <Providers>
@@ -286,7 +288,7 @@ describe("tour profile step", () => {
     );
     const scope = within(container);
     await scope.findByRole("dialog", {}, { timeout: 3000 });
-    for (let i = 0; i < TOUR_STEPS.length - 1; i++) {
+    for (let i = 0; i < 10; i++) {
       fireEvent.click(scope.getByRole("button", { name: "Next" }));
     }
     const dialog = await scope.findByRole("dialog", {}, { timeout: 3000 });
