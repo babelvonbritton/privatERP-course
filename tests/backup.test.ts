@@ -65,7 +65,6 @@ describe("backup round-trip", () => {
     if (!created.ok) return;
     const file = toFile(created.value.zip, created.value.fileName);
 
-    // Change the name after the backup, then restore with "replace": the backup wins.
     await s.members.update(m.id, { name: "Ana Changed", idempotencyKey: createId() });
     const inspected = await service.inspect(file, noop);
     expect(inspected.ok).toBe(true);
@@ -76,7 +75,6 @@ describe("backup round-trip", () => {
     expect(replaced.ok).toBe(true);
     expect((await s.members.get(m.id))?.name).toBe("Ana");
 
-    // Change it again, then restore with "skip": the current name stays.
     await s.members.update(m.id, { name: "Ana Changed", idempotencyKey: createId() });
     const inspected2 = await service.inspect(file, noop);
     expect(inspected2.ok).toBe(true);

@@ -354,9 +354,6 @@ describe("backup format 2", () => {
 
   it("rejects an archive whose entries expand past the total inflated size", { timeout: 30_000 }, () => {
     const files: Record<string, Uint8Array> = { [MANIFEST_NAME]: strToU8("{}") };
-    // 150 allowed-name entries of 1 MB each: every entry is under the
-    // per-entry cap, but 150 MB inflated in total. The zeros compress to
-    // almost nothing, so the ZIP itself stays small, like a real bomb.
     for (let i = 0; i < 150; i++) files[`database/x${i}.ndjson`] = new Uint8Array(1024 * 1024);
     const zip = zipSync(files, { level: 6 });
     let code = "";

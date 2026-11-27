@@ -2,7 +2,6 @@ import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
 import { AppError } from "@/lib/errors/AppError";
 
-/** A4 page size in millimetres, the unit jsPDF works in. */
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
 

@@ -3,32 +3,24 @@ import { clampPaidAmount, roundMoney, statusAfterPayment } from "@/lib/money";
 import { createId } from "@/lib/storage/utils";
 import type { Course, CurrencyCode, Invoice, Payment, PayrollRun, Trainer } from "./types";
 
-/** Kinds of records the trash bin can hold: one per deletable entity. */
 export const TRASH_KINDS = ["member", "trainer", "course", "enrollment", "session", "invoice", "payment", "payrollRun"] as const;
 export type TrashKind = (typeof TRASH_KINDS)[number];
 
-/** Trash kinds whose snapshots carry money: converting them on a currency switch keeps a restore from smuggling old-currency amounts back in. Members, enrollments, and sessions carry no money. */
 export const MONEY_TRASH_KINDS: readonly TrashKind[] = ["course", "trainer", "invoice", "payment", "payrollRun"];
 
-/** How long a deleted record stays in the trash before it is purged for good. */
 export type TrashRetentionDays = 7 | 30;
 export const TRASH_RETENTION_OPTIONS: readonly TrashRetentionDays[] = [7, 30];
 export const DEFAULT_TRASH_RETENTION_DAYS: TrashRetentionDays = 7;
 
 export const DAY_MS = 86_400_000;
 
-/** One deleted record held in the trash, with everything needed to put it back. */
 export interface TrashEntry {
   id: string;
   kind: TrashKind;
   originalId: string;
-  /** Short human-readable name shown in the trash list. */
   label: string;
-  /** Full copy of the deleted record, re-inserted on restore. */
   snapshot: unknown;
-  /** Records deleted with it (attendance rows of a session, payments of an invoice), re-inserted on restore. */
   related: unknown[];
-  /** When the record was deleted, as a millisecond timestamp. */
   deletedAt: number;
 }
 

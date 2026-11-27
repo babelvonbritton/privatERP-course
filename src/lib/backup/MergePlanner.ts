@@ -88,11 +88,9 @@ export interface MergeResult {
   added: number;
   replaced: number;
   kept: number;
-  /** Inspection warnings carried through, such as attachment files missing from the backup. */
   warnings: Msg[];
 }
 
-/** One of the record's fields, compared as text, a date, money, or a status. */
 interface FieldSpec<T> {
   field: DiffField;
   kind: DiffValue["kind"];
@@ -109,7 +107,6 @@ function makeValue(kind: DiffValue["kind"], v: string | number): DiffValue {
   return kind === "money" ? money(v as number) : kind === "date" ? date(String(v)) : kind === "status" ? status(String(v)) : kind === "long" ? long(String(v)) : text(String(v));
 }
 
-/** Compares incoming records with the current ones, field by field, and shows only real differences. */
 export class MergePlanner {
   static plan(current: BackupData, incoming: BackupData): MergePlan {
     const entries: MergeEntry[] = [];
@@ -219,7 +216,6 @@ export class MergePlanner {
       { field: "status", kind: "status", get: (v) => v.status },
     ], current.payrollRuns, incoming.payrollRuns);
 
-    // The audit log and idempotency keys are append-only history: never replaced, only added.
     classify("auditLog", byId, (v) => `${v.entity} ${v.action}`, [], current.auditLog, incoming.auditLog, { appendOnly: true });
     classify("writeKey", (v) => v.key, (v) => v.key, [], current.writeKeys, incoming.writeKeys, { appendOnly: true });
 
@@ -227,9 +223,6 @@ export class MergePlanner {
       { field: "value", kind: "text", get: (v) => String(v.value ?? "") },
     ], current.settings, incoming.settings);
 
-    // Trash entries compare on their kind, label and deletion day; the
-    // snapshot and related rows travel with the entry and are never diffed
-    // field by field. The field names reuse existing labels.
     classify("trash", byId, (v) => v.label, [
       { field: "status", kind: "status", get: (v) => v.kind },
       { field: "name", kind: "text", get: (v) => v.label },
@@ -275,7 +268,6 @@ export class MergePlanner {
     apply("payments", "payment", incoming.payments);
     apply("payrollRuns", "payrollRun", incoming.payrollRuns);
     apply("auditLog", "auditLog", incoming.auditLog);
-    // Settings are keyed by key, not by an id field.
     for (const s of incoming.settings) {
       const idx = out.settings.findIndex((t) => t.key === s.key);
       if (idx < 0) {
@@ -286,7 +278,6 @@ export class MergePlanner {
         replaced++;
       } else kept++;
     }
-    // Idempotency keys are keyed by key, not by an id field; keep the ones that are new.
     const existingKeys = new Set(out.writeKeys.map((w) => w.key));
     for (const w of incoming.writeKeys) {
       if (!existingKeys.has(w.key)) {
@@ -294,9 +285,6 @@ export class MergePlanner {
         added++;
       }
     }
-    // Attachments are append-only history like the audit log: new rows are
-    // added, existing rows are never replaced. The merge review does not list
-    // them; they ride along with the restored data.
     const existingAttachments = new Set(out.attachments.map((a) => a.id));
     for (const a of incomingAttachments) {
       if (!existingAttachments.has(a.id)) {
@@ -304,8 +292,6 @@ export class MergePlanner {
         added++;
       }
     }
-    // Trash entries merge like any other store: new ones are added, ones
-    // that differ are replaced only when the user chose "replace".
     const existingTrash = new Set(out.trash.map((t) => t.id));
     for (const v of incomingTrash) {
       if (!existingTrash.has(v.id)) {

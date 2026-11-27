@@ -2,12 +2,9 @@ import { AppError } from "@/lib/errors/AppError";
 import type { MessageKey } from "@/i18n/types";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/domain/attachments";
 
-/** Image types the uploader accepts. Anything else is rejected before any read. */
 export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
-/** Longest edge kept after shrinking, in pixels. */
 export const MAX_EDGE_PX = 1920;
-/** JPEG quality used when an image has to be re-encoded. */
 export const JPEG_QUALITY = 0.82;
 
 export interface PreparedAttachment {
@@ -19,7 +16,6 @@ export interface PreparedAttachment {
   sizeBytes: number;
 }
 
-/** A rejection the UI can show in plain words, with the message key to translate. */
 export class AttachmentRejection extends Error {
   readonly key: MessageKey;
   readonly vars: Record<string, string | number>;
@@ -92,7 +88,6 @@ function loadBitmap(file: Blob): Promise<{ width: number; height: number; draw: 
       close: () => bitmap.close(),
     }));
   }
-  // Older browsers without createImageBitmap fall back to an image element.
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();

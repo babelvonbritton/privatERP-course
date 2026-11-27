@@ -17,12 +17,9 @@ import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
 import type { NavId } from "../nav";
 
-/** Placeholder value for selects with nothing chosen yet. */
 const NONE = "__none__";
 
-/** "All" value for the dashboard filters. */
 const ALL = "all";
-/** Dashboard rows per page. */
 const PAGE_SIZE = 10;
 
 const MARK_STATUSES: AttendanceStatus[] = ["present", "absent", "late"];
@@ -42,9 +39,7 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const [trainerPresent, setTrainerPresent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-  /** Ids of the chosen course's sessions that already have attendance rows. */
   const [markedSessionIds, setMarkedSessionIds] = useState<string[]>([]);
-  /** The unmark confirmation for the open session, shown only when it is marked. */
   const [unmarkOpen, setUnmarkOpen] = useState(false);
 
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
@@ -102,7 +97,6 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const memberName = (id: string) => memberById.get(id)?.name ?? "";
   const selectedCourse = useMemo(() => courses.find((c) => c.id === courseId) ?? null, [courses, courseId]);
-  /** Ids of a course's sessions that already have attendance rows. */
   const refreshMarked = useCallback(async (id: string) => {
     try {
       setMarkedSessionIds(await getServices().attendance.listMarkedSessionIds(id));
@@ -143,8 +137,6 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
         getServices().attendance.listSessionsByCourse(id),
         getServices().attendance.listMarkedSessionIds(id),
       ]);
-      // Soonest first: date, then start time, then topic. Marked sessions
-      // stay in the list; opening one shows its saved marks to adjust.
       setSessions([...found].sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || "") || a.topic.localeCompare(b.topic)));
       setMarkedSessionIds(marked);
     } catch (e) {
@@ -170,18 +162,12 @@ export function AttendanceScreen({ navigate: _navigate }: { navigate: (id: NavId
       const active = allEnrollments.filter((e) => e.status === "active");
       setSession(found ?? null);
       setTrainerPresent(found?.trainerPresent ?? false);
-      // The marking list is the session's assigned members who are still
-      // enrolled, plus any member who already has an attendance row for
-      // this session (so a session marked before assignment was required
-      // keeps its marks). An unassigned session with no rows lists nobody.
       const effectiveIds = found ? new Set(sessionEffectiveAttendees(found, active.map((a) => a.memberId))) : new Set<string>();
       const rowIds = new Set(rows.map((r) => r.memberId));
       const listed = active.filter((e) => effectiveIds.has(e.memberId) || rowIds.has(e.memberId));
       setEnrollments(listed);
       const saved = new Map(rows.map((r) => [r.memberId, r.status]));
       const next: Record<string, AttendanceStatus> = {};
-      // Unmarked members default to present; the session's capacity is
-      // enforced when members are assigned, not here.
       for (const e of listed) next[e.memberId] = saved.get(e.memberId) ?? "present";
       setMarks(next);
     } catch (e) {

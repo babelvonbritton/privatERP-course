@@ -1,23 +1,3 @@
-/**
- * Browser verification for the legacy invoice print bug.
- * Serves the static export separately (python3 -m http.server 8901 --directory out)
- * and drives the real UI in Chromium.
- * Run: BASE_URL=http://localhost:8901 node scripts/print-legacy-check.mjs
- * The bundled Chromium is used through its cached executable when the
- * playwright package revision does not match the cache.
- *
- * A legacy invoice is a row stored before the payment fields existed. The
- * script creates one through the UI, then strips paymentMethod and
- * paymentDetails from the stored row with the raw indexedDB API, reloads,
- * and checks the app never shows "method.undefined":
- *   1. detail view shows Cash and no payment details block
- *   2. print preview shows no payment block and no method.undefined text
- *   3. the edit dialog starts at Cash, accepts transfer plus details, and saves them
- *   4. recording a transfer payment sets the invoice method to Bank transfer
- *   5. marking the rest paid keeps the invoice's transfer method
- *   6. deleting the transfer payment leaves the method at Bank transfer
- *   7. marking the rest paid on a cash invoice keeps the method at Cash
- */
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:8901";
@@ -58,8 +38,6 @@ function launchOptions() {
 async function skipTourIfShown(page) {
   const tour = page.getByText("Get to know Olaseena");
   try {
-    // Wait for the tour to appear: checking the count right after load races
-    // its first render and leaves the overlay blocking the nav.
     await tour.waitFor({ timeout: 5000 });
   } catch {
     return;
@@ -158,9 +136,6 @@ function previewDialog(page) {
 }
 
 function detailDialog(page) {
-  // The detail dialog is the one with the Print invoice button. It must not
-  // key on the pay section: once an invoice is fully paid that section is
-  // gone, but the dialog and its payment list are still there.
   return page.locator('[role="dialog"]:has-text("Print invoice")').last();
 }
 
@@ -257,7 +232,6 @@ try {
   });
 
   await check("legacy: recording a transfer payment sets the invoice method", async () => {
-    // If the edit check left its dialog open, go back to the detail view first.
     if (!(await detailDialog(page).getByRole("button", { name: "Record payment", exact: true }).count())) {
       await page.keyboard.press("Escape");
       await nav(page, "Invoices");
@@ -304,9 +278,6 @@ try {
     await detailDialog(page).getByText("Paid").first().waitFor({ timeout: 8000 });
     const rows = await readInvoices(page);
     if (rows[0].paymentMethod !== "cash") throw new Error(`stored method is ${rows[0].paymentMethod} after Mark as paid, expected cash`);
-    // The edit to cash clears the transfer details by design (details only
-    // apply to non-cash methods), so this check pins the method and the
-    // total, not the details.
     if (rows[0].paidAmount !== 500000) throw new Error(`paid amount is ${rows[0].paidAmount}, expected 500000`);
   });
 

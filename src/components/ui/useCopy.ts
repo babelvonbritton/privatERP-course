@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppError } from "@/lib/errors/AppError";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 
-/** The copy result a button shows next to itself (the button stays enabled throughout). */
 export type CopyState = "idle" | "ok" | "fail";
 
 /**

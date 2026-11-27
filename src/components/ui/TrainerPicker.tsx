@@ -4,21 +4,14 @@ import { useI18n } from "@/i18n";
 import type { RankedTrainer, Trainer } from "@/lib/domain/types";
 
 interface TrainerPickerProps {
-  /** Name shared by the radio inputs, grouping them for arrow-key navigation. */
   name: string;
-  /** Trainers already ranked and filtered for the course; empty means none qualifies. */
   trainers: RankedTrainer<Trainer>[];
-  /** The course's required skills, for the match count shown on each row. */
   requiredSkills: string[];
-  /** Selected trainer id, or "" when none is chosen yet. */
   value: string;
   onChange: (trainerId: string) => void;
-  /** Accessible label for the group, shown by the wrapping Field. */
   label: string;
   disabled?: boolean;
-  /** Hint shown when the picker is disabled, e.g. until a course is chosen. */
   disabledHint?: string;
-  /** Message shown when no trainer qualifies. */
   emptyMessage?: string;
 }
 

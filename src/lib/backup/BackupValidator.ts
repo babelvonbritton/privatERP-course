@@ -48,9 +48,8 @@ const HASH_RE = /^[0-9a-f]{64}$/;
 const INVOICE_NUMBER_RE = /^INV-\d{8}-\d{3}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_TIMESTAMP = 4_102_444_800_000; // year 2100
+const MAX_TIMESTAMP = 4_102_444_800_000;
 
-/** Collects problems with their location; only the first few are kept for display. */
 class IssueLog {
   readonly lines: string[] = [];
   total = 0;
@@ -60,7 +59,6 @@ class IssueLog {
   }
 }
 
-/** Reads typed fields from untrusted objects. Problems are logged, never thrown, so all issues are reported at once. */
 class FieldReader {
   constructor(private readonly log: IssueLog) {}
 
@@ -219,7 +217,6 @@ const FIELDS = {
   trash: ["id", "kind", "originalId", "label", "snapshot", "related", "deletedAt"],
 } as const;
 
-/** Validates the contents of data.json: types, limits and references. Builds clean objects field by field. */
 class DataValidation {
   private readonly log = new IssueLog();
   private readonly read = new FieldReader(this.log);
@@ -241,10 +238,8 @@ class DataValidation {
         lists[name] = [];
       } else lists[name] = v;
     }
-    // Format 1 backups carry no attachments; they restore with an empty list.
     const rawAttachments = raw.attachments;
     const attachmentList: unknown[] = rawAttachments === undefined ? [] : Array.isArray(rawAttachments) ? rawAttachments : (this.log.add("attachments", "must be a list"), []);
-    // Backups written before the trash bin carry no trash list either.
     const rawTrash = raw.trash;
     const trashList: unknown[] = rawTrash === undefined ? [] : Array.isArray(rawTrash) ? rawTrash : (this.log.add("trash", "must be a list"), []);
     const currencySetting = lists.settings.find((entry) => isRecord(entry) && entry.key === "pref.currency");
@@ -325,13 +320,9 @@ class DataValidation {
     invoices.forEach((i, idx) => {
       if (!paidMatches(paidByInvoice.get(i.id) ?? 0, i.paidAmount, this.currency)) this.log.add(`invoices[${idx}].paidAmount`, "does not match its payments");
     });
-    // An attachment may point at a live invoice or at one held in the
-    // trash: trashed invoices keep their attachments until permanently
-    // deleted, so the reference is still valid.
     const trashedInvoiceIds = new Set(trash.filter((t) => t.kind === "invoice").map((t) => t.originalId));
     attachments.forEach((a, idx) => {
       const pointsAtInvoice = a.entityType === "invoice" && (invoiceIds.has(a.entityId) || trashedInvoiceIds.has(a.entityId));
-      // The business logo points at the fixed profile entity, not at a record.
       const known = a.entityType === "invoice" ? pointsAtInvoice : a.entityType === "member" ? memberIds.has(a.entityId) : a.entityType === "session" ? sessionIds.has(a.entityId) : a.entityType === "profile" && a.entityId === "profile";
       if (!known) this.log.add(`attachments[${idx}].entityId`, "points to a missing record");
     });
@@ -407,10 +398,6 @@ class DataValidation {
     description: this.read.text(o, "description", p, LIMITS.description),
     level: this.read.text(o, "level", p, LIMITS.level, { required: true, trim: true }),
     price: this.read.money(o, "price", p, 0, 1_000_000_000, this.currency),
-    // A backup written before required skills existed carries none, and one
-    // written before v0.9.0 carries a trainerId and a capacity instead: both
-    // are dropped silently, so the course restores with no required skills,
-    // no trainer, and no cap (the cap now lives on the session).
     requiredSkills: o.requiredSkills === undefined ? [] : dedupeSkills(this.read.stringList(o, "requiredSkills", p, LIMITS.requiredSkills, LIMITS.subject)),
     scheduleWeekdays: this.weekdays(o, p),
     status: this.read.oneOf(o, "status", p, COURSE_STATUSES),
@@ -443,9 +430,7 @@ class DataValidation {
     trainerPresent: this.read.bool(o, "trainerPresent", p),
     startTime: this.read.timeOptional(o, "startTime", p),
     endTime: this.read.timeOptional(o, "endTime", p),
-    // A backup written before session capacity existed carries none: null means no limit.
     capacity: o.capacity === undefined || o.capacity === null ? null : this.read.int(o, "capacity", p, 1, 10_000),
-    // A backup written before attendee assignment existed carries none: null means unassigned.
     attendeeMemberIds: o.attendeeMemberIds === undefined || o.attendeeMemberIds === null ? null : this.read.idList(o, "attendeeMemberIds", p),
   });
 
@@ -489,8 +474,6 @@ class DataValidation {
       paidAmount: this.read.money(o, "paidAmount", p, 0, 1_000_000_000, this.currency),
       dueDate: this.read.date(o, "dueDate", p) ?? "",
       status: this.read.oneOf(o, "status", p, INVOICE_STATUSES),
-      // Old backups carry no payment fields: cash with no details, and no
-      // validation error, so they still restore.
       paymentMethod: o.paymentMethod === undefined ? "cash" : this.read.oneOf(o, "paymentMethod", p, PAYMENT_METHODS),
       paymentDetails: o.paymentDetails === undefined ? "" : this.read.text(o, "paymentDetails", p, LIMITS.paymentDetails, { trim: true }),
     };
@@ -587,7 +570,6 @@ class DataValidation {
   };
 }
 
-/** Entry points for validating the two files inside a backup. */
 export class BackupValidator {
   /**
    * Checks manifest.json structure and version compatibility. Accepts format
@@ -604,7 +586,6 @@ export class BackupValidator {
     const formatVersion = read.int(raw, "formatVersion", "manifest", 1, 10_000);
     const schemaVersion = read.int(raw, "schemaVersion", "manifest", 1, 10_000);
     const kind = read.oneOf<BackupKind>(raw, "kind", "manifest", ["backup", "safety"]);
-    // Old backups carry no currency: they were written when every amount was IDR.
     let currency: CurrencyCode = "IDR";
     if (raw.currency !== undefined) {
       if (isCurrencyCode(raw.currency)) currency = raw.currency;
@@ -616,13 +597,10 @@ export class BackupValidator {
 
     const stores = {} as BackupManifest["stores"];
     const rawStores = isRecord(raw.stores) ? raw.stores : (log.add("manifest.stores", "must be an object"), {} as Raw);
-    // Backups written before the trash bin carry no trash entry.
     const trashStoreMissing = !isRecord(rawStores.trash);
     for (const name of BACKUP_STORE_NAMES) {
       const s = rawStores[name];
       if (!isRecord(s)) {
-        // Format 1 backups carry no attachments entry, and backups written
-        // before the trash bin carry no trash entry.
         if ((formatVersion === 1 && name === "attachments") || name === "trash") {
           stores[name] = { count: 0, sha256: "" };
           continue;
@@ -669,7 +647,6 @@ export class BackupValidator {
         const path = STORE_TO_FILE[name];
         const entry = files.find((f) => f.name === path);
         if (!entry) {
-          // Backups written before the trash bin carry no trash file.
           if (name === "trash" && trashStoreMissing) continue;
           log.add("manifest.files", `is missing ${path}`);
         } else if (entry.sha256 !== stores[name].sha256) log.add(`manifest.files`, `checksum for ${path} does not match its store record`);

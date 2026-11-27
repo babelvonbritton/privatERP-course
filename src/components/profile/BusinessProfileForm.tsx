@@ -29,12 +29,9 @@ export function BusinessProfileForm({ onSaved }: { onSaved?: (profile: BusinessP
   const [address, setAddress] = useState("");
   const [contacts, setContacts] = useState<string[]>([]);
   const [tagline, setTagline] = useState("");
-  /** The logo as stored, for the preview; replaced by `pendingLogo` once a new file is picked. */
   const [storedLogoUrl, setStoredLogoUrl] = useState<string | null>(null);
-  /** A picked logo waiting for Save; only uploaded when the form is saved. */
   const [pendingLogo, setPendingLogo] = useState<PreparedAttachment | null>(null);
   const [pendingLogoUrl, setPendingLogoUrl] = useState<string | null>(null);
-  /** True once a stored logo was removed in this edit; the file is deleted on Save. */
   const [logoRemoved, setLogoRemoved] = useState(false);
   const [nameError, setNameError] = useState(false);
   const [logoError, setLogoError] = useState("");
@@ -75,7 +72,6 @@ export function BusinessProfileForm({ onSaved }: { onSaved?: (profile: BusinessP
     };
   }, []);
 
-  // A picked logo's preview URL lives only while the pick is pending.
   useEffect(() => {
     if (!pendingLogo) return;
     const url = URL.createObjectURL(pendingLogo.blob);
@@ -107,8 +103,6 @@ export function BusinessProfileForm({ onSaved }: { onSaved?: (profile: BusinessP
   async function save(): Promise<void> {
     if (saving) return;
     if (businessName.trim() === "") {
-      // The name is required: say so and move focus to it, so its error is
-      // announced instead of leaving the user guessing why nothing saved.
       setNameError(true);
       nameRef.current?.focus();
       return;
@@ -145,7 +139,6 @@ export function BusinessProfileForm({ onSaved }: { onSaved?: (profile: BusinessP
       } else {
         setStoredLogoUrl(null);
       }
-      // The next record created carries the new names, with no restart.
       applyBusinessProfile(saved);
       errorCenter.notify({ key: "toast.saved" });
       onSaved?.(saved);
@@ -161,7 +154,6 @@ export function BusinessProfileForm({ onSaved }: { onSaved?: (profile: BusinessP
       <div className="flex items-center gap-4">
         <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-card border border-line bg-canvas text-muted">
           {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt="" className="size-full object-contain" />
           ) : (
             <Icon name="building" size={36} />

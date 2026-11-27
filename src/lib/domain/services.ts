@@ -69,13 +69,6 @@ import type {
 import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionAttendees, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
-/**
- * All writes go through these services. Each one: validates input with zod at the
- * boundary, checks the permission gate, honors the idempotency key inside the same
- * Dexie transaction as the write, and appends an audit entry. The UI layer never
- * touches a store directly.
- */
-
 type Db = StorageService["db"];
 
 function baseFields(actor: Actor, now: number, id = createId()): BaseRecord {
@@ -104,7 +97,6 @@ function assertDateOnSchedule(field: string, date: string, course: Course): void
 abstract class ServiceBase {
   constructor(
     protected readonly storage: StorageService,
-    /** The actor new records and audit entries are stamped with. Mutable so the shared services can follow the business profile without a rebuild; a Services built directly with an explicit actor keeps that actor unless setActor is called on it. */
     protected actor: Actor,
     protected readonly clock: Clock = Date.now,
   ) {}
@@ -154,8 +146,6 @@ export function effectiveInvoiceStatus(invoice: Invoice, today: string): Invoice
   if ((invoice.status === "sent" || invoice.status === "partial") && invoice.dueDate < today) return "overdue";
   return invoice.status;
 }
-
-// ---------------------------------------------------------------- members
 
 export class MemberService extends ServiceBase {
   list(): Promise<Member[]> {
@@ -224,7 +214,6 @@ export class MemberService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- trainers
 
 export class TrainerService extends ServiceBase {
   list(): Promise<Trainer[]> {
@@ -289,7 +278,6 @@ export class TrainerService extends ServiceBase {
     requireCan(this.actor, "trainer.delete");
     const trainer = await this.storage.trainers.get(id);
     if (!trainer) throw new AppError("NOT_FOUND", { details: `trainer ${id}` });
-    // A trainer owns no course any more, so only sessions they taught and pay runs block the delete.
     const sessions = await this.storage.sessions.all();
     const runs = await this.storage.payrollRuns.listByTrainer(id);
     if (sessions.some((s) => s.trainerId === id) || runs.length > 0) {
@@ -303,7 +291,6 @@ export class TrainerService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- courses + enrollments
 
 /** Weekdays sorted ascending with duplicates removed, so [5, 1, 1] stores as [1, 5]. */
 function normalizeWeekdays(days: number[]): number[] {
@@ -388,7 +375,6 @@ export class CourseService extends ServiceBase {
     });
   }
 
-  // ---------------------------------------------------------- enrollments
 
   async enroll(input: EnrollmentInput): Promise<Enrollment> {
     requireCan(this.actor, "enrollment.create");
@@ -403,7 +389,6 @@ export class CourseService extends ServiceBase {
         const existing = await this.storage.enrollments.get(seenId);
         if (existing) return existing;
       }
-      // Checked inside the transaction: a second enroll racing the first sees it once it lands.
       const active = await this.storage.enrollments.findActive(data.memberId, data.courseId);
       if (active && data.status === "active") throw new ValidationError("memberId", "member is already enrolled in this course", "invalid");
       const now = this.now();
@@ -418,10 +403,6 @@ export class CourseService extends ServiceBase {
   async updateEnrollment(id: string, input: EnrollmentPatch): Promise<Enrollment> {
     requireCan(this.actor, "enrollment.update");
     const data = parseInput(enrollmentPatch, input);
-    // Checked before the transaction, like enroll does: the courses table is
-    // outside this transaction's scope, so it cannot be read inside it.
-    // Only a move to a new start date or course is checked: an untouched
-    // enrollment keeps its date even when it predates the weekly slot.
     if (data.startDate !== undefined || data.courseId !== undefined) {
       const current = await this.storage.enrollments.get(id);
       if (!current) throw new AppError("NOT_FOUND", { details: `enrollment ${id}` });
@@ -478,9 +459,7 @@ export class CourseService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- sessions + attendance
 
-/** One row of the attendance dashboard: one member in one course, with every attendance mark for that pair. */
 export interface AttendanceDashboardRow {
   memberId: string;
   memberName: string;
@@ -488,14 +467,11 @@ export interface AttendanceDashboardRow {
   courseTitle: string;
   trainerId: string;
   trainerName: string;
-  /** Attendance marks for this pair. */
   sessions: number;
   present: number;
   absent: number;
   late: number;
-  /** Present + late as a share of all marks, 0-100. */
   rate: number;
-  /** Hours attended in this course, from the time ranges of present and late sessions. */
   attendedHours: number;
 }
 
@@ -512,21 +488,15 @@ export interface AttendanceDashboardSummary {
   overallRate: number;
 }
 
-/** One row of the trainer dashboard: one trainer in one course, with every session they taught there. */
 export interface TrainerDashboardRow {
   trainerId: string;
   trainerName: string;
   courseId: string;
   courseTitle: string;
-  /** Sessions of this trainer in this course. */
   sessions: number;
-  /** Sessions where the trainer was marked present. */
   present: number;
-  /** Sessions where the trainer was marked absent. */
   absent: number;
-  /** Present as a share of all sessions, 0-100. */
   rate: number;
-  /** Hours taught in this course, from the time ranges of present sessions. */
   hoursTaught: number;
 }
 
@@ -582,8 +552,6 @@ export class AttendanceService extends ServiceBase {
     if (!course) throw new ValidationError("courseId", "course does not exist", "invalid");
     if (!trainer) throw new ValidationError("trainerId", "trainer does not exist", "invalid");
     assertDateOnSchedule("date", data.date, course);
-    // A session trainer must have at least one of the course's required
-    // skills; a course with no required skills accepts any trainer.
     const required = courseRequiredSkills(course);
     if (required.length > 0 && trainerSkillMatchCount(trainer, required) === 0) {
       throw new ValidationError("trainerId", "trainer does not teach any of the course's required skills", "unqualifiedTrainer", undefined, {
@@ -596,7 +564,6 @@ export class AttendanceService extends ServiceBase {
         const existing = await this.storage.sessions.get(seenId);
         if (existing) return existing;
       }
-      // Checked inside the transaction: a second create racing the first sees it once it lands.
       const duplicate = await this.storage.sessions.findByCourseAndDate(data.courseId, data.date);
       if (duplicate) throw new ValidationError("date", "a session already exists for this course on this date", "invalid");
       const now = this.now();
@@ -618,8 +585,6 @@ export class AttendanceService extends ServiceBase {
   async updateSession(id: string, input: SessionPatch): Promise<Session> {
     requireCan(this.actor, "session.update");
     const data = parseInput(sessionPatch, input);
-    // The course and trainer reads happen inside the transaction, so their
-    // tables must be listed alongside the written ones.
     return this.db.transaction("rw", [this.db.sessions, this.db.courses, this.db.trainers, this.db.writeKeys, this.db.auditLog], async () => {
       const seenId = await this.seenKey(data.idempotencyKey, "session");
       if (seenId === id) {
@@ -767,8 +732,6 @@ export class AttendanceService extends ServiceBase {
         const existing = await this.storage.attendance.listBySession(sessionId);
         if (existing.length > 0) return existing;
       }
-      // The cap lives at assignment, not here: marking covers exactly the
-      // members on the session's list, however many that is.
       const now = this.now();
       const out: Attendance[] = [];
       for (const m of marks) {
@@ -831,7 +794,6 @@ export class AttendanceService extends ServiceBase {
     const courseById = new Map(courses.map((c) => [c.id, c]));
     const trainerById = new Map(trainers.map((t) => [t.id, t]));
     const sessionById = new Map(sessions.map((s) => [s.id, s]));
-    // A session counts only when it passes the session-level filters.
     const visibleSessions = new Set(
       sessions
         .filter((s) => (filter.trainerId ? s.trainerId === filter.trainerId : true))
@@ -957,7 +919,6 @@ export class AttendanceService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- invoices + payments
 
 export class InvoiceService extends ServiceBase {
   list(): Promise<Invoice[]> {
@@ -968,7 +929,6 @@ export class InvoiceService extends ServiceBase {
     const q = query.trim();
     const byNumber = await this.storage.invoices.search(q);
     if (!q) return byNumber;
-    // The search bar promises "number or member": match members by name, then their invoices.
     const members = await this.storage.members.search(q);
     const seen = new Set(byNumber.map((i) => i.id));
     const merged = [...byNumber];
@@ -1050,8 +1010,6 @@ export class InvoiceService extends ServiceBase {
       if (data.status && (current.status === "paid" || current.status === "partial")) {
         throw new ValidationError("status", "an invoice with payments keeps its status", "invalid");
       }
-      // A legacy row without payment fields reads as cash with no details, so
-      // saving it here writes those defaults back instead of keeping blanks.
       const updated: Invoice = { ...touched(current, this.now()), dueDate: data.dueDate ?? current.dueDate, status: data.status ?? current.status, paymentMethod: data.paymentMethod ?? paymentMethodOf(current), paymentDetails: data.paymentDetails ?? paymentDetailsOf(current) };
       await this.storage.invoices.put(updated);
       await this.recordKey(data.idempotencyKey, "invoice", id);
@@ -1068,8 +1026,6 @@ export class InvoiceService extends ServiceBase {
       const payments = await this.storage.payments.listByInvoice(id);
       for (const payment of payments) await this.storage.payments.remove(payment.id);
       await this.storage.invoices.remove(id);
-      // Attachments stay keyed by invoice id, so restoring the invoice
-      // leaves them working; they are only deleted with a permanent delete.
       await this.storage.trash.put(createTrashEntry("invoice", id, invoice.number, invoice, payments, this.now()));
       await this.audit("invoice.trash", "invoice", id, `${invoice.number}; ${payments.length} payments deleted`);
     });
@@ -1096,8 +1052,6 @@ export class InvoiceService extends ServiceBase {
       const payment: Payment = { ...baseFields(this.actor, now), invoiceId: data.invoiceId, amount: data.amount, at: now, method: data.method };
       await this.storage.payments.put(payment);
       const paidAmount = roundMoney(invoice.paidAmount + data.amount);
-      // The recorded payment decides how the invoice is paid from now on; the
-      // details stay as the user set them and are never invented here.
       const updated: Invoice = { ...touched(invoice, now), paidAmount, status: statusAfterPayment(invoice.total, paidAmount), paymentMethod: data.method };
       await this.storage.invoices.put(updated);
       await this.recordKey(data.idempotencyKey, "payment", payment.id);
@@ -1130,7 +1084,6 @@ export class InvoiceService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- payroll
 
 export class PayrollService extends ServiceBase {
   list(): Promise<PayrollRun[]> {
@@ -1164,18 +1117,13 @@ export class PayrollService extends ServiceBase {
         const found = await this.storage.payrollRuns.get(seenId);
         if (found) return found;
       }
-      // Checked inside the transaction: a second generate racing the first sees the run once it lands.
       const existing = await this.storage.payrollRuns.findByTrainerAndPeriod(data.trainerId, data.periodStart);
-      // A refresh always counts the run's own period, not the caller's range.
       const periodStart = existing?.periodStart ?? data.periodStart;
       const periodEnd = existing?.periodEnd ?? data.periodEnd;
       const sessions = await this.storage.sessions.listInRange(periodStart, periodEnd);
       const attended = sessions.filter((s) => s.trainerId === data.trainerId && s.trainerPresent);
       const now = this.now();
       if (existing) {
-        // A paid run is a permanent record and never changes. A draft run is
-        // refreshed from the current attendance, so a session corrected to
-        // absent after the first generate stops being paid.
         if (existing.status === "paid") return existing;
         const refreshed: PayrollRun = {
           ...touched(existing, now),
@@ -1246,22 +1194,15 @@ export class PayrollService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- currency
 
 export interface CurrencySwitchResult {
   from: CurrencyCode;
   to: CurrencyCode;
   rate: number;
   switched: boolean;
-  /** Switches left today after this call. */
   remaining: number;
 }
 
-/**
- * Currency switching: fetches the live rate first, then converts every stored
- * amount in one transaction, so a failure anywhere changes nothing. When no
- * amount-bearing record exists, the switch only changes the setting.
- */
 export class CurrencyService extends ServiceBase {
   /** Switches left today, from 0 to 10. */
   async remainingSwitches(): Promise<number> {
@@ -1293,8 +1234,6 @@ export class CurrencyService extends ServiceBase {
     const used = preferences.currencySwitchDate === today ? preferences.currencySwitchCount : 0;
     const remaining = DAILY_SWITCH_LIMIT - used;
     if (to === from) return { from, to, rate: 1, switched: false, remaining };
-    // With no amount-bearing records there is nothing to convert: the switch
-    // only changes the setting, with no rate fetch and no daily-switch use.
     if (!(await this.hasConvertibleData())) {
       await this.db.transaction("rw", [this.db.settings, this.db.auditLog], async () => {
         await this.storage.settings.write(PREFERENCE_KEYS.currency, to);
@@ -1305,7 +1244,6 @@ export class CurrencyService extends ServiceBase {
       return { from, to, rate: 1, switched: true, remaining };
     }
     if (remaining <= 0) throw new AppError("CURRENCY_LIMIT_REACHED");
-    // The rate is fetched before any write: a failed fetch changes nothing.
     const rate = await fetchRate(from, to);
     await this.db.transaction("rw", [this.db.invoices, this.db.payments, this.db.courses, this.db.trainers, this.db.payrollRuns, this.db.trash, this.db.settings, this.db.auditLog], async () => {
       const payments = await this.storage.payments.all();
@@ -1321,12 +1259,7 @@ export class CurrencyService extends ServiceBase {
           lineItems.reduce((sum, item) => sum + item.amount, 0),
           to,
         );
-        // Conversion rounding can push the paid amount a cent past the total
-        // or leave a hair under it, so the paid amount is clamped to the
-        // total when the gap is dust and the status is re-derived from the
-        // converted amounts instead of carried over.
         const paidAmount = clampPaidAmount(paidByInvoice.get(inv.id) ?? 0, total, to);
-        // A draft has no payments, so its status is not derived from them.
         const status = inv.status === "draft" ? "draft" : statusAfterPayment(total, paidAmount, to);
         const updated: Invoice = { ...touched(inv, this.now()), lineItems, total, paidAmount, status };
         await this.storage.invoices.put(updated);
@@ -1341,9 +1274,6 @@ export class CurrencyService extends ServiceBase {
         const ratePerSession = convert(run.ratePerSession, rate, to);
         await this.storage.payrollRuns.put({ ...touched(run, this.now()), ratePerSession, total: roundMoney(run.sessionCount * ratePerSession, to) });
       }
-      // Trashed money converts in the same transaction, so a record restored
-      // after the switch comes back in the new currency instead of smuggling
-      // old-currency amounts into a converted invoice.
       for (const entry of await this.storage.trash.all()) {
         const converted = convertTrashEntry(entry, rate, to);
         if (converted !== entry) await this.storage.trash.put(converted);
@@ -1359,7 +1289,6 @@ export class CurrencyService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- dashboard
 
 export interface DashboardUpcomingSession {
   id: string;
@@ -1423,7 +1352,6 @@ export class DashboardService extends ServiceBase {
     const upcoming = sessions
       .filter((s) => s.date >= today)
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.topic.localeCompare(b.topic)));
-    // No cap here: the dashboard paginates the full upcoming list itself.
     const courseById = new Map(courses.map((c) => [c.id, c]));
     const allCourses = await this.storage.courses.all();
     const allCourseById = new Map(allCourses.map((c) => [c.id, c]));
@@ -1464,9 +1392,7 @@ export class DashboardService extends ServiceBase {
   }
 }
 
-// ---------------------------------------------------------------- wiring
 
-/** All services, built on the shared storage. The UI calls getServices(); tests build Services directly. */
 export class Services {
   readonly members: MemberService;
   readonly trainers: TrainerService;
@@ -1481,7 +1407,6 @@ export class Services {
 
   constructor(
     readonly storage: StorageService,
-    /** The actor new records are stamped with. Mutable so the shared services can follow the business profile; tests that build Services directly with an explicit actor keep that actor unless setActor is called. */
     public actor: Actor = OWNER_ACTOR,
     clock: Clock = Date.now,
   ) {
@@ -1494,11 +1419,6 @@ export class Services {
     this.dashboard = new DashboardService(storage, actor, clock);
     this.currency = new CurrencyService(storage, actor, clock);
     this.trash = new TrashService(storage, actor, clock);
-    // The attachment audit entries use the same shape as the other services.
-    // The write runs inside the attachment transaction, so the audit row
-    // joins that transaction and is never written without its attachment.
-    // The callback reads the current actor, so a profile change re-stamps
-    // attachment audit entries too, with no rebuild.
     this.attachments = new AttachmentService(storage.db, async (action, entity, entityId, detail) => {
       await storage.audit.add({
         id: createId(),

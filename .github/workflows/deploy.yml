@@ -1,4 +1,3 @@
-# Builds, verifies and deploys Olaseena to GitHub Pages.
 name: Deploy Olaseena
 
 on:

@@ -7,7 +7,6 @@ import { Icon } from "./Icon";
 export interface Option<T extends string> {
   value: T;
   label: string;
-  /** Tailwind background class for a small color dot shown before the label. */
   swatch?: string;
 }
 
@@ -18,16 +17,6 @@ interface Props<T extends string> {
   ariaLabel: string;
   className?: string;
   prefix?: ReactNode;
-  /**
-   * Lets the menu scroll to the selected option on open. Only for long
-   * lists: Radix already scrolls the selected option into view once the
-   * menu is placed, but without a height cap a long menu renders at its
-   * full natural height, so there is nothing to scroll and the selected
-   * option sits below the fold, unreachable. The cap limits the menu to
-   * the space Radix reports as available, which makes the list scrollable
-   * and Radix's own scroll work. Short lists leave this off and behave
-   * exactly as before.
-   */
   scrollToSelectedOnOpen?: boolean;
 }
 

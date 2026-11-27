@@ -4,7 +4,6 @@ import { useEffect, useMemo } from "react";
 import { useI18n } from "@/i18n";
 import { Icon } from "../ui/Icon";
 
-/** One thumbnail row: a stored file (blob may be null when the file is missing) or a pending file. */
 export interface ThumbSource {
   key: string;
   fileName: string;
@@ -14,7 +13,6 @@ export interface ThumbSource {
 
 interface Props {
   items: ThumbSource[];
-  /** Omitted when the thumbnails cannot be opened, for example files picked while creating that are not stored yet. */
   onOpen?: (item: ThumbSource) => void;
   onRemove: (item: ThumbSource) => void;
 }

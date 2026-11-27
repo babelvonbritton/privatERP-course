@@ -15,13 +15,10 @@ interface LogRecord {
 }
 
 interface ReportOptions {
-  /** Where the failure happened, for example "item.move". */
   action?: string;
-  /** "toast" (default) shows a notification. "inline" means the caller shows it in its own UI; it is still logged. */
   surface?: "toast" | "inline";
 }
 
-/** Central place every failure goes through: normalizes, logs, and surfaces it. Nothing is swallowed. */
 export class ErrorCenter {
   private readonly log: LogRecord[] = [];
   private readonly listeners = new Set<(event: ToastEvent) => void>();
@@ -38,7 +35,6 @@ export class ErrorCenter {
     if (options.surface !== "inline") {
       const key = `${appError.code}:${action}`;
       const now = Date.now();
-      // The same failure repeating within two seconds shows one notification, but is still logged above.
       if (key !== this.lastToast.key || now - this.lastToast.at > 2000) {
         this.lastToast = { key, at: now };
         this.emit({ id: ++this.seq, kind: "error", error: appError });
@@ -71,5 +67,4 @@ export class ErrorCenter {
   }
 }
 
-/** Shared instance for the whole app. */
 export const errorCenter = new ErrorCenter();

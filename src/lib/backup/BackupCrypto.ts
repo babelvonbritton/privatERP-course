@@ -2,24 +2,12 @@ import { AppError } from "@/lib/errors/AppError";
 import type { BackupEncryption } from "./types";
 
 const ITERATIONS = 310_000;
-/** PBKDF2 iterations used for every backup passphrase. */
 export const BACKUP_KDF_ITERATIONS = ITERATIONS;
 const PASSPHRASE_MIN_LENGTH = 8;
 
 const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 const fromHex = (value: string) => new Uint8Array(value.match(/.{2}/g)!.map((byte) => Number.parseInt(byte, 16)));
 
-/**
- * Encryption scheme, shared by both backup formats. A passphrase is stretched
- * once per backup with PBKDF2-HMAC-SHA-256 (310,000 iterations) and a fresh
- * 16-byte random salt into one AES-256-GCM key. Every encrypted file gets its
- * own fresh 12-byte random IV. The manifest stays plaintext and records the
- * salt plus each file IV, so decryption needs only the passphrase. Hashes and
- * counts in the manifest always refer to the plaintext bytes: decrypt first,
- * then verify. Format 1 encrypted one file with one IV stored in the
- * manifest; format 2 reuses the same derived key for every file, each with
- * its own IV recorded in that file manifest entry.
- */
 export interface DerivedBackupKey {
   key: CryptoKey;
   salt: string;
@@ -48,7 +36,6 @@ export function isAlphanumericPassphrase(value: string): boolean {
   return /^[A-Za-z0-9]+$/.test(value);
 }
 
-/** Encrypts backup data with AES-256-GCM and a PBKDF2-derived passphrase key. */
 export class BackupCrypto {
   /** Derives one key for a whole backup, with a fresh random salt. Reuse the key for every file. */
   static async createKey(passphrase: string): Promise<DerivedBackupKey> {

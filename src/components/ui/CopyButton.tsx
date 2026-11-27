@@ -4,7 +4,6 @@ import { useI18n } from "@/i18n";
 import { Icon } from "./Icon";
 import { useCopyText } from "./useCopy";
 
-/** Last message shown, so a repeated identical message still announces (VoiceOver skips repeats). */
 let lastMessage = "";
 
 /**

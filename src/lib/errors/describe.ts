@@ -4,7 +4,6 @@ import { ValidationError } from "@/lib/storage/Guard";
 import type { AppError } from "./AppError";
 import { getCurrency } from "@/lib/currency";
 
-/** Technical field names used by validation, mapped to their translated labels. */
 const FIELD_KEYS: Record<string, MessageKey> = {
   name: "field.name",
   email: "field.email",
@@ -48,7 +47,6 @@ export function describeError(error: AppError, t: Translate): { title: string; h
       limit: cause.limit ?? 0,
       ...(cause.vars ?? {}),
     };
-    // The service carries allowed weekdays as numbers, so they stay correct in every language; translate them here.
     if (cause.kind === "notScheduledDay" && typeof cause.vars?.days === "string") {
       vars.days = cause.vars.days
         .split(",")

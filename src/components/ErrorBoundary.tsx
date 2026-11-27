@@ -19,7 +19,6 @@ function CrashScreen({ error }: { error: AppError }) {
   );
 }
 
-/** Catches rendering failures anywhere below it and shows a recoverable screen instead of a blank page. */
 export class ErrorBoundary extends Component<{ children: ReactNode }, { error: AppError | null }> {
   state: { error: AppError | null } = { error: null };
 

@@ -2,30 +2,20 @@ import { ValidationError } from "./Guard";
 import { LIMITS, ORG_ID, OWNER_ID, type Actor } from "@/lib/domain/types";
 import type { SettingsStore } from "./repositories";
 
-/** The business profile: the single record that identifies the business on invoices and in record stamps. */
 export interface BusinessProfile {
-  /** Shown on invoices and used as the organization id of new records. Empty until the user sets it. */
   businessName: string;
-  /** Used as the owner id of new records. Never shown on an invoice. */
   ownerName: string;
-  /** Shown on invoices, under the business name block. */
   address: string;
-  /** Contact lines shown on invoices, one per line. */
   contacts: string[];
-  /** Shown on invoices directly below the business name. */
   tagline: string;
-  /** Attachment id of the uploaded logo, or null when no logo was uploaded. The bytes live in the attachment blob store, never in a setting. */
   logoAttachmentId: string | null;
 }
 
 export const DEFAULT_BUSINESS_PROFILE: BusinessProfile = { businessName: "", ownerName: "", address: "", contacts: [], tagline: "", logoAttachmentId: null };
 
-/** Entity id the single business logo is stored under in the attachment store. */
 export const PROFILE_ENTITY_ID = "profile";
 
-/** Most contact lines the form keeps. */
 export const MAX_CONTACTS = 10;
-/** Longest address the form keeps. */
 export const MAX_ADDRESS_LENGTH = 500;
 
 const KEYS: Record<keyof BusinessProfile, string> = {
@@ -55,7 +45,6 @@ function readContacts(value: Stored): string[] | undefined {
   }
 }
 
-/** A reader returns the stored value, or undefined when it is not allowed. Undefined (not null) marks invalid, because a null logo id is a valid value. */
 const READERS: { [K in keyof BusinessProfile]: (v: Stored) => BusinessProfile[K] | undefined } = {
   businessName: (v) => (isText(v, LIMITS.name) ? v : undefined),
   ownerName: (v) => (isText(v, LIMITS.name) ? v : undefined),
@@ -74,11 +63,6 @@ export function actorForProfile(profile: BusinessProfile): Actor {
   };
 }
 
-/**
- * Typed business profile stored in the settings store, one key per field like
- * the preferences. The profile rides in the NDJSON backup with the rest of
- * the settings; the logo bytes ride as an attachment asset, never as JSON.
- */
 export class BusinessProfileService {
   private current: BusinessProfile = structuredClone(DEFAULT_BUSINESS_PROFILE);
 
@@ -137,7 +121,6 @@ export class BusinessProfileService {
 
   /** Validates and saves one field, for writers that update the profile directly. */
   async set<K extends keyof BusinessProfile>(name: K, value: BusinessProfile[K]): Promise<BusinessProfile> {
-    // Contacts are validated in their stored form (a JSON string), like every other field.
     const stored = name === "contacts" ? JSON.stringify(value) : (value as string | null);
     if (READERS[name](stored as Stored) === undefined) throw new ValidationError(`profile ${name}`, `${name} is not an allowed value`, "invalid");
     await this.settings.write(KEYS[name], stored);

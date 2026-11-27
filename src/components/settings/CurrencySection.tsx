@@ -49,8 +49,6 @@ export function CurrencySection() {
   async function choose(to: CurrencyCode) {
     if (to === current || busy) return;
     try {
-      // With no amounts to convert there is nothing to warn about: switch at
-      // once, with no dialog and no rate fetch.
       if (!(await getServices().currency.hasConvertibleData())) {
         await applySwitch(to);
         return;

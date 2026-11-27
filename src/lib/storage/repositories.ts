@@ -22,16 +22,9 @@ import type {
   WriteKey,
 } from "@/lib/domain/types";
 
-/**
- * Store interfaces. Services depend on these, never on Dexie directly: a future
- * server implementation only has to satisfy the same interface, and the services
- * keep working unchanged.
- */
-
 export interface MemberStore {
   get(id: string): Promise<Member | undefined>;
   all(): Promise<Member[]>;
-  /** Prefix search across the name, email and phone indexes. */
   search(query: string): Promise<Member[]>;
   listByStatus(status: MemberStatus): Promise<Member[]>;
   put(record: Member): Promise<string>;
@@ -89,11 +82,9 @@ export interface AttendanceStore {
 export interface InvoiceStore {
   get(id: string): Promise<Invoice | undefined>;
   all(): Promise<Invoice[]>;
-  /** Prefix search across the number index, plus member-name lookup done by the service. */
   search(query: string): Promise<Invoice[]>;
   listByMember(memberId: string): Promise<Invoice[]>;
   listByStatus(status: InvoiceStatus): Promise<Invoice[]>;
-  /** Numbers allocated on one day, for the next sequence number. */
   numbersWithPrefix(prefix: string): Promise<string[]>;
   put(record: Invoice): Promise<string>;
   remove(id: string): Promise<void>;
@@ -157,8 +148,6 @@ async function multiIndexSearch<T extends { id: string; name?: string; title?: s
   rows.sort((a, b) => (a.name ?? a.title ?? "").localeCompare(b.name ?? b.title ?? ""));
   return rows;
 }
-
-// ------------------------------------------------------------------ Dexie implementations
 
 export class DexieMemberStore extends BaseRepository<Member, string> implements MemberStore {
   search(query: string): Promise<Member[]> {

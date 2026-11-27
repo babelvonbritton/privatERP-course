@@ -8,7 +8,6 @@ import { Icon } from "../ui/Icon";
 import { LegalFooter } from "./LegalFooter";
 
 const SECTIONS = ["service", "data", "use", "warranty", "changes"] as const;
-/** Date these terms were last changed. */
 const UPDATED = new Date(2026, 10, 25);
 
 /** The full terms of service page. */

@@ -1,4 +1,3 @@
-/** Custom SVG icon set (24px grid, stroke based). Paths are separated by "|". */
 const PATHS = {
   plus: "M12 5v14|M5 12h14",
   search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12z|m20 20-4.2-4.2",
@@ -24,7 +23,6 @@ const PATHS = {
   pencil: "M5 19h4L19.5 8.5l-4-4L5 15z|M13.5 6.5l4 4",
   gear: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z|M12 3v2.5|M12 18.5V21|M3 12h2.5|M18.5 12H21|m5.6 5.6 1.8 1.8|m16.6 16.6 1.8 1.8|m18.4 5.6-1.8 1.8|m7.4 16.6-1.8 1.8",
   globe: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z|M4 12h16|M12 4c2.5 2.3 2.5 13.7 0 16|M12 4c-2.5 2.3-2.5 13.7 0 16",
-  /** Question mark in a circle, for the field help buttons and the section guide. */
   help: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z|M9.5 9a2.6 2.6 0 1 1 3.8 2.3c-.9.4-1.3 1-1.3 1.9|M12 17h.01",
   archive: "M4 6h16v4H4z|M6 10v9h12v-9|M10 14h4",
   download: "M12 4v10|m8 11 4 4 4-4|M5 19h14",
@@ -34,7 +32,6 @@ const PATHS = {
   file: "M7 3h7l4 4v14H7z|M14 3v4h4",
   upload: "M12 15V5|m8 8 4-4 4 4|M5 19h14",
   home: "M4 11 12 4l8 7|M6 10v10h12V10",
-  /** A building, the placeholder for the business logo until one is uploaded. */
   building: "M5 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17|M15 9h3a1 1 0 0 1 1 1v11|M3 21h18|M8 7h2|M8 11h2|M8 15h2|M12 7h2|M12 11h2|M12 15h2",
   users: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z|M3 20c0-3 2.5-5 6-5s6 2 6 5|M16 8.5a3 3 0 1 0-1.5-5.6|M17.5 15c2.2.6 3.5 2 3.5 5",
   user: "M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z|M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5",

@@ -32,7 +32,6 @@ function isAllowedEntry(name: string): boolean {
   return false;
 }
 
-/** Builds and opens backup ZIP files. Opening enforces size limits and a prefix allowlist before inflating. */
 export class ArchiveCodec {
   /**
    * Builds every plaintext content file and describes it: per-file size and

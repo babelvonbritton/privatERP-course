@@ -8,7 +8,6 @@ import { Icon } from "../ui/Icon";
 import { LegalFooter } from "./LegalFooter";
 
 const SECTIONS = ["local", "tracking", "hosting", "backups", "control", "limits", "terms", "changes"] as const;
-/** Date this policy was last changed. */
 const UPDATED = new Date(2026, 10, 20);
 
 /** The full privacy and policy page. */

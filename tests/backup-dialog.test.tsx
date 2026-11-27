@@ -27,7 +27,6 @@ describe("Backup dialog", () => {
     vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:test", revokeObjectURL: () => {} });
   });
 
-  // The test runner does not auto-clean the DOM between tests, so unmount each render explicitly.
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

@@ -32,7 +32,6 @@ import { RestoreReview } from "../backup/RestoreReview";
 import { Stepper } from "../backup/Stepper";
 
 interface Props {
-  /** Reloads workspace state after a restore replaced the data. */
   onRestored: () => Promise<void>;
 }
 
@@ -51,9 +50,6 @@ export function DriveSection({ onRestored }: Props) {
   const [showOwnId, setShowOwnId] = useState(false);
   const [drivePass, setDrivePass] = useState("");
   const [drivePassConfirm, setDrivePassConfirm] = useState("");
-  // Passphrase setup dialog, shown when auto-sync is turned on before any
-  // Drive passphrase is stored. Its fields live apart from the section's own
-  // passphrase fields, so the dialog never disturbs a manual backup.
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<"form" | "download">("form");
   const [setupPass, setSetupPass] = useState("");
@@ -65,9 +61,6 @@ export function DriveSection({ onRestored }: Props) {
   const [status, setStatus] = useState("");
   const [formError, setFormError] = useState("");
   const [error, setError] = useState<AppError | null>(null);
-  // Bytes fetched by phase 1 of a restore, held until the passphrase is
-  // entered and phase 2 inspects them. Cleared once phase 2 runs, so a
-  // later restore always fetches fresh from Drive.
   const [heldBytes, setHeldBytes] = useState<Uint8Array | null>(null);
   const [plan, setPlan] = useState<RestorePlan | null>(null);
   const [decisions, setDecisions] = useState<Map<string, Decision>>(new Map());
@@ -80,7 +73,6 @@ export function DriveSection({ onRestored }: Props) {
   const connected = !!state?.accessToken;
   const hasDefault = DEFAULT_DRIVE_CLIENT_ID.trim().length > 0;
 
-  /** Live validation of the setup dialog fields; shown once the user has started typing, so the disabled Confirm explains itself. */
   const setupErrorKind = setupPassphraseError(setupPass, setupPassConfirm);
   const setupError =
     (setupPass !== "" || setupPassConfirm !== "") && setupErrorKind !== null
@@ -105,8 +97,6 @@ export function DriveSection({ onRestored }: Props) {
     return syncManager.subscribe(setSyncState);
   }, [reloadState, syncManager]);
 
-  // A dead session shows as disconnected from here on, so the next action
-  // asks the user to connect again instead of failing the same way.
   const clearDeadSession = useCallback(async () => {
     await writeDriveState(getStorage().settings, { accessToken: null, tokenExpiresAt: null });
     await reloadState();
@@ -122,7 +112,6 @@ export function DriveSection({ onRestored }: Props) {
     [clearDeadSession],
   );
 
-  /** A usable access token, refreshing silently when the stored one expired. Null when signed out or the grant is gone. */
   const getToken = useCallback(async (): Promise<string | null> => {
     const current = await readDriveState(getStorage().settings);
     return ensureDriveToken(drive, current, async (token) => {
@@ -206,8 +195,6 @@ export function DriveSection({ onRestored }: Props) {
         throw e;
       }
       setSteps((prev) => prev.map((s) => (s.id === "driveUpload" ? { ...s, status: "done" } : s)));
-      // The passphrase is kept on this device so auto-sync can encrypt
-      // without asking. It is never written into a backup file.
       await writeDriveState(getStorage().settings, { lastBackupAt: Date.now(), passphrase });
       setHeldBytes(null);
       await reloadState();
@@ -252,8 +239,6 @@ export function DriveSection({ onRestored }: Props) {
       setFormError(t("validation.required", { field: t("drive.passphrase") }));
       return;
     }
-    // Letters and digits only, like every passphrase entry: a backup made
-    // before the rule with symbols in its passphrase cannot be opened here.
     if (!isAlphanumericPassphrase(drivePass)) {
       setFormError(t("validation.alphanumeric", { field: t("drive.passphrase") }));
       return;
@@ -308,9 +293,6 @@ export function DriveSection({ onRestored }: Props) {
       }
       return;
     }
-    // Turning on: with a stored passphrase sync starts at once. Without one,
-    // the setup dialog collects it first; sync stays off until then, and the
-    // toggle, controlled by the stored state, keeps showing off.
     try {
       const fresh = await readDriveState(getStorage().settings);
       if (fresh.passphrase) {

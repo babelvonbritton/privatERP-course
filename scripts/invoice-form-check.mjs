@@ -1,24 +1,3 @@
-/**
- * Browser verification for the invoice form fixes: picking a course fills
- * the first charge from the course title and price, manual charges survive
- * course changes, and the amount label follows the current currency.
- * Serves the static export separately (python3 -m http.server 8901 --directory out)
- * and drives the real UI in Chromium.
- * Run: BASE_URL=http://localhost:8901 node scripts/invoice-form-check.mjs
- * The bundled Chromium is used through its cached executable when the
- * playwright package revision does not match the cache.
- *
- * Checks:
- *   1. seed a trainer, a member, two courses, and enroll the member in both
- *   2. picking a course fills the first charge with its title and price,
- *      the section reads Charges, and the total updates live
- *   3. a manual extra charge adds to the total beside the course charge
- *   4. changing the course refreshes only the filled charge; the manual
- *      charge is untouched
- *   5. clearing the course removes only the filled charge
- *   6. switching currency to EUR (stubbed rate) changes the amount label
- *      to EUR and converts the filled course price
- */
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:8901";
@@ -59,8 +38,6 @@ function launchOptions() {
 async function skipTourIfShown(page) {
   const tour = page.getByText("Get to know Olaseena");
   try {
-    // Wait for the tour to appear: checking the count right after load races
-    // its first render and leaves the overlay blocking the nav.
     await tour.waitFor({ timeout: 5000 });
   } catch {
     return;
@@ -140,8 +117,6 @@ try {
   page.on("console", (m) => {
     if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
   });
-  // The currency switch fetches a live rate: answer with a fixed one so the
-  // run needs no internet. 500000 IDR at 0.00005 is 25 EUR.
   await page.route((url) => url.hostname.includes("frankfurter.dev"), async (route) => {
     await route.fulfill({
       status: 200,
@@ -182,9 +157,6 @@ try {
     await page.getByRole("button", { name: "New invoice" }).click();
     const form = createForm(page);
     await form.getByText("Charges").waitFor({ timeout: 8000 });
-    // The hint lives in a "?" toggletip whose popover is portaled to the
-    // page body, outside the dialog, so it is hovered open and waited on
-    // page-wide rather than inside the dialog locator.
     await form.getByRole("button", { name: "More about Charges" }).hover();
     await page.getByText("One charge per row. The total is the sum of the charges.").waitFor();
     await pickSelect(page, "Member", "Ayu Lestari");

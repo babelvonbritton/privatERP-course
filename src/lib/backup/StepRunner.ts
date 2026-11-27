@@ -5,9 +5,7 @@ import type { Outcome, StepState } from "./types";
 
 export interface StepOutcome {
   detail?: Msg;
-  /** Marks the step as finished with notices. */
   warning?: boolean;
-  /** Marks the step as skipped. */
   skipped?: boolean;
 }
 
@@ -19,10 +17,6 @@ export interface StepDef<C> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Runs steps in order and reports each one's state. The first failure stops the run, is turned into an AppError,
- * logged, and attached to its step. Each step stays visible for at least `minStepMs` so progress is readable.
- */
 export class StepRunner<C> {
   constructor(private readonly steps: StepDef<C>[], private readonly errors: ErrorCenter, private readonly minStepMs = 260) {}
 

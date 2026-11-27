@@ -28,7 +28,6 @@ import { MergePlanner, type Decision, type MergeResult } from "./MergePlanner";
 import { stripDriveSecrets } from "@/lib/drive";
 import type { BackupAsset, BackupKind, BackupManifest, BackupResult, Outcome, RestorePlan, StepState, VerifiedArchive } from "./types";
 
-/** The part of a File the service needs (also satisfied by test doubles). */
 export interface FileLike {
   name: string;
   size: number;
@@ -38,15 +37,12 @@ export interface FileLike {
 export interface RestoreOptions {
   safetyBackup: boolean;
   safetyPassphrase?: string;
-  /** The user's choice for each record that differs, keyed by MergeEntry.key. Anything not listed is kept as it is. */
   decisions: ReadonlyMap<string, Decision>;
-  /** Called after data is replaced so the UI can reload its state. */
   onRestored: () => Promise<void>;
 }
 
 type Progress = (steps: StepState[]) => void;
 
-/** Working state shared by the archive-building steps (file export and Drive upload build the same archive). */
 interface ArchiveCtx {
   data?: BackupData;
   noticeCount: number;
@@ -83,7 +79,6 @@ function hasAssetFile(assets: Map<string, Uint8Array>, id: string): boolean {
   return false;
 }
 
-/** Creates, verifies and restores backups. Every flow reports step by step and returns an Outcome instead of throwing. */
 export class BackupService {
   constructor(
     private readonly storage: StorageService,
@@ -110,7 +105,6 @@ export class BackupService {
     return countsOf(await this.storage.snapshots.readAll());
   }
 
-  // ---------------------------------------------------------------- shared building blocks
 
   /** Attachment blobs are read and written through this service; its audit hook is never called on the backup paths. */
   private attachmentService(): AttachmentService {
@@ -203,10 +197,6 @@ export class BackupService {
         try {
           bytes = await BackupCrypto.decryptWithKey(stored, derived, entry.iv);
         } catch (e) {
-          // A damaged attachment file is not fatal, exactly like a missing
-          // or checksum-wrong one: keep the metadata row and warn. Without
-          // this, one flipped bit in one photo would block the whole
-          // restore of an encrypted backup. Other files still fail hard.
           if (isAssetName(entry.name)) {
             missingAssetNames.add(entry.name);
             continue;
@@ -243,9 +233,6 @@ export class BackupService {
       const path = STORE_TO_FILE[name];
       const bytes = plain.get(path);
       if (!bytes) {
-        // Backups written before the trash bin carry no trash file: they
-        // restore with an empty trash, and the count and checksum checks
-        // below are skipped for it.
         if (name === "trash") {
           raw.trash = [];
           continue;
@@ -301,7 +288,6 @@ export class BackupService {
     return { raw, assets, warnings };
   }
 
-  // ---------------------------------------------------------------- create a backup
 
   /** Steps that build and verify a backup archive: collect, self-check, package, encrypt, compress, verify. The save step (downloading the file) is not one of them. File export adds it, and Drive upload does not need it. */
   private archiveSteps(kind: BackupKind, passphrase?: string, assets?: BackupAsset[]): StepDef<ArchiveCtx>[] {
@@ -311,9 +297,6 @@ export class BackupService {
         titleKey: "step.collect",
         run: async (c) => {
           try {
-            // Drive secrets are stripped here so the self-check, the package
-            // and the round-trip verification all see the same data that
-            // lands in the archive.
             c.data = stripDriveSecrets(withAttachments(await this.storage.snapshots.readAll()));
             c.collectedAssets = await this.attachmentService().listBlobs();
           } catch (e) {
@@ -424,7 +407,6 @@ export class BackupService {
     return { ok: true, value: { zip: ctx.zip!, manifest: ctx.manifest!, total: ctx.total, fileName: BackupService.fileName(kind, ctx.manifest!.createdAtMs) } };
   }
 
-  // ---------------------------------------------------------------- inspect a file before restoring
 
   /** Reads and verifies a backup file completely. Nothing is written to the database. */
   async inspect(file: FileLike, onChange: Progress, passphrase?: string): Promise<Outcome<RestorePlan>> {
@@ -529,7 +511,6 @@ export class BackupService {
     return outcome.ok ? { ok: true, value: ctx.plan! } : outcome;
   }
 
-  // ---------------------------------------------------------------- apply the user's decisions
 
   /**
    * Merges the backup into the current data as the user decided: new records are added, records marked "replace"
@@ -574,7 +555,6 @@ export class BackupService {
         id: "apply",
         titleKey: "step.apply",
         run: async (c) => {
-          // The data may have changed while the safety backup was being built; check again right before writing.
           let current: BackupData;
           try {
             current = withAttachments(await this.storage.snapshots.readAll());
@@ -585,9 +565,6 @@ export class BackupService {
           if (fingerprint !== plan.fingerprint) throw new AppError("BACKUP_STALE", { details: "The data changed after the comparison was made." });
           c.merged = MergePlanner.resolve(plan.current, plan.data, options.decisions, this.now());
           try {
-            // Blob bytes go in first: if the metadata write below fails, the
-            // orphaned blobs stay invisible, while metadata without bytes
-            // would show files as missing.
             await this.attachmentService().writeBlobs(plan.assets, c.merged.data.attachments ?? []);
             await this.storage.snapshots.replaceAll(c.merged.data);
           } catch (e) {
@@ -627,13 +604,9 @@ export class BackupService {
         titleKey: "step.refresh",
         run: async () => {
           await options.onRestored();
-          // The restored settings may carry a different currency; re-read preferences
-          // so amounts are formatted in the backup's currency from here on.
           const prefs = await this.storage.reloadPreferences();
           setCurrency(prefs.currency);
           setTimezone(prefs.timezone);
-          // The restored settings may carry a different business profile too;
-          // re-stamp the shared services so new records carry the restored names.
           applyBusinessProfile(await this.storage.reloadProfile());
           return { detail: { key: "detail.refreshed" } };
         },
@@ -641,11 +614,7 @@ export class BackupService {
     ];
     const outcome = await this.runner(steps).run(ctx, onChange, "restore.apply");
     if (!outcome.ok) return outcome;
-    // The restore replaced whole tables past the repositories, so the
-    // data-change listeners would not hear about it otherwise.
     this.storage.notifyDataChanged();
-    // Carry the inspection warnings (including missing attachment files) on the
-    // result, so the UI can show which files are missing after the restore.
     return { ok: true, value: { ...ctx.merged!, warnings: plan.warnings } };
   }
 }

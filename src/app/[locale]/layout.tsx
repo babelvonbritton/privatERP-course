@@ -16,10 +16,6 @@ export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
 }
 
-/**
- * Content Security Policy for static hosting (a meta tag, because GitHub Pages cannot send headers).
- * Applied in production only; the dev server needs looser rules for hot reload.
- */
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://accounts.google.com",
@@ -59,20 +55,13 @@ export const viewport: Viewport = {
   ],
 };
 
-/**
- * Runs before first paint so the stored theme applies without a flash: reads
- * the "olaseena.theme" preference and toggles the dark class on <html>.
- * Plain script, no module or defer; the CSP allows inline scripts. The class
- * it adds differs from the server output, so <html> carries
- * suppressHydrationWarning for that expected difference.
- */
 const THEME_SCRIPT =
   'try{var t=localStorage.getItem("olaseena.theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}';
 
 export default async function LocaleLayout({ children, params }: { children: ReactNode; params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  setRequestLocale(locale); // keeps the page statically rendered
+  setRequestLocale(locale);
   const messages = await loadMessages(locale);
   return (
     <html lang={locale} suppressHydrationWarning>

@@ -144,7 +144,6 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
     }
   }, []);
 
-  // Purges expired entries first, then loads what is left.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -193,8 +192,6 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
     }
   }
 
-  // The detail reshapes the snapshot through the current profile ids;
-  // the stored entry itself is untouched.
   const detailSnapshot = detailTarget ? withCurrentProfileIds(detailTarget.snapshot, profile) : null;
   const detailRelated = detailTarget ? withCurrentProfileIds(detailTarget.related, profile) : null;
 

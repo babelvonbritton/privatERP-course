@@ -13,8 +13,6 @@ import { TourProvider, TOUR_STEPS } from "@/components/Tour";
 import { InvoiceDocument } from "@/components/invoices/InvoiceDocument";
 import { Providers } from "./support";
 
-// This repo has no global testing-library cleanup: unmount each render
-// between tests, or a stale tree from the previous test stays in the document.
 afterEach(() => cleanup());
 
 async function freshServices() {
@@ -109,12 +107,10 @@ describe("profile-derived record ids", () => {
     expect(after.orgId).toBe("Melody Studio");
     expect(after.ownerId).toBe("Ayu Lestari");
 
-    // The earlier record is untouched: no migration rewrites stamped values.
     const storedBefore = await s.members.get(before.id);
     expect(storedBefore?.orgId).toBe(ORG_ID);
     expect(storedBefore?.ownerId).toBe(OWNER_ID);
 
-    // Audit entries follow the same actor as the record they describe.
     const entries = await getStorage().audit.listRecent(10);
     const createEntry = entries.find((e) => e.action === "member.create" && e.entityId === after.id);
     expect(createEntry?.orgId).toBe("Melody Studio");
@@ -136,7 +132,6 @@ describe("profile-derived record ids", () => {
     const member = await direct.members.create(memberInput("Dewi"));
     expect(member.orgId).toBe("Custom Org");
     expect(member.ownerId).toBe("custom-owner");
-    // Applying a profile to the shared services does not touch the direct one.
     applyBusinessProfile(PROFILE);
     const second = await direct.members.create(memberInput("Eko"));
     expect(second.orgId).toBe("Custom Org");
@@ -157,15 +152,12 @@ describe("dashboard reminder and quick setup", () => {
     expect(scope.getByRole("button", { name: "Quick setup" })).toBeTruthy();
 
     fireEvent.click(scope.getByRole("button", { name: "Quick setup" }));
-    // The form opens as a modal on the dashboard: no navigation happened.
     expect(navigate).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("Business profile");
 
-    // The Save button stays disabled until the stored profile loads.
     await waitFor(() => expect((within(dialog).getByRole("button", { name: "Save changes" }) as HTMLButtonElement).disabled).toBe(false));
 
-    // Saving without a name shows the error and stays in the dialog.
     fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await within(dialog).findByText("Enter a business name to save the profile.");
     expect(screen.queryByRole("dialog")).not.toBeNull();
@@ -187,7 +179,6 @@ describe("dashboard reminder and quick setup", () => {
       </Providers>,
     );
     await within(container).findByText("Dashboard");
-    // The reminder renders until the stored profile loads, then clears.
     await waitFor(() => expect(within(container).queryByText("Set up your business profile")).toBeNull());
   });
 });
@@ -205,7 +196,6 @@ describe("settings business profile section", () => {
     );
     const scope = within(container);
     await scope.findByRole("heading", { name: "Business profile" });
-    // The profile section comes before the Language section.
     const headings = [...container.querySelectorAll("h2")].map((h) => h.textContent);
     expect(headings[0]).toBe("Business profile");
     expect(headings).toContain("Language");
@@ -213,7 +203,6 @@ describe("settings business profile section", () => {
     fireEvent.change(scope.getByLabelText("Business name", { exact: true }), { target: { value: "Melody Studio" } });
     fireEvent.change(scope.getByLabelText("Owner's name", { exact: true }), { target: { value: "Ayu Lestari" } });
     fireEvent.change(scope.getByLabelText("Business tagline", { exact: true }), { target: { value: "Music lessons for every age" } });
-    // Contacts are a tag list: type one and confirm it with Enter.
     fireEvent.change(scope.getByLabelText("Business contacts", { exact: true }), { target: { value: "081234567890" } });
     fireEvent.keyDown(scope.getByLabelText("Business contacts", { exact: true }), { key: "Enter" });
     fireEvent.click(scope.getByRole("button", { name: "Save changes" }));
@@ -269,8 +258,6 @@ describe("invoice shows the profile", () => {
 
 describe("tour profile step", () => {
   it("has a profile step after the settings intro and before Drive, targeting the top of the Settings section", async () => {
-    // The profile section sits at the top of Settings, so the tour visits
-    // it right after the intro and before the Drive section below it.
     expect(TOUR_STEPS[TOUR_STEPS.length - 2]).toEqual({ nav: "settings", target: "profile", step: "profile" });
     expect(TOUR_STEPS[TOUR_STEPS.length - 1]).toEqual({ nav: "settings", target: "drive", step: "drive" });
     await freshServices();

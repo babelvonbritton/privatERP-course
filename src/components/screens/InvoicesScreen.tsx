@@ -85,8 +85,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [formPaymentMethod, setFormPaymentMethod] = useState<PaymentMethod>("cash");
   const [formPaymentDetails, setFormPaymentDetails] = useState("");
   const [formLines, setFormLines] = useState<LineDraft[]>([{ description: "", amount: "" }]);
-  // Index of the charge line filled in from the picked course, if any. Only
-  // that line follows course changes; lines the user typed are never touched.
   const [autoLine, setAutoLine] = useState<number | null>(null);
   const [formError, setFormError] = useState("");
   const [currency, setCurrencyState] = useState<CurrencyCode>(() => getCurrency());
@@ -147,8 +145,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The print view shows the business profile, so it loads with the lists
-  // and the logo bytes travel with it.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -175,7 +171,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     return () => clearTimeout(handle);
   }, [query]);
 
-  // The currency label next to the charge amount follows the current setting.
   useEffect(() => subscribeCurrency(() => setCurrencyState(getCurrency())), []);
 
   useEffect(() => {
@@ -210,7 +205,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     }
   }
 
-  /** Thumbnails for the stored attachments of the open invoice. Memoized so typing elsewhere in the open modal does not rebuild the object URLs and flicker the images. */
   const storedThumbs = useMemo(
     (): ThumbSource[] =>
       attachmentRows.map((row) => ({
@@ -232,7 +226,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     [attachmentRows, attachmentBlobs],
   );
 
-  /** Thumbnails for files picked while creating, memoized for the same reason. */
   const pendingThumbs = useMemo(
     (): ThumbSource[] =>
       pendingAttachments.map((p) => ({ key: p.key, fileName: p.prepared.fileName, sizeBytes: p.prepared.sizeBytes, blob: p.prepared.blob })),
@@ -298,7 +291,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   async function pickMember(memberId: string) {
     setFormMemberId(memberId);
     setFormEnrollmentId("");
-    // The picked course belongs to the previous member, so its filled line goes too.
     dropAutoLine();
     if (!memberId) {
       setFormEnrollments([]);
@@ -337,7 +329,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       setFormLines((lines) => lines.map((line, i) => (i === autoLine ? filled : line)));
       return;
     }
-    // Only a still-blank first line is filled; lines the user already typed stay as they are.
     const first = formLines[0];
     if (first && !first.description.trim() && !first.amount) {
       setFormLines((lines) => lines.map((line, i) => (i === 0 ? filled : line)));
@@ -351,8 +342,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   );
 
   function setLine(index: number, patch: Partial<LineDraft>) {
-    // Editing a line by hand takes it out of the auto-filled set, so a later
-    // course change never overwrites what the user typed.
     if (index === autoLine) setAutoLine(null);
     setFormLines((lines) => lines.map((line, i) => (i === index ? { ...line, ...patch } : line)));
   }
@@ -404,8 +393,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
         paymentDetails: formPaymentMethod === "cash" ? "" : formPaymentDetails.trim(),
         idempotencyKey: createId(),
       });
-      // Files picked while creating are stored now that the invoice exists.
-      // A failed upload is reported, never silent, and never blocks the invoice.
       for (const pending of pendingAttachments) {
         try {
           await s.attachments.add({ entityType: "invoice", entityId: created.id, prepared: pending.prepared });
@@ -427,7 +414,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     setEdit(inv);
     setEditDueDate(inv.dueDate);
     setEditStatus(inv.status === "sent" || inv.status === "partial" ? "sent" : "draft");
-    // A legacy invoice without payment fields opens as cash with no details.
     setEditPaymentMethod(paymentMethodOf(inv));
     setEditPaymentDetails(paymentDetailsOf(inv));
     setEditError("");
@@ -441,10 +427,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       return;
     }
     try {
-      // Only a draft or sent invoice can change status here; a paid or
-      // partially paid invoice keeps its stored status and only the due date changes.
-      // The payment fields are always sent, so a legacy invoice without them
-      // gets them written on this save.
       const patch: { dueDate: string; status?: "draft" | "sent"; paymentMethod: PaymentMethod; paymentDetails: string; idempotencyKey: string } = {
         dueDate: editDueDate,
         paymentMethod: editPaymentMethod,

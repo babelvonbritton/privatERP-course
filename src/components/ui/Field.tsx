@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import { Toggletip } from "./Toggletip";
 
-/** Shared look for text inputs and textareas. */
 export const inputClass =
   "w-full rounded-control border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted/70 transition-[border-color,box-shadow] duration-200 hover:border-plum-200 focus:border-plum-600 focus:shadow-[0_0_0_3px_rgba(91,42,82,0.12)] focus:outline-none";
 

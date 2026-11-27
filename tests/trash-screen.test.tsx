@@ -64,8 +64,6 @@ describe("TrashScreen", () => {
 
   it("a trash item created before the profile was set shows the profile's names in its detail", async () => {
     await trashAMember();
-    // The member was stamped with the placeholder ids at creation; the
-    // profile is only set afterwards.
     await getStorage().profile.save(PROFILE);
 
     await openDetails();
@@ -74,8 +72,6 @@ describe("TrashScreen", () => {
     expect(screen.getByText("Ayu Lestari")).toBeTruthy();
     expect(screen.getByText("Organization ID")).toBeTruthy();
     expect(screen.getByText("Owner ID")).toBeTruthy();
-    // The stored entry keeps its stamped ids: this is a display fix,
-    // not a backfill.
     const entries = await getServices().trash.list();
     expect(entries).toHaveLength(1);
     expect((entries[0].snapshot as { orgId: string }).orgId).toBe("Olaseena");

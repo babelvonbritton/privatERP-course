@@ -8,7 +8,6 @@ import { useCopyText } from "@/components/ui/useCopy";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { Providers } from "./support";
 
-// The test runner does not auto-clean the DOM between tests, so unmount each render explicitly.
 afterEach(() => {
   cleanup();
 });

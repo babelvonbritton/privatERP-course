@@ -54,17 +54,13 @@ export function PaycheckDocument({
   paidSessions: Session[];
   unpaidSessions: Session[];
   courseById: Map<string, Course>;
-  /** Business profile shown in the header. Defaults to the placeholder: the Olaseena wordmark, no tagline, address or contacts. The owner's name is never shown. */
   profile?: BusinessProfile;
-  /** Uploaded logo bytes, or null when the profile has none. */
   logoBlob?: Blob | null;
 }) {
   const { t, locale } = useI18n();
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [logoFailed, setLogoFailed] = useState(false);
 
-  // The logo converts the same way the invoice logo does, and the export waits
-  // for it too: a PDF or PNG taken mid-conversion would ship the placeholder.
   useEffect(() => {
     let cancelled = false;
     setLogoDataUrl(null);

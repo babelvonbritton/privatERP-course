@@ -7,7 +7,6 @@ import { getServices, resetServices } from "@/lib/domain/services";
 import { getStorage, resetStorage } from "@/lib/storage";
 import { createId } from "@/lib/storage/utils";
 
-/** 26 Nov 2026, 02:30 in Jakarta (UTC+7). In UTC it is still 25 Nov. */
 const WIB_MORNING = Date.parse("2026-11-25T19:30:00Z");
 
 afterEach(() => {

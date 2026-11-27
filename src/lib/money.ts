@@ -1,8 +1,6 @@
 import { convert, fractionDigits, getCurrency } from "./currency";
 import type { CurrencyCode, InvoiceStatus } from "./domain/types";
 
-/** Money formatted per locale in the current currency: "IDR 150,000" in English, "Rp150.000" in Indonesian. */
-
 /** Formats an amount with no decimals for IDR and two for EUR and USD. */
 export function formatMoney(amount: number, locale: string, currency: CurrencyCode = getCurrency()): string {
   const digits = fractionDigits(currency);

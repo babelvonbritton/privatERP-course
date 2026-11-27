@@ -32,7 +32,6 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [query, setQuery] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>(() => getCurrency());
-  /** Every trainer and course, unfiltered: the skill suggestions pool. */
   const [allTrainers, setAllTrainers] = useState<Trainer[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
 
@@ -120,8 +119,6 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   async function openDetail(trainer: Trainer): Promise<void> {
     try {
-      // A trainer owns no course any more: the courses listed are the ones
-      // they actually taught, taken from the per-course taught summary.
       const [courses, runs, taught] = await Promise.all([
         services.courses.list(),
         services.payroll.listByTrainer(trainer.id),

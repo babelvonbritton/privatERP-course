@@ -194,8 +194,6 @@ describe("DriveSyncManager", () => {
     h.manager.markDirty();
     await vi.advanceTimersByTimeAsync(SYNC_DEBOUNCE_MS + 1000);
     expect(h.drive.uploadBackup).toHaveBeenCalledTimes(1);
-    // The sync's own bookkeeping wrote lastSyncedAt to the settings store.
-    // Advancing far past the debounce must not produce a second upload.
     await vi.advanceTimersByTimeAsync(120_000);
     expect(h.drive.uploadBackup).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
@@ -235,12 +233,10 @@ describe("DriveSyncManager with the real storage", () => {
     });
     await manager.start();
 
-    // A preference-only write (tour seen) must not schedule anything.
     await storage.settings.write("pref.tourSeen", true);
     await wait(200);
     expect(uploads).toHaveLength(0);
 
-    // A data write (a new member) syncs once.
     await getServices().members.create({
       name: "Ana",
       email: "ana@example.com",
@@ -253,7 +249,6 @@ describe("DriveSyncManager with the real storage", () => {
     expect(uploads).toHaveLength(1);
     expect(Array.from(uploads[0])).toEqual([9, 9]);
 
-    // The sync's own bookkeeping (lastSyncedAt) must not trigger another upload.
     await wait(300);
     expect(uploads).toHaveLength(1);
     manager.stop();

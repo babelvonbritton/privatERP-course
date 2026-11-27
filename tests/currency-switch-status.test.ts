@@ -121,7 +121,6 @@ describe("currency switch re-derives invoice status", () => {
 
   it("switching a EUR invoice back to IDR re-derives its status too", async () => {
     const s = await freshServices();
-    // Start in EUR: switch with no data, so no rate is fetched.
     await s.currency.switchCurrency("EUR");
     const m = await s.members.create(memberInput("Ana"));
     const paid = await invoiceWithPayments(s, m.id, 6.15, [3.08, 3.07]);

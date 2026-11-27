@@ -36,7 +36,6 @@ describe("TagInput", () => {
   it("dedupes case-insensitively: typing an existing skill again adds nothing", async () => {
     const { onChange, input } = renderInput(["Piano"]);
     fireEvent.change(input, { target: { value: "piano" } });
-    // No suggestion row for a skill already chosen, and no create row for an exact match.
     expect(screen.queryByRole("listbox")).toBeNull();
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onChange).not.toHaveBeenCalled();

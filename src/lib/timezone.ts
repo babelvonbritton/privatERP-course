@@ -1,12 +1,3 @@
-/**
- * The local timezone: the IANA zone the user picks in Settings. Every date
- * the app derives from a stored instant uses this zone, so a record made at
- * 02:30 local time shows that day, not the UTC day. Stored timestamps stay
- * raw millisecond instants and are never rewritten. No location detection is
- * used to pick the zone: it defaults to the device timezone and the user
- * changes it by hand.
- */
-
 /** The device timezone, read from the platform formatter. */
 export function deviceTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -72,8 +63,6 @@ function zoneOffsetMs(zone: string, at: number): number {
 export function dayStartMs(iso: string, zone: string = getTimezone()): number {
   const [y, m, d] = iso.split("-").map(Number);
   const utcMidnight = Date.UTC(y, m - 1, d);
-  // The offset is read at the candidate instant, not at UTC midnight, so a
-  // daylight-saving change at midnight lands on the right side of it.
   const first = utcMidnight - zoneOffsetMs(zone, utcMidnight);
   return utcMidnight - zoneOffsetMs(zone, first);
 }

@@ -9,15 +9,12 @@ import { AttendanceScreen } from "@/components/screens/AttendanceScreen";
 import { Toaster } from "@/components/Toaster";
 import { Providers } from "./support";
 
-// jsdom has no scrollIntoView or pointer capture; the Radix Select calls both when opening.
 function stubRadix() {
   window.HTMLElement.prototype.scrollIntoView = function () {};
   window.HTMLElement.prototype.hasPointerCapture = function () { return false; };
   window.HTMLElement.prototype.releasePointerCapture = function () {};
 }
 
-// This repo has no global testing-library cleanup: unmount each render
-// so a later test starts with a clean document.
 afterEach(() => cleanup());
 
 async function freshServices() {
@@ -203,7 +200,6 @@ describe("attendance screen session list", () => {
     const rows = await s.attendance.listAttendance(marked.id);
     expect(rows.length).toBe(1);
     expect(rows[0].status).toBe("absent");
-    // The session stays in the list, still marked.
     expect(within(scope.getByRole("button", { name: /Scales/ })).getByText("Marked")).toBeTruthy();
   });
 
@@ -218,11 +214,9 @@ describe("attendance screen session list", () => {
     );
     const scope = within(container);
     await pickSelect("Course", "Piano");
-    // An unmarked session has no unmark control.
     fireEvent.click(await scope.findByRole("button", { name: /Arpeggios/ }, { timeout: 3000 }));
     await scope.findByText("No member assigned to this session.", {}, { timeout: 3000 });
     expect(scope.queryByRole("button", { name: "Unmark session" })).toBeNull();
-    // A marked session does: cancel keeps the marks, confirming clears them.
     fireEvent.click(scope.getByRole("button", { name: /Scales/ }));
     await scope.findByRole("radiogroup", { name: "Ana" }, { timeout: 3000 });
     fireEvent.click(scope.getByRole("button", { name: "Unmark session" }));
@@ -237,7 +231,6 @@ describe("attendance screen session list", () => {
     await screen.findByText("Attendance cleared", {}, { timeout: 3000 });
     expect(await s.attendance.listAttendance(marked.id)).toEqual([]);
     expect((await s.attendance.listUnmarkedSessions()).map((x) => x.id)).toContain(marked.id);
-    // The session stays in the list, now without the marked indicator.
     expect(within(scope.getByRole("button", { name: /Scales/ })).queryByText("Marked")).toBeNull();
   });
 });

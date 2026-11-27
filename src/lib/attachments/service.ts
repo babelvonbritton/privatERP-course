@@ -5,7 +5,6 @@ import type { OlaseenaDatabase } from "@/lib/storage/OlaseenaDatabase";
 import { createId } from "@/lib/storage/utils";
 import { extensionForMime, type PreparedAttachment } from "./compress";
 
-/** Writes one audit entry; supplied by the service layer so this store never builds audit rows itself. */
 export type AuditFn = (action: string, entity: string, entityId: string, detail: string) => Promise<void>;
 
 export interface AddAttachmentInput {
@@ -22,12 +21,6 @@ function assetForId(assets: Map<string, Uint8Array>, id: string): Uint8Array | u
   return undefined;
 }
 
-/**
- * Attachment metadata and file bytes. Metadata lives in the attachments
- * store, bytes in the separate attachmentBlobs store, so snapshots and
- * backups carry metadata as JSON and bytes as real files. The entity type
- * and id stay generic: invoices use it now, members and sessions later.
- */
 export class AttachmentService {
   constructor(
     private readonly db: OlaseenaDatabase,
@@ -72,9 +65,6 @@ export class AttachmentService {
       height: prepared.height,
       createdAt: now,
     };
-    // The bytes are read before the transaction opens: awaiting anything
-    // that is not a database write inside the transaction lets Dexie close
-    // it early and the write fails.
     const bytes = new Uint8Array(await prepared.blob.arrayBuffer());
     await this.db.transaction("rw", [this.db.attachments, this.db.attachmentBlobs, this.db.auditLog], async () => {
       await this.db.attachments.add(attachment);

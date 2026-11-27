@@ -24,7 +24,6 @@ interface View {
 interface Props {
   open: boolean;
   attachment: Attachment | null;
-  /** Null when the file bytes are missing, for example after a restore without its asset. */
   blob: Blob | null;
   onClose: () => void;
   onDelete: (attachment: Attachment) => void;
@@ -50,7 +49,6 @@ export function AttachmentLightbox({ open, attachment, blob, onClose, onDelete }
   const [url, setUrl] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportNode, setViewportNode] = useState<HTMLDivElement | null>(null);
-  /** Callback ref: Radix mounts the dialog content one render after `open` turns true, so an effect keyed on `open` runs while the node is still null. The state update here re-runs the wheel effect once the node exists. */
   const setViewportRef = useCallback((node: HTMLDivElement | null) => {
     viewportRef.current = node;
     setViewportNode(node);
@@ -93,8 +91,6 @@ export function AttachmentLightbox({ open, attachment, blob, onClose, onDelete }
 
   const resetView = useCallback(() => setView({ scale: 1, x: 0, y: 0 }), []);
 
-  // Wheel zoom must be non-passive to stop the page scrolling under the zoom.
-  // The listener is attached once the viewport node exists (see setViewportRef).
   useEffect(() => {
     if (!viewportNode) return;
     const onWheel = (e: WheelEvent) => {
@@ -141,8 +137,6 @@ export function AttachmentLightbox({ open, attachment, blob, onClose, onDelete }
       }
       return;
     }
-    // One finger drags the image. At the resting scale the image stays put;
-    // past it, the drag pans the zoomed image.
     setView((v) => {
       if (v.scale <= MIN_SCALE) return v;
       const limit = 600 * v.scale;
@@ -179,8 +173,6 @@ export function AttachmentLightbox({ open, attachment, blob, onClose, onDelete }
       a.href = objectUrl;
       a.download = attachment.fileName;
       a.click();
-      // Revoke late: some browsers abort the download when the URL is
-      // revoked before the download starts.
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
     } catch (e) {
       errorCenter.report(AppError.from(e), { action: "attachment.download" });

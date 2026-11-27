@@ -1,13 +1,3 @@
-// Google Drive connected backup for Olaseena.
-// The backup file lives in the app's own Drive folder (appDataFolder), so
-// the app can only see its own backup, never the user's other Drive files.
-// Auth is Google Identity Services (token client, no server). Sign-in is
-// single sign-on: the app ships one shared OAuth client ID (set once by the
-// app owner in DEFAULT_DRIVE_CLIENT_ID below), so users just tap Connect
-// and pick their Google account. A user can still paste their own Client ID
-// in Settings; that override wins over the shared one. The access token
-// stays on this device and is never included in a backup.
-
 import { AppError } from "@/lib/errors/AppError";
 import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
 import type { BackupData, SettingRecord } from "@/lib/domain/types";
@@ -15,10 +5,8 @@ import type { SettingsStore } from "@/lib/storage/repositories";
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 export const DRIVE_BACKUP_FILENAME = "olaseena-backup.olaseena";
-/** Name of the JSON file the passphrase setup downloads. */
 export const DRIVE_PASSPHRASE_FILENAME = "olaseena-drive-passphrase.json";
 
-/** Why a passphrase setup entry is not usable yet; null means it is valid. Mirrors the backup passphrase rules: non-empty, letters and digits only, and both fields must match. */
 export type SetupPassphraseError = "required" | "alphanumeric" | "mismatch";
 
 export function setupPassphraseError(passphrase: string, confirm: string): SetupPassphraseError | null {
@@ -42,12 +30,6 @@ export function buildDrivePassphraseFile(passphrase: string, now = new Date()): 
   );
 }
 
-/**
- * Shared OAuth client ID for the app's single sign-on. A Client ID is a
- * public identifier, not a secret. It ships in the bundle, and Google only
- * issues tokens to the JavaScript origins registered for it in the Cloud
- * console.
- */
 export const DEFAULT_DRIVE_CLIENT_ID =
   "452644187427-04bbl0hf732503fuhic7phbcs92qm7on.apps.googleusercontent.com";
 
@@ -153,10 +135,6 @@ export class DriveService {
     fetchFn: typeof fetch = fetch,
   ) {
     this.loadGis = loadGis;
-    // Never call fetch as a method of this service: browsers throw
-    // "Illegal invocation" when it runs with a non-Window receiver, so
-    // every Drive call would fail before any request leaves. Routing it
-    // through an arrow function calls it bare, like a plain fetch() call.
     this.fetchFn = (...args: Parameters<typeof fetch>) => fetchFn(...args);
   }
 
@@ -179,7 +157,6 @@ export class DriveService {
             reject(new AppError("DRIVE_GIS_FAILED"));
             return;
           }
-          // One minute of skew margin so the token never dies mid-upload.
           const expiresAt = Date.now() + res.expires_in * 1000 - 60_000;
           resolve({ accessToken: res.access_token, expiresAt });
         },
@@ -280,9 +257,7 @@ export class DriveService {
   }
 }
 
-// ------------------------------------------------------------------ Drive state in the settings store
 
-/** Setting keys for the Drive connection and auto-sync. Secrets and device state never travel in a backup. */
 export const DRIVE_SETTING_KEYS = {
   clientId: "drive.clientId",
   accessToken: "drive.accessToken",
@@ -294,7 +269,6 @@ export const DRIVE_SETTING_KEYS = {
   dirty: "drive.dirty",
 } as const;
 
-/** Keys that must never be written into a backup file: the access token, the passphrase that unlocks the backup, and device-local timestamps. */
 export const DRIVE_BACKUP_EXCLUDED_KEYS = new Set<string>([
   DRIVE_SETTING_KEYS.accessToken,
   DRIVE_SETTING_KEYS.tokenExpiresAt,
@@ -305,21 +279,13 @@ export const DRIVE_BACKUP_EXCLUDED_KEYS = new Set<string>([
 ]);
 
 export interface DriveState {
-  /** The user's own Client ID override; null when the shared default is used. */
   clientId: string | null;
-  /** The Google access token; null when signed out. Never backed up. */
   accessToken: string | null;
-  /** When the access token expires, as a millisecond timestamp. */
   tokenExpiresAt: number | null;
-  /** When the last Drive backup (manual or auto-sync) succeeded. */
   lastBackupAt: number | null;
-  /** Whether auto-sync is turned on. Only effective while signed in. */
   syncEnabled: boolean;
-  /** When the last auto-sync upload succeeded. */
   lastSyncedAt: number | null;
-  /** The Drive backup passphrase, kept on this device so auto-sync can encrypt without asking. Never backed up. */
   passphrase: string | null;
-  /** True when data changed since the last successful sync. Survives a restart so a missed upload is retried. */
   dirty: boolean;
 }
 

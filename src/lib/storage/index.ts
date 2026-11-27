@@ -21,13 +21,11 @@ import { SnapshotService } from "./SnapshotService";
 import type { Clock } from "./types";
 
 export interface StorageReport {
-  /** Preference keys whose stored value was not allowed and was reset to the default. */
   repairedPreferences: string[];
   counts: { members: number; trainers: number; courses: number; enrollments: number; sessions: number; attendance: number; invoices: number; payments: number; payrollRuns: number; trash: number };
   integrity: IntegrityReport;
 }
 
-/** Single entry point that wires the database, repositories and services together. */
 export class StorageService {
   readonly members: DexieMemberStore;
   readonly trainers: DexieTrainerStore;
@@ -47,7 +45,6 @@ export class StorageService {
   readonly snapshots: SnapshotService;
   readonly integrity: IntegrityChecker;
   private initPromise: Promise<StorageReport> | null = null;
-  /** Listeners told whenever a data store is written. The settings store never notifies. */
   private readonly dataChangeListeners = new Set<() => void>();
   /** Passed to every data store; runs after a write lands. Listeners only set in-memory state and schedule timers. They do no database work here, so a write inside a Dexie transaction is safe. */
   private readonly notifyWrite = () => this.notifyDataChanged();

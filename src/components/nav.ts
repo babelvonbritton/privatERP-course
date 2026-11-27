@@ -8,7 +8,6 @@ export interface NavItem {
   labelKey: `nav.${NavId}`;
 }
 
-/** All sections, in sidebar order. */
 export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", icon: "home", labelKey: "nav.dashboard" },
   { id: "members", icon: "users", labelKey: "nav.members" },
@@ -21,6 +20,5 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "settings", icon: "gear", labelKey: "nav.settings" },
 ];
 
-/** The five bottom-bar items on a phone; the rest live behind More. */
 export const MOBILE_NAV_IDS: NavId[] = ["dashboard", "members", "courses", "invoices"];
 export const MORE_NAV_IDS: NavId[] = ["trainers", "attendance", "payroll", "trash", "settings"];

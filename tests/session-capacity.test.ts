@@ -106,10 +106,6 @@ describe("session capacity", () => {
   });
 
   it("marking an unassigned session is rejected: it hands nothing to attendance", async () => {
-    // An unassigned session has an empty effective list, so marking any
-    // enrolled member is refused with notAssigned and no rows are stored.
-    // This closes the old edge case where an unassigned session could be
-    // marked past its capacity.
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
     try {

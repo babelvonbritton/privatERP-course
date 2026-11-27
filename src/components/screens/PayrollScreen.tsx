@@ -68,7 +68,6 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const trainerById = useMemo(() => new Map(trainers.map((tr) => [tr.id, tr])), [trainers]);
   const courseById = useMemo(() => new Map(courses.map((c) => [c.id, c])), [courses]);
 
-  /** Sessions of the reviewed trainer inside the run's period, split into paid and not paid. */
   const detailPaidSessions = useMemo(
     () => (detail ? detailSessions.filter((s) => detail.sessionIds.includes(s.id)) : []),
     [detail, detailSessions],
@@ -123,8 +122,6 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     };
   }, [detail]);
 
-  // The paycheck shows the business profile, so it loads with the lists
-  // and the logo bytes travel with it.
   useEffect(() => {
     let cancelled = false;
     void (async () => {

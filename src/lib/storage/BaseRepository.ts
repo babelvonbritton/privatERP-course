@@ -1,12 +1,10 @@
 import type { Table } from "dexie";
 import type { Clock } from "./types";
 
-/** Generic CRUD shared by every repository; subclasses add store-specific queries. */
 export abstract class BaseRepository<T, K extends string> {
   constructor(
     protected readonly table: Table<T, K>,
     protected readonly clock: Clock = Date.now,
-    /** Called after a successful write, so the app can react to data changes. Settings stores never pass one. */
     protected readonly onWrite?: () => void,
   ) {}
 

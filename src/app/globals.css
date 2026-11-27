@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-/* Olaseena design tokens: warm ivory ground, deep plum ink, brand plum actions, oxblood danger, brass accents. Solid colors only. Each token reads a plain variable so the dark theme below can swap every value without renaming a single utility. */
 @theme {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -26,7 +25,6 @@
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Light theme values (the default). */
 :root {
   color-scheme: light;
   --canvas: #f8f5f0;
@@ -46,7 +44,6 @@
   --danger: #7a2436;
 }
 
-/* Dark theme values: a dark plum world, not grey. Text tokens turn pale so they stay readable on the dark ground; plum-700 stays a deep plum because it is only ever a button hover fill behind white text. */
 html.dark {
   color-scheme: dark;
   --canvas: #1e151f;
@@ -66,23 +63,14 @@ html.dark {
   --danger: #e89aa8;
 }
 
-/*
- * Solid fills behind white text need a mid-tone in dark mode: the pale text
- * tokens above would wash white out, and one token cannot be both pale
- * enough for text and dark enough for a white label. These unlayered rules
- * win over the utilities and cover every solid fill, including the invoice
- * status badges in screens this feature may not edit.
- */
 html.dark .bg-plum-600 { background-color: #7a4a72; }
 html.dark .bg-plum-900 { background-color: #4a3550; }
 html.dark .bg-danger { background-color: #a63a4f; }
 html.dark .bg-brass { background-color: #8a6d1b; }
 
-/* Dialog veils stay dark: the plum-900 token turns pale in dark mode, so the translucent overlays need a dark scrim instead. */
 html.dark .bg-plum-900\/35,
 html.dark .bg-plum-900\/40 { background-color: rgb(15 10 16 / 0.6); }
 
-/* Progress fills stay visible: a mid-tone bar would blend into its track, so the bar and the step connector use the pale plum fill on their darker tracks. */
 html.dark .bg-plum-100 > .bg-plum-600,
 html.dark .bg-line > .bg-plum-600 { background-color: #d8b2d4; }
 
@@ -92,14 +80,9 @@ html.dark .bg-line > .bg-plum-600 { background-color: #d8b2d4; }
   }
 }
 
-/* Space taken by fixed chrome, so floating elements never sit on top of it. */
 @media (max-width: 767px) {
   :root { --bottom-nav: 5.5rem; }
-  /* The fixed bottom bar covers the page footer at max scroll, so the footer
-     carries its own clearance below it (margin, not padding: the footer's own
-     vertical padding utility would win over a plain element rule). */
   footer { margin-bottom: calc(var(--bottom-nav) + 0.75rem); }
-  /* A focused element must scroll clear of the fixed bottom bar. */
   html { scroll-padding-bottom: calc(var(--bottom-nav) + 1rem); }
 }
 @media (min-width: 768px) {
@@ -113,13 +96,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Keyboard focus stays visible everywhere. */
 :focus-visible {
   outline: 2px solid var(--color-plum-600);
   outline-offset: 2px;
 }
 
-/* Respect users who ask for less motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -130,7 +111,6 @@ body {
   }
 }
 
-/* Motion primitives for Radix layers (data-state drives enter and exit). */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.96); } to { opacity: 1; transform: none; } }
@@ -152,11 +132,9 @@ body {
 .anim-sheet[data-state="open"] { animation: sheet-right-in 320ms var(--ease-soft); }
 .anim-sheet[data-state="closed"] { animation: sheet-right-out 220ms ease-in forwards; }
 
-/* On phones, dialogs rise from the bottom as sheets. */
 @media (max-width: 767px) {
   .anim-dialog[data-state="open"], .anim-sheet[data-state="open"] { animation-name: sheet-up-in; }
   .anim-dialog[data-state="closed"], .anim-sheet[data-state="closed"] { animation-name: sheet-up-out; }
 }
 
-/* Thin, themed scrollbars. */
 * { scrollbar-width: thin; scrollbar-color: var(--color-plum-200) transparent; }

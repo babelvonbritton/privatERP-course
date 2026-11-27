@@ -2,9 +2,7 @@ import { AppError } from "@/lib/errors/AppError";
 import { CURRENCIES, isCurrencyCode, type CurrencyCode, type SettingRecord } from "@/lib/domain/types";
 import { dateOf } from "@/lib/timezone";
 
-/** How many currency switches are allowed per local day. */
 export const DAILY_SWITCH_LIMIT = 10;
-/** How long a rate request may take before it is abandoned. */
 export const RATE_TIMEOUT_MS = 10_000;
 
 const FRANKFURTER = "https://api.frankfurter.dev/v1/latest";
@@ -85,7 +83,6 @@ export function currencyFromSettings(settings: SettingRecord[]): CurrencyCode {
   return row && isCurrencyCode(row.value) ? row.value : "IDR";
 }
 
-// ------------------------------------------------------------ current currency
 
 let current: CurrencyCode = "IDR";
 const listeners = new Set<() => void>();

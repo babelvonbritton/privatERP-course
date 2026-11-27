@@ -7,14 +7,11 @@ import { Icon } from "./Icon";
 
 interface TagInputProps {
   id: string;
-  /** Current skills, in display order. */
   value: string[];
   onChange: (value: string[]) => void;
-  /** Every skill already used anywhere, for suggestions. */
   suggestions: string[];
   placeholder: string;
   disabled?: boolean;
-  /** Maximum chips; extra adds are ignored. Defaults to 12. */
   maxItems?: number;
 }
 
@@ -47,7 +44,6 @@ export function TagInput({ id, value, onChange, suggestions, placeholder, disabl
     return pool.filter((s) => s.toLocaleLowerCase().includes(q) && !selectedLower.has(s.toLocaleLowerCase()));
   }, [pool, query, selectedLower]);
   const exactMatch = useMemo(() => pool.some((s) => s.toLocaleLowerCase() === query.toLocaleLowerCase()), [pool, query]);
-  /** Rows in the listbox: matching suggestions first, then the create-new row when the typed skill is not used yet. */
   const rows: Array<{ kind: "suggestion" | "create"; label: string }> = useMemo(() => {
     const out: Array<{ kind: "suggestion" | "create"; label: string }> = matches.map((skill) => ({ kind: "suggestion" as const, label: skill }));
     if (query && !exactMatch && !selectedLower.has(query.toLocaleLowerCase())) {
@@ -121,8 +117,6 @@ export function TagInput({ id, value, onChange, suggestions, placeholder, disabl
             if (text.trim()) setOpen(true);
           }}
           onBlur={(e) => {
-            // A click inside this control (a suggestion, a chip button) keeps
-            // the value uncommitted; leaving the control commits typed text.
             if (containerRef.current?.contains(e.relatedTarget as Node)) return;
             commitText();
           }}

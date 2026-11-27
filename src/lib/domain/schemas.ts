@@ -13,11 +13,6 @@ import {
   TRAINER_STATUSES,
 } from "./types";
 
-/**
- * Input schemas for every write. These run at the service boundary, the same
- * schemas a future server API will enforce, so the UI layer is never trusted.
- */
-
 const name = z.string().trim().min(1).max(LIMITS.name);
 const email = z.string().trim().max(LIMITS.email).email().or(z.literal(""));
 const phone = z.string().trim().max(LIMITS.phone);
@@ -93,7 +88,6 @@ export const sessionInput = z
     trainerPresent: z.boolean(),
     startTime: timeString,
     endTime: timeString,
-    /** Blank (null) means no limit; the forms send null for a blank field. */
     capacity: z.number().int().min(1).max(10_000).nullish(),
     idempotencyKey: idemKey,
   })
@@ -106,11 +100,6 @@ export const sessionInput = z
   });
 export type SessionInput = z.infer<typeof sessionInput>;
 
-/**
- * A session edit: every field optional, the course never changes, and the
- * end-after-start rule only applies when both times are supplied (the
- * service checks the merged times as well).
- */
 export const sessionPatch = z
   .object({
     date: isoDate.optional(),
@@ -118,7 +107,6 @@ export const sessionPatch = z
     trainerId: id.optional(),
     startTime: timeString.optional(),
     endTime: timeString.optional(),
-    /** Blank (null) means no limit; absent means unchanged. */
     capacity: z.number().int().min(1).max(10_000).nullish(),
     idempotencyKey: idemKey,
   })

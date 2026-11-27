@@ -1,8 +1,6 @@
-/** Safe wrapper over localStorage for tiny UI preferences (never for board data). */
 export class LocalPrefs {
   private static readonly PREFIX = "olaseena.";
 
-  /** Set by the app to route failures into the error system; falls back to the console. */
   static onError: ((error: unknown, action: string) => void) | null = null;
 
   private static fail(error: unknown, action: string): void {

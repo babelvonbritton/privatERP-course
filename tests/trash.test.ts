@@ -14,13 +14,6 @@ import { getStorage, resetStorage } from "@/lib/storage";
 import { createId } from "@/lib/storage/utils";
 import type { PreparedAttachment } from "@/lib/attachments/compress";
 
-/**
- * Trash bin (v0.4.0): deleting a record moves it to trash instead of removing
- * it for good, and restoring puts it back. The implementation lives in the
- * trash service (src/lib/domain/trash.ts), reached as getServices().trash.
- * These tests only use that public contract plus the existing services.
- */
-
 const DAY = 24 * 60 * 60 * 1000;
 const noop = () => {};
 
@@ -83,7 +76,6 @@ async function seedSession(s: Services, date = "2026-11-09") {
   const session = await s.attendance.createSession({ courseId: base.c.id, date, topic: "Scales", trainerId: base.t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
   await s.attendance.assignSessionAttendees(session.id, [base.m.id], createId());
   const attendance = await s.attendance.mark(session.id, [{ memberId: base.m.id, status: "present" }], createId());
-  // Re-fetch: assigning touched the session, so the create-time object is stale.
   const stored = await s.attendance.getSession(session.id);
   return { ...base, session: stored!, attendance };
 }
@@ -316,8 +308,6 @@ describe("trash: restore conflicts", () => {
   });
 
   it("invoice: a new invoice reusing the same number blocks the restore", async () => {
-    // Fixed clock, same day for both creates: once the first invoice is
-    // trashed its number is free, so the second create reuses it.
     const s = await freshServicesWithClock(Date.UTC(2026, 10, 21, 12, 0, 0));
     const { m } = await seedBasic(s);
     const first = await makeInvoice(s, m.id, 400000);
@@ -347,10 +337,6 @@ describe("trash: restore conflicts", () => {
   });
 
   it("payment: restoring past the invoice total fails (invoice total lowered directly, no service path lowers a total)", async () => {
-    // No service call lowers an invoice total: totals derive from line items.
-    // To exercise the restore guard, the total is lowered through storage
-    // directly, as if an edit had shrunk the invoice after the payment was
-    // trashed. The trashed payment (150000) no longer fits in the 100000 total.
     const s = await freshServices();
     const { m } = await seedBasic(s);
     const { invoice, payment } = await seedInvoiceWithPayment(s, m.id, 400000, 150000);
@@ -394,14 +380,12 @@ describe("trash: retention and purge", () => {
     await s.members.remove(m.id);
     const entry = await trashOf(s, "member", m.id);
     expect(entry.deletedAt).toBe(t0);
-    // 8 days old: expired under 7 days, still kept under 30.
     await s.trash.setRetentionDays(30);
     expect(await s.trash.purgeExpired(t0 + 8 * DAY)).toBe(0);
     expect(await s.trash.list()).toHaveLength(1);
     await s.trash.setRetentionDays(7);
     expect(await s.trash.purgeExpired(t0 + 8 * DAY)).toBe(1);
     expect(await s.trash.list()).toHaveLength(0);
-    // Nothing left to purge.
     expect(await s.trash.purgeExpired(t0 + 40 * DAY)).toBe(0);
   });
 
@@ -454,7 +438,6 @@ describe("trash: delete blocked", () => {
     await expectCode(s.members.remove(m.id), "DELETE_BLOCKED");
     expect(await s.members.get(m.id)).toBeDefined();
     expect(await s.trash.list()).toHaveLength(0);
-    // Cleanup check: the block is about links, not the member itself.
     expect(enrollment.id).toBeTruthy();
     expect(invoice.id).toBeTruthy();
   });
@@ -462,7 +445,6 @@ describe("trash: delete blocked", () => {
   it("trainer with only courses can be deleted; trainer with sessions or pay runs stays live and out of trash", async () => {
     const s = await freshServices();
     const { t, c } = await seedBasic(s);
-    // A course owns no trainer any more, so the course alone does not block the delete.
     await s.trainers.remove(t.id);
     expect(await s.trainers.get(t.id)).toBeUndefined();
     expect((await s.trash.list()).map((e) => e.originalId)).toContain(t.id);
@@ -529,7 +511,6 @@ describe("trash: audit log", () => {
     expect(has("invoice.trash", invoice.id)).toBe(true);
     expect(has("invoice.restore", invoice.id)).toBe(true);
     expect(has("invoice.delete", invoice.id)).toBe(true);
-    // Payroll actions share the "payroll.*" prefix with the "payrollRun" entity.
     expect(hasSuffix(".trash", run.id)).toBe(true);
     expect(runEntry.kind).toBe("payrollRun");
 
@@ -585,7 +566,6 @@ describe("trash: backup round-trip", () => {
     expect(byKind.get("invoice")!.snapshot).toEqual(invoiceEntry.snapshot);
     expect(byKind.get("member")!.originalId).toBe(doomed.id);
     expect(byKind.get("member")!.snapshot).toEqual(memberEntry.snapshot);
-    // Trashed records stay trashed: nothing leaks back to the live stores.
     expect(await getServices().invoices.get(invoice.id)).toBeUndefined();
     expect(await getServices().members.get(doomed.id)).toBeUndefined();
   });
@@ -612,8 +592,6 @@ describe("trash: restore with missing references", () => {
     const { m, enrollment, session } = await seedSession(s);
     await s.attendance.removeSession(session.id);
     const sessionEntry = await trashOf(s, "session", session.id);
-    // Remove the member for good: trash the enrollment, trash the member,
-    // then permanently delete the member's trash entry.
     await s.courses.removeEnrollment(enrollment.id);
     await s.members.remove(m.id);
     const memberEntry = await trashOf(s, "member", m.id);
@@ -643,7 +621,6 @@ describe("trash: restore with missing references", () => {
     const { t, c } = await seedBasic(s);
     await s.courses.remove(c.id);
     const courseEntry = await trashOf(s, "course", c.id);
-    // The trashed course no longer depends on the trainer at all.
     await s.trainers.remove(t.id);
     const trainerEntry = await trashOf(s, "trainer", t.id);
     await s.trash.deletePermanently(trainerEntry.id);

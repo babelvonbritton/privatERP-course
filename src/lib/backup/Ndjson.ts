@@ -12,7 +12,6 @@ export function encodeNdjson(records: readonly unknown[]): Uint8Array {
 
 export interface NdjsonDecodeResult {
   records: unknown[];
-  /** Lines that were not valid JSON. Each one is skipped, never fatal. */
   badLines: number;
 }
 

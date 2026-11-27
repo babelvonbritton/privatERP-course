@@ -16,8 +16,6 @@ export function TimezoneSection() {
   const { t } = useI18n();
   const [zone, setZone] = useState<string>(() => getTimezone());
   const [busy, setBusy] = useState(false);
-  // The current zone is always an option, even when the platform list does
-  // not carry it (a stored zone from another device, for example).
   const options = useMemo(() => {
     const zones = timezones();
     if (!zones.includes(zone)) zones.push(zone);

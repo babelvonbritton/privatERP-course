@@ -21,16 +21,9 @@ import type {
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/**
- * The trash bin: deleted records are held here with their snapshots and
- * related rows until they expire, are restored, or are deleted for good.
- * Every restore checks its conflicts inside one transaction, so a failed
- * restore changes nothing and never overwrites or duplicates live data.
- */
 export class TrashService {
   constructor(
     private readonly storage: StorageService,
-    /** The actor trash audit entries are stamped with. Mutable so the shared services can follow the business profile without a rebuild. */
     private actor: Actor,
     private readonly clock: Clock = Date.now,
   ) {}
@@ -122,7 +115,6 @@ export class TrashService {
       case "course": {
         const course = snapshot as unknown as Course;
         await this.noLive("course", entry.originalId);
-        // A snapshot written before v0.9.0 still carries a trainerId and a capacity: drop both, since the course no longer has either.
         const { trainerId: _droppedTrainer, capacity: _droppedCapacity, ...rest } = course as unknown as Course & { trainerId?: string; capacity?: number };
         void _droppedTrainer;
         void _droppedCapacity;

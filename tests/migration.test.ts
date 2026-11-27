@@ -86,16 +86,12 @@ describe("version 4, 5 and 6 migrations", () => {
       expect(course?.scheduleWeekdays).toEqual([1]);
       expect(course).not.toHaveProperty("scheduleWeekday");
       expect(course).not.toHaveProperty("scheduleTime");
-      // Version 6 moves the trainer off the course and the capacity onto the
-      // session: the old trainerId and capacity are gone and the course gains
-      // an empty required-skills list.
       expect(course).not.toHaveProperty("trainerId");
       expect(course).not.toHaveProperty("capacity");
       expect(course?.requiredSkills).toEqual([]);
       const session = await db.sessions.get("s1");
       expect(session?.startTime).toBe("");
       expect(session?.endTime).toBe("");
-      // A timeless session written before capacity existed has no cap.
       expect(session?.capacity ?? null).toBeNull();
     } finally {
       db.close();

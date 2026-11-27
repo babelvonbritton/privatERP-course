@@ -111,7 +111,6 @@ describe("DriveService sign-in", () => {
     const token = await service.connect("client-id");
     expect(prompts).toEqual(["consent"]);
     expect(token.accessToken).toBe("tok-1");
-    // One minute of skew margin: expiry sits 3540s out, not 3600s.
     expect(token.expiresAt).toBeGreaterThanOrEqual(before + 3540_000 - 1000);
     expect(token.expiresAt).toBeLessThanOrEqual(Date.now() + 3540_000 + 1000);
   });
@@ -280,7 +279,6 @@ describe("Drive state in the settings store", () => {
       passphrase: "secret",
       dirty: true,
     });
-    // A partial patch leaves the other fields alone.
     await writeDriveState(storage.settings, { syncEnabled: false });
     const after = await readDriveState(storage.settings);
     expect(after.syncEnabled).toBe(false);
@@ -337,12 +335,8 @@ describe("Drive secrets never enter a backup", () => {
     const built = await service.buildBackupArchive("backup", PASSPHRASE, noop);
     expect(built.ok).toBe(true);
     if (!built.ok) throw built.error;
-    // The settings inside the backup are the decrypted contents: the
-    // secrets must be gone, the override and the toggle stay.
     const file = new File([built.value.zip as BlobPart], "olaseena-backup-2026-11-25-0000.zip", { type: "application/zip" });
 
-    // The device's live Drive state changes after the backup was made.
-    // (Changed before inspecting, so the restore's staleness check still passes.)
     await writeDriveState(storage.settings, { accessToken: "tok-new", passphrase: "other-passphrase", lastBackupAt: 999 });
     const inspected = await service.inspect(file, noop, PASSPHRASE);
     expect(inspected.ok).toBe(true);
@@ -390,7 +384,6 @@ describe("Drive secrets never enter a backup", () => {
     const downloaded = await drive.downloadBackup("tok", "f1");
     expectBytesEqual(downloaded, built.value.zip);
 
-    // Restore the downloaded bytes into an empty database: the same member comes back.
     await resetStorage();
     resetServices();
     const fresh = new BackupService(getStorage(), errorCenter, { minStepMs: 0 });

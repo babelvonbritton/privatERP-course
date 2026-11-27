@@ -18,7 +18,7 @@ interface Props {
 /** Themed date picker: popover calendar that stores dates as YYYY-MM-DD. */
 export function DatePicker({ value, onChange, id }: Props) {
   const { t, locale, localeCode } = useI18n();
-  const weekStart = localeCode === "id" ? 1 : 0; // Monday in Indonesia, Sunday in the US
+  const weekStart = localeCode === "id" ? 1 : 0;
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(() => (value ? parseDate(value) : new Date()));
   const today = toIso(new Date());

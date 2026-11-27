@@ -35,12 +35,6 @@ export function AppShell() {
   const [, setCurrencyTick] = useState(0);
   const [, setTimezoneTick] = useState(0);
 
-  // Loads the stored currency at boot so amounts format in it, and re-renders
-  // every screen when a switch or a restore changes it. Expired trash entries
-  // are purged on boot too, so the bin never shows items past their time.
-  // Drive auto-sync also starts here: it listens for data changes for the
-  // whole session and uploads only while Drive is connected and the toggle
-  // is on. The stored timezone loads the same way, so dates render in it.
   useEffect(() => {
     const stopSync = startDriveSync();
     let cancelled = false;
@@ -53,9 +47,6 @@ export function AppShell() {
         }
       })
       .catch((e) => errorCenter.report(e, { action: "currency.load" }));
-    // New records are stamped with the business and owner names from the
-    // profile, so the shared services take the stored profile's actor at
-    // boot; saving the profile re-applies it without a restart.
     void getStorage()
       .profile.load()
       .then(({ profile }) => {
@@ -85,7 +76,6 @@ export function AppShell() {
   return (
     <TourProvider navigate={navigate}>
       <div className="min-h-dvh bg-canvas text-ink">
-        {/* Desktop sidebar */}
         <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-line bg-surface md:flex">
           <div className="px-5 pb-2 pt-5">
             <Logo />

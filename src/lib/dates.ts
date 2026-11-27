@@ -1,8 +1,6 @@
 import { isRealDate } from "@/lib/storage/utils";
 import { dateOf, getTimezone } from "@/lib/timezone";
 
-/** Dates are stored as YYYY-MM-DD strings so they sort, compare and index as plain text. */
-
 export { dateOf } from "@/lib/timezone";
 
 const pad = (n: number) => String(n).padStart(2, "0");

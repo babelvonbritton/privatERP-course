@@ -42,12 +42,9 @@ async function openSetupDialog() {
 describe("Drive section", () => {
   beforeEach(async () => {
     await resetStorage();
-    // The section uses the shared sync manager, which captures the storage it
-    // was built with; reset it too so it is rebuilt against the fresh storage.
     resetDriveSyncManager();
   });
 
-  // The test runner does not auto-clean the DOM between tests, so unmount each render explicitly.
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -85,8 +82,6 @@ describe("Drive section", () => {
     expect(await screen.findByText("Connected")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Back up to Drive" }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: "Restore from Drive" }) as HTMLButtonElement).disabled).toBe(false);
-    // The toggle is clickable once connected even without a stored passphrase:
-    // turning it on opens the passphrase setup dialog instead.
     expect((toggle() as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText("Back up to Drive once first, so the passphrase is saved on this device for auto-sync.")).toBeNull();
   });
@@ -142,8 +137,6 @@ describe("Drive section", () => {
     fireEvent.click(confirmBtn);
     expect(await screen.findByRole("heading", { name: "Save your passphrase" })).toBeTruthy();
     expect(within(dialog()).getByRole("button", { name: "Download passphrase (JSON)" })).toBeTruthy();
-    // Sync is already on while the dialog is still open; the toggle itself
-    // is aria-hidden behind the modal, so it is checked after Done closes it.
     const state = await readDriveState(getStorage().settings);
     expect(state.passphrase).toBe(VALID_PASS);
     expect(state.syncEnabled).toBe(true);

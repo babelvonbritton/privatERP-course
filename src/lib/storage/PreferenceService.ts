@@ -5,17 +5,11 @@ import { deviceTimezone, isTimezone } from "@/lib/timezone";
 import type { SettingsStore } from "./repositories";
 
 export interface Preferences {
-  /** True once the first-run tour has been finished or skipped; the tour never auto-shows again after that. */
   tourSeen: boolean;
-  /** Currency amounts are stored and shown in. */
   currency: CurrencyCode;
-  /** Local date (YYYY-MM-DD) the switch count below belongs to. */
   currencySwitchDate: string;
-  /** Currency switches used on currencySwitchDate. */
   currencySwitchCount: number;
-  /** Days a deleted record stays in the trash before it is purged. */
   trashRetentionDays: TrashRetentionDays;
-  /** IANA timezone dates are derived in. Defaults to the device timezone. */
   timezone: string;
 }
 
@@ -30,7 +24,6 @@ const KEYS: Record<keyof Preferences, string> = {
   timezone: "pref.timezone",
 };
 
-/** Storage keys for each preference, for writers that update settings directly. */
 export const PREFERENCE_KEYS: Record<keyof Preferences, string> = KEYS;
 
 type Stored = string | number | boolean | null | undefined;
@@ -46,10 +39,6 @@ const READERS: { [K in keyof Preferences]: (v: Stored) => Preferences[K] | null 
   timezone: (v) => (isTimezone(v) ? v : null),
 };
 
-/**
- * Typed user preferences stored in the settings store. Values read back from the database (which a restored backup
- * can change) are validated; anything not allowed falls back to the default and is reported.
- */
 export class PreferenceService {
   private current: Preferences = structuredClone(DEFAULT_PREFERENCES);
 

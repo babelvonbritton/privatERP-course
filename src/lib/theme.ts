@@ -1,9 +1,7 @@
 import { LocalPrefs } from "./storage/LocalPrefs";
 
-/** What the user picked: follow the device, or force light or dark. */
 export type ThemeChoice = "system" | "light" | "dark";
 
-/** The theme actually shown: light or dark, never system. */
 export type ResolvedTheme = "light" | "dark";
 
 const KEY = "theme";

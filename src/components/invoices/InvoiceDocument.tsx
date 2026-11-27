@@ -45,9 +45,7 @@ export function InvoiceDocument({
   invoice: Invoice;
   memberName: string;
   attachments?: InvoiceDocumentAttachment[];
-  /** Business profile shown in the header. Defaults to the placeholder: the Olaseena wordmark, no tagline, address or contacts. The owner's name is never shown. */
   profile?: BusinessProfile;
-  /** Uploaded logo bytes, or null when the profile has none. */
   logoBlob?: Blob | null;
 }) {
   const { t, locale } = useI18n();
@@ -61,12 +59,9 @@ export function InvoiceDocument({
     dataUrls: Map<string, string>;
     failedIds: Set<string>;
   } | null>(null);
-  /** The logo as an exportable image source, or null while it is still converting. */
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [logoFailed, setLogoFailed] = useState(false);
 
-  // The logo converts the same way attachment bytes do, and the export waits
-  // for it too: a PDF or PNG taken mid-conversion would ship the placeholder.
   useEffect(() => {
     let cancelled = false;
     setLogoDataUrl(null);
@@ -117,8 +112,6 @@ export function InvoiceDocument({
   const currentAttachments = loadedAttachments?.attachments === attachments ? loadedAttachments : null;
   const hasAttachmentBlobs = attachments.some((attachment) => attachment.blob !== null);
   const attachmentsReady = !hasAttachmentBlobs || currentAttachments !== null;
-  // The logo counts toward readiness too: with no logo there is nothing to
-  // wait for, and a failed conversion falls back to the placeholder.
   const logoReady = !logoBlob || logoDataUrl !== null || logoFailed;
   const attachmentStatus = !attachmentsReady || !logoReady
     ? "false"

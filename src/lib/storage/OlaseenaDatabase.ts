@@ -16,11 +16,6 @@ import type {
   WriteKey,
 } from "@/lib/domain/types";
 
-/**
- * IndexedDB schema with one store per entity.
- * Every store indexes the fields its search bar queries (name, email, phone, title, number, status, dates),
- * so search reads through indexes and never scans the whole store.
- */
 export class OlaseenaDatabase extends Dexie {
   members!: Table<Member, string>;
   trainers!: Table<Trainer, string>;
@@ -35,9 +30,7 @@ export class OlaseenaDatabase extends Dexie {
   writeKeys!: Table<WriteKey, string>;
   settings!: Table<SettingRecord, string>;
   attachments!: Table<Attachment, string>;
-  /** Deleted records held for restore, keyed by trash entry id. */
   trash!: Table<TrashEntry, string>;
-  /** File bytes, kept apart from the metadata so snapshots never inline blobs into JSON. Bytes are stored as a typed array, which structured clone preserves in every runtime, and turned back into a Blob on read. */
   attachmentBlobs!: Table<{ id: string; bytes: Uint8Array }, string>;
 
   constructor(name = "olaseena-db") {
@@ -56,8 +49,6 @@ export class OlaseenaDatabase extends Dexie {
       writeKeys: "key, entity, createdAt",
       settings: "key",
     });
-    // Version 2 adds the attachment metadata and blob stores. Listing every
-    // version 1 store again keeps existing data in place during the upgrade.
     this.version(2).stores({
       members: "id, name, email, phone, status, updatedAt",
       trainers: "id, name, email, phone, status, updatedAt",
@@ -74,8 +65,6 @@ export class OlaseenaDatabase extends Dexie {
       attachments: "id, [entityType+entityId], createdAt",
       attachmentBlobs: "id",
     });
-    // Version 3 adds the trash store. Listing every version 2 store again
-    // keeps existing data in place during the upgrade.
     this.version(3).stores({
       members: "id, name, email, phone, status, updatedAt",
       trainers: "id, name, email, phone, status, updatedAt",
@@ -93,10 +82,6 @@ export class OlaseenaDatabase extends Dexie {
       attachmentBlobs: "id",
       trash: "id, kind, originalId, deletedAt",
     });
-    // Version 4 reshapes the schedule fields. Courses move from one weekday
-    // to a list of weekdays, and sessions gain a start and end time; rows
-    // written before then get an empty time, so their duration is unknown
-    // rather than invented.
     this.version(4)
       .stores({
         members: "id, name, email, phone, status, updatedAt",
@@ -136,8 +121,6 @@ export class OlaseenaDatabase extends Dexie {
             if (typeof row.endTime !== "string") row.endTime = "";
           });
       });
-    // Version 5 drops the course start time. A course keeps only its weekly
-    // days; the time lives on each session instead.
     this.version(5)
       .stores({
         members: "id, name, email, phone, status, updatedAt",
@@ -164,11 +147,6 @@ export class OlaseenaDatabase extends Dexie {
             delete row.scheduleTime;
           });
       });
-    // Version 6 moves the trainer off the course and the capacity onto the
-    // session: a course keeps required skills instead, and each session names
-    // its own trainer and optional cap. Rows written before then lose their
-    // trainerId and capacity and gain an empty skill list, so they stay
-    // usable with any trainer and no cap.
     this.version(6)
       .stores({
         members: "id, name, email, phone, status, updatedAt",

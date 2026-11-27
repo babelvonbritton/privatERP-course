@@ -1,6 +1,5 @@
 import { AppError } from "@/lib/errors/AppError";
 
-/** Hands a file to the browser's download flow. */
 export class FileSaver {
   static download(bytes: Uint8Array, fileName: string): void {
     try {

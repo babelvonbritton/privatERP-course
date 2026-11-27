@@ -1,20 +1,9 @@
-// Drive auto-sync: uploads the same encrypted backup file as a manual
-// Drive backup, a short quiet period after the last data change.
-// Upload-only (one-way): a second device restores from Drive by hand.
-// The manager only runs while the user is signed in to Drive and the sync
-// toggle is on; either one off means nothing syncs. Cosmetic changes
-// (theme, language, tour) live in the settings store, which never triggers
-// a sync. The trigger only watches the data stores, so that holds by
-// construction. A sync never interrupts the user: failures stay silent and
-// the data stays dirty for the next change.
-
 import { AppError } from "@/lib/errors/AppError";
 import { BackupService } from "@/lib/backup/BackupService";
 import { ensureDriveToken, readDriveState, writeDriveState, DriveService } from "@/lib/drive";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { getStorage, type StorageService } from "@/lib/storage";
 
-/** Quiet period after the last data change before one upload runs. Rapid changes coalesce into a single upload. */
 export const SYNC_DEBOUNCE_MS = 8000;
 
 export type SyncStatus = "idle" | "syncing" | "error";
@@ -29,9 +18,7 @@ export interface SyncState {
 export interface DriveSyncDeps {
   storage: StorageService;
   drive: DriveService;
-  /** Builds the encrypted backup archive. The passphrase comes from the stored Drive passphrase. */
   buildArchive: (passphrase: string) => Promise<{ zip: Uint8Array }>;
-  /** Quiet period before an upload. Defaults to SYNC_DEBOUNCE_MS; tests pass a shorter one. */
   debounceMs?: number;
   now?: () => number;
 }

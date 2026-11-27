@@ -1,7 +1,6 @@
 import type { OlaseenaDatabase } from "./OlaseenaDatabase";
 import type { BackupData } from "@/lib/domain/types";
 
-/** Consistent whole-database reads and all-or-nothing writes, used by backup, restore and rollback. */
 export class SnapshotService {
   constructor(private readonly db: OlaseenaDatabase) {}
 
@@ -24,7 +23,6 @@ export class SnapshotService {
         auditLog: await d.auditLog.toArray(),
         writeKeys: await d.writeKeys.toArray(),
         settings: await d.settings.toArray(),
-        // File bytes stay in the separate blob store and never enter a snapshot.
         attachments: await d.attachments.toArray(),
         trash: await d.trash.toArray(),
       }),

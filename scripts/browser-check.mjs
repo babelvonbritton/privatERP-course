@@ -1,12 +1,3 @@
-/**
- * Browser verification for Olaseena v1.0.4.
- * Serves the static export separately (python3 -m http.server 8901 --directory out)
- * and drives the real UI in Chromium: desktop 1280x800 and mobile 390x844.
- * Run: BASE_URL=http://localhost:8901 node scripts/browser-check.mjs
- * The bundled Chromium is used through the path the installed playwright
- * package reports, so the executable follows a playwright upgrade instead
- * of a frozen cache revision.
- */
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
@@ -53,9 +44,6 @@ async function noOverflow(page, label, expectedWidth) {
     sw: document.documentElement.scrollWidth,
     iw: window.innerWidth,
   }));
-  // Compare against the intended viewport width, not innerWidth: on mobile
-  // Chromium expands innerWidth to fit overflowing content, which would
-  // make the check pass spuriously while the page is actually too wide.
   const vw = expectedWidth ?? v.iw;
   if (v.sw > vw) throw new Error(`horizontal overflow on ${label}: scrollWidth ${v.sw} > viewport ${vw}`);
   if (v.iw !== vw) throw new Error(`viewport expanded on ${label}: innerWidth ${v.iw} != ${vw}`);
@@ -181,20 +169,13 @@ async function pickAttendanceSession(page, topic) {
 async function pickTime(page, label, time) {
   const [hour, minute] = time.split(":");
   await page.getByRole("button", { name: label, exact: true }).click();
-  // Scope to the open panel: a closing panel stays mounted for its exit animation, so an unscoped query can match two.
   const panel = page.locator(".anim-pop[data-state='open']");
   await panel.getByRole("group", { name: "Hour" }).getByRole("button", { name: hour, exact: true }).click();
   await panel.getByRole("group", { name: "Minute" }).getByRole("button", { name: minute, exact: true }).click();
-  // Picking a minute closes the panel; wait until it is gone so the next pick sees only one panel.
   await panel.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
 }
 
 async function pickDate(page, date, label = "Date") {
-  // The DatePicker is a popover calendar with no text input: open it, step
-  // to the target month, then click the in-month day button. Out-of-month
-  // spillover days share the number, so the in-month class disambiguates.
-  // The session form's picker is labeled "Date"; the enroll form's is
-  // labeled "Start date".
   await page.getByLabel(label, { exact: true }).click();
   const panel = page.locator(".anim-pop[data-state='open']");
   await panel.waitFor();
@@ -222,10 +203,6 @@ async function nav(page, name) {
 }
 
 async function toast(page, text, role = "status") {
-  // Match by DOM attribute, not by ARIA role: while a Radix dialog is open,
-  // Radix hides the rest of the page (including the toaster) from the
-  // accessibility tree, so getByRole("status") sees zero toasts even though
-  // they are rendered and visible on screen.
   await page.locator(`[role="${role}"]`, { hasText: text }).first().waitFor({ timeout: 8000 });
 }
 
@@ -234,15 +211,6 @@ async function waitNoToast(page) {
   await page.locator('[role="status"]').first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
 }
 
-// Enroll one member in the open course detail. The enroll form defaults its
-// start date to today, and the app refuses a start date outside the course's
-// weekly slot (v0.8.0), so the caller passes a real course day. The "Saved"
-// toast from the course save lives 4.5s and is still on screen when the
-// enroll runs, so wait for toasts to clear before Add: the old inline enroll
-// false-passed on that stale toast (plus the member select's own text) while
-// the enroll itself was rejected, leaving the course with no enrollments and
-// no Assign button in the Sessions section. A rejected enroll leaves the form
-// open with the error, so assert it closed.
 async function enrollMember(page, name, date) {
   await page.getByRole("button", { name: "Enroll member" }).click();
   if (date) await pickDate(page, date, "Start date");
@@ -401,13 +369,11 @@ async function desktop(browser) {
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
   });
 
-
   await check("desktop: business profile reminder and quick setup", async () => {
     await page.getByText("Set up your business profile").waitFor();
     await page.getByRole("button", { name: "Quick setup" }).click();
     const dlg = page.getByRole("dialog");
     await dlg.getByRole("heading", { name: "Business profile" }).waitFor();
-    // Saving without a name shows the error and stays in the dialog.
     await dlg.getByRole("button", { name: "Save changes" }).click();
     await dlg.getByText("Enter a business name to save the profile.").waitFor();
     await dlg.getByLabel("Business name", { exact: true }).fill("Melody Studio");
@@ -419,7 +385,6 @@ async function desktop(browser) {
     await dlg.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
     await page.getByRole("dialog").waitFor({ state: "detached" });
-    // The reminder is gone once a business name is saved, and the dashboard is still the current screen.
     if (await page.getByText("Set up your business profile").count()) throw new Error("profile reminder still shown after saving a business name");
     await page.getByRole("heading", { name: "Dashboard" }).waitFor();
     await noOverflow(page, "dashboard profile reminder", 1280);
@@ -490,12 +455,8 @@ async function desktop(browser) {
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
       await page.getByText("Mon, Wed, Fri").waitFor();
-      // Piano Basics meets Mon/Wed/Fri: the enroll start date must be a
-      // course day, not the form's default (today).
       await enrollMember(page, "Ayu Lestari", upcomingSlotDates(3)[0]);
     } finally {
-      // Close the course detail modal even when an assertion above failed,
-      // so a stuck modal cannot block every later nav click.
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
     }
@@ -503,13 +464,9 @@ async function desktop(browser) {
   });
 
   await check("desktop: create session and mark attendance", async () => {
-    // Today is not always a Piano Basics day (Mon/Wed/Fri), so pick the
-    // next course day instead of relying on the form's default date.
     const sessionDay = upcomingSlotDates(1)[0];
     try {
       await createSession(page, "Scales", sessionDay, false);
-      // A fresh session hands nothing to marking until members are
-      // assigned, so assign Ayu in the Sessions section first.
       const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
       await nav(page, "Courses");
       await pending.getByText("Scales").waitFor();
@@ -529,20 +486,15 @@ async function desktop(browser) {
       await toast(page, "Attendance saved");
       await noOverflow(page, "attendance", 1280);
     } finally {
-      // Close the New session modal even when an assertion above failed,
-      // so a stuck modal cannot block every later nav click.
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
     }
   });
 
   await check("desktop: adjust marks and unmark a marked session from attendance", async () => {
-    // A second session on the next slot day, so Scales (used by the payroll
-    // and dashboard checks) stays untouched.
     const sessionDay = upcomingSlotDates(2)[1];
     try {
       await createSession(page, "Arpeggios", sessionDay, false);
-      // A fresh session hands nothing to marking until members are assigned.
       const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
       await nav(page, "Courses");
       await pending.getByText("Arpeggios").waitFor();
@@ -553,29 +505,24 @@ async function desktop(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      // Attendance is marking only: no session-management buttons exist here.
       if (await page.getByRole("button", { name: "New session" }).count()) throw new Error("Attendance still shows a New session button");
       if (await page.getByRole("button", { name: "Edit session" }).count()) throw new Error("Attendance still shows an Edit session button");
       if (await page.getByRole("button", { name: "Delete session" }).count()) throw new Error("Attendance still shows a Delete session button");
-      // The session list shows Arpeggios; pick it and mark Ayu present.
       await pickAttendanceSession(page, "Arpeggios");
       await page.locator("p", { hasText: "Arpeggios" }).waitFor();
       await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
       await page.getByRole("button", { name: "Mark attendance" }).click();
       await toast(page, "Attendance saved");
-      // The marked session stays in the list with its Marked indicator; re-opening shows the saved marks.
       const list = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
       const row = list.getByRole("button", { name: /Arpeggios/ });
       if (!(await row.getByText("Marked").count())) throw new Error("marked session has no Marked indicator in the list");
       await pickAttendanceSession(page, "Arpeggios");
       const ayu = page.getByRole("radiogroup", { name: "Ayu Lestari" });
       if (!(await ayu.getByRole("radio", { name: "Present" }).isChecked())) throw new Error("saved marks not pre-filled on re-open");
-      // Adjust one mark and save: the session stays marked.
       await ayu.getByRole("radio", { name: "Absent" }).click();
       await page.getByRole("button", { name: "Mark attendance" }).click();
       await toast(page, "Attendance saved");
       if (!(await row.getByText("Marked").count())) throw new Error("adjusted session lost its Marked indicator");
-      // Unmark it: Cancel keeps the marks, confirming clears them.
       await page.getByRole("button", { name: "Unmark session" }).click();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       if (!(await ayu.getByRole("radio", { name: "Absent" }).isChecked())) throw new Error("canceling unmark changed the marks");
@@ -585,9 +532,6 @@ async function desktop(browser) {
       await unmarkDlg.getByRole("button", { name: "Unmark session" }).click();
       await toast(page, "Attendance cleared");
       if (await row.getByText("Marked").count()) throw new Error("unmarked session still shows the Marked indicator");
-      // The session is back in the Sessions section on the Courses screen,
-      // where it can be edited or deleted as a session again. Delete it
-      // there so later checks see only the sessions they create themselves.
       await nav(page, "Courses");
       await pending.getByText("Arpeggios").waitFor();
       const sessionRow = pending.locator("li", { hasText: "Arpeggios" });
@@ -606,7 +550,6 @@ async function desktop(browser) {
   });
 
   await check("desktop: session list below the course table drives assignment and drops marked sessions", async () => {
-    // A second enrolled member, so the assignment can narrow the list.
     await nav(page, "Members");
     await page.getByRole("button", { name: "Add member" }).click();
     await page.getByLabel("Name", { exact: true }).fill("Citra Kirana");
@@ -618,22 +561,17 @@ async function desktop(browser) {
       await nav(page, "Courses");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
-      // Same course-day rule as the Ayu enrollment above.
       await enrollMember(page, "Citra Kirana", upcomingSlotDates(3)[0]);
     } finally {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
     }
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
-    // Scales was marked in the attendance check, so it has already left the list.
     await nav(page, "Courses");
     await pending.getByRole("heading", { name: "Sessions" }).waitFor();
     if (await pending.getByText("Scales").count()) {
       throw new Error("marked session Scales is still listed in the Sessions section");
     }
-    // A fresh session on a Monday or Wednesday past the dashboard check's
-    // five slot dates, so it cannot collide with them. Piano Basics meets
-    // Mondays and Wednesdays; the slot helper also returns Fridays.
     const farCourseDay = upcomingSlotDates(8)
       .filter((d) => d.getDay() === 1 || d.getDay() === 3)
       .pop();
@@ -641,9 +579,7 @@ async function desktop(browser) {
       await createSession(page, "Arpeggios", farCourseDay, false);
       await nav(page, "Courses");
       await pending.getByText("Arpeggios").waitFor();
-      // The row names the course the session belongs to.
       await pending.getByText("Piano Basics").waitFor();
-      // A fresh session has nobody assigned yet.
       await pending.getByText("No members assigned yet").waitFor();
       await pending.getByRole("button", { name: "Assign members" }).click();
       await pending.getByRole("checkbox", { name: "Ayu Lestari" }).check();
@@ -654,7 +590,6 @@ async function desktop(browser) {
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
     }
-    // The attendance list now shows only the assigned member.
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Piano Basics");
     await pickAttendanceSession(page, "Arpeggios");
@@ -663,9 +598,6 @@ async function desktop(browser) {
     if (await page.getByRole("radiogroup", { name: "Citra Kirana" }).count()) {
       throw new Error("unassigned member Citra Kirana is listed in the attendance marking");
     }
-    // Unchecking every member returns the session to unassigned, and the
-    // attendance view shows the no-member-assigned message instead of the
-    // marking controls.
     await nav(page, "Courses");
     await pending.getByText("Arpeggios").waitFor();
     await pending.getByRole("button", { name: "Assign members" }).click();
@@ -683,7 +615,6 @@ async function desktop(browser) {
     if (await page.getByRole("button", { name: "Mark attendance" }).count()) {
       throw new Error("unassigned session shows the Mark attendance button");
     }
-    // Select all assigns both enrolled members.
     await nav(page, "Courses");
     await pending.getByText("Arpeggios").waitFor();
     await pending.getByRole("button", { name: "Assign members" }).click();
@@ -693,9 +624,6 @@ async function desktop(browser) {
     await pending.getByRole("button", { name: "Save changes" }).click();
     await toast(page, "Saved");
     await pending.getByText("Assigned: Ayu Lestari, Citra Kirana").waitFor();
-    // Edit the session from the Sessions section: the form opens pre-filled,
-    // the course is shown as text instead of a picker, and saving keeps the
-    // assignment.
     const arpeggiosRow = pending.locator("li", { hasText: "Arpeggios" });
     await arpeggiosRow.getByRole("button", { name: "Edit session" }).click();
     const editDlg = page.getByRole("dialog");
@@ -711,9 +639,6 @@ async function desktop(browser) {
     await toast(page, "Saved");
     await pending.getByText("Arpeggios 2").waitFor();
     await pending.getByText("Assigned: Ayu Lestari, Citra Kirana").waitFor();
-    // Delete the session from the Sessions section: Cancel keeps it, Delete
-    // removes it. This also cleans up so the dashboard pagination check
-    // that follows sees only the sessions it creates itself.
     const editedRow = pending.locator("li", { hasText: "Arpeggios 2" });
     const confirmDlg = page.locator('[role="alertdialog"]');
     await editedRow.getByRole("button", { name: "Delete session" }).click();
@@ -732,11 +657,7 @@ async function desktop(browser) {
       await nav(page, "Courses");
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
-      // The heading renders before the enrollment rows land, so wait for
-      // the list itself before counting it.
       await page.locator('[role="dialog"] ul').first().waitFor({ timeout: 8000 });
-      // Sessions moved out of the detail: no sessions section and no
-      // session controls anywhere in the dialog.
       const dialog = page.getByRole("dialog");
       if (await dialog.getByText("Sessions", { exact: true }).count()) throw new Error("course detail still shows a sessions section");
       if (await dialog.getByRole("button", { name: "New session" }).count()) throw new Error("course detail still offers a new session");
@@ -772,7 +693,6 @@ async function desktop(browser) {
   });
 
   await check("desktop: attendance dashboard below marking, filters narrow rows, pagination present", async () => {
-    // A second member with no attendance, so a filter can narrow to zero rows.
     await nav(page, "Members");
     await page.getByRole("button", { name: "Add member" }).click();
     await page.getByLabel("Name", { exact: true }).fill("Benny");
@@ -843,9 +763,6 @@ async function desktop(browser) {
       await page.getByRole("button", { name: "New invoice" }).click();
       await pickSelect(page, "Member", "Ayu Lestari");
       await pickSelect(page, "Status", "Sent");
-      // The create form already ships with one empty line-item row; filling
-      // it is enough. Adding another row would leave an empty row behind,
-      // and the form rejects empty line descriptions.
       await page.getByLabel("Description", { exact: true }).fill("Piano Basics Nov");
       await page.getByLabel("Amount", { exact: true }).fill("500000");
       await page.getByRole("button", { name: "Create invoice" }).click();
@@ -868,7 +785,6 @@ async function desktop(browser) {
     await noOverflow(page, "invoices", 1280);
   });
 
-
   await check("desktop: printed invoice shows the business profile, not the owner", async () => {
     try {
       await nav(page, "Invoices");
@@ -882,7 +798,6 @@ async function desktop(browser) {
       if (await doc.getByText("Rina Hartono").count()) throw new Error("owner name shown on the invoice");
       await noOverflow(page, "printed invoice profile", 1280);
     } finally {
-      // Two modals can be stacked here (detail, then print): close the top one first.
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.last().click().catch(() => {});
       await page.waitForTimeout(300);
@@ -892,7 +807,6 @@ async function desktop(browser) {
 
   await check("desktop: payroll excludes an absent session, refreshes a draft run, and lists paid and unpaid sessions", async () => {
     try {
-      // The run starts from the session marked present in the attendance check.
       await nav(page, "Payroll");
       await pickSelect(page, "Trainer", "Budi Santoso");
       await page.getByRole("button", { name: "Generate pay run" }).click();
@@ -913,7 +827,6 @@ async function desktop(browser) {
       await page.getByRole("dialog").last().getByRole("button", { name: "Close", exact: true }).first().click();
       await page.getByRole("button", { name: "Close" }).first().click();
 
-      // Mark the trainer absent: regenerating the draft run must drop the session.
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
       await pickAttendanceSession(page, "Scales");
@@ -930,7 +843,6 @@ async function desktop(browser) {
       await page.getByText("Scales").first().waitFor();
       await page.getByRole("button", { name: "Close" }).first().click();
 
-      // Mark the trainer present again: the draft run refreshes back to one paid session.
       await nav(page, "Attendance");
       await pickSessionCourse(page, "Piano Basics");
       await pickAttendanceSession(page, "Scales");
@@ -987,7 +899,6 @@ async function desktop(browser) {
   });
 
   await check("desktop: dashboard upcoming sessions paginate 5 per page, invoices show latest 3", async () => {
-    // One session (Scales, on the next course day) and one invoice (-001) already exist.
     const dates = upcomingSlotDates(6).slice(1);
     const topics = ["Dash S2", "Dash S3", "Dash S4", "Dash S5", "Dash S6"];
     for (let i = 0; i < 5; i++) await createSession(page, topics[i], dates[i], false);
@@ -1005,7 +916,6 @@ async function desktop(browser) {
     await page.getByRole("button", { name: "Dashboard", exact: true }).first().waitFor();
   });
 
-
   await check("desktop: business profile section is first in Settings and keeps the saved name", async () => {
     await nav(page, "Settings");
     const headings = await page.locator("main h2").allTextContents();
@@ -1022,17 +932,12 @@ async function desktop(browser) {
       await nav(page, "Settings");
       await page.getByRole("heading", { name: "Local timezone" }).waitFor();
       await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
-      // The save is async: wait until the trigger shows the new zone, which
-      // only renders after the preference write lands, before reloading.
       await page
         .getByRole("combobox", { name: "Local timezone", exact: true })
         .filter({ hasText: "Asia/Jakarta (UTC+07:00)" })
         .waitFor({ timeout: 8000 });
-      // Persists across a reload: the saved zone is still the checked option.
       await page.reload({ waitUntil: "networkidle" });
       await nav(page, "Settings");
-      // The section renders the device zone until the saved preference loads;
-      // wait for the saved zone to appear before opening the menu.
       await page
         .getByRole("combobox", { name: "Local timezone", exact: true })
         .filter({ hasText: "Asia/Jakarta (UTC+07:00)" })
@@ -1042,10 +947,7 @@ async function desktop(browser) {
       if ((await picked.getAttribute("data-state")) !== "checked") throw new Error("saved timezone is not the checked option after reload");
       await page.keyboard.press("Escape");
       await noOverflow(page, "settings timezone", 1280);
-      // The invoice created now carries the Jakarta day in its number and its printed issue date.
       await createInvoice(page, "Ayu Lestari", "Timezone check", 100000, false);
-      // The list is newest-first and rows show the member, not the line
-      // description: open the first Ayu row and confirm it is this invoice.
       await page.locator("tr", { hasText: "Ayu Lestari" }).first().click();
       await page.getByText("Timezone check").first().waitFor();
       await page.getByRole("button", { name: "Print invoice", exact: true }).click();
@@ -1061,15 +963,11 @@ async function desktop(browser) {
       if (!docText.includes(expectedDate)) throw new Error(`printed issue date is not ${expectedDate}`);
       await noOverflow(page, "printed invoice timezone", 1280);
     } finally {
-      // Close any open menu first: while a Radix menu is open it hides the
-      // rest of the page from the accessibility tree, so a stuck menu would
-      // make every later check time out on getByRole lookups.
       await page.keyboard.press("Escape").catch(() => {});
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.last().click().catch(() => {});
       await page.waitForTimeout(300);
       if (await close.count()) await close.first().click().catch(() => {});
-      // Restore the device zone so later checks see the usual dates.
       await nav(page, "Settings").catch(() => {});
       await pickLongListOption(page, "Local timezone", deviceLabel).catch(() => {});
     }
@@ -1125,7 +1023,6 @@ async function desktop(browser) {
   });
 
   await check("desktop: sync setup dialog opens, cancels, and reaches the download step", async () => {
-    // Seed a connected Drive session (fake token) so the sync toggle is clickable.
     await page.evaluate(() => new Promise((resolve, reject) => {
       const req = indexedDB.open("olaseena-db");
       req.onsuccess = () => {
@@ -1143,15 +1040,12 @@ async function desktop(browser) {
     await nav(page, "Settings");
     await page.getByText("Connected", { exact: true }).waitFor();
     const syncToggle = page.getByRole("switch", { name: /Auto-sync to Drive/ });
-    // No passphrase stored yet: turning it on opens the setup dialog.
     await syncToggle.click();
     const dlg = page.getByRole("dialog");
     await dlg.getByRole("heading", { name: "Set up auto-sync" }).waitFor();
-    // Cancel turns the toggle back off and stores nothing.
     await dlg.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("dialog").waitFor({ state: "detached" });
     if ((await syncToggle.getAttribute("aria-checked")) !== "false") throw new Error("sync toggle stayed on after Cancel");
-    // A valid passphrase reaches the download step.
     await syncToggle.click();
     await dlg.getByRole("heading", { name: "Set up auto-sync" }).waitFor();
     await dlg.getByLabel("Backup passphrase", { exact: true }).fill("CheckPass123");
@@ -1172,14 +1066,10 @@ async function desktop(browser) {
     if (content.app !== "Olaseena" || content.type !== "drive-backup-passphrase") {
       throw new Error("downloaded JSON metadata is wrong");
     }
-    // Done closes the dialog with sync on; then switch it back off so no
-    // sync is scheduled against this fake session later in the run.
     await dlg.getByRole("button", { name: "Done" }).click();
     await page.getByRole("dialog").waitFor({ state: "detached" });
     if ((await syncToggle.getAttribute("aria-checked")) !== "true") throw new Error("sync toggle is off after setup");
     await syncToggle.click();
-    // Turning off writes state and re-renders, so wait for the flip instead
-    // of reading the attribute in the same tick as the click.
     await page.waitForFunction(
       (el) => el.getAttribute("aria-checked") === "false",
       await syncToggle.elementHandle(),
@@ -1191,16 +1081,11 @@ async function desktop(browser) {
     await nav(page, "Settings");
     await page.getByRole("button", { name: "Get to know the features" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
-    // Walk every step at desktop width: the tooltip must fit its content
-    // with no internal scrollbar on any of them, and the steps must run in
-    // one forward pass (sidebar order, each screen once, no revisits).
     const titles = [];
     for (let i = 0; i < 12; i++) {
       await assertTourDialogNoScroll(page, `desktop tour step ${i + 1}`);
       titles.push((await page.getByRole("dialog").getByRole("heading").textContent())?.trim());
       if (i < 11) {
-        // Scope to the tour dialog: the dashboard behind it has its own "Next"
-        // pagination button, and an unscoped click is a strict-mode race.
         await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
         await page.waitForTimeout(600);
       }
@@ -1263,7 +1148,6 @@ async function mobile(browser) {
     await noOverflow(page, "mobile dashboard", 390);
   });
 
-
   await check("mobile: business profile reminder and quick setup", async () => {
     await page.getByText("Set up your business profile").waitFor();
     await page.getByRole("button", { name: "Quick setup" }).click();
@@ -1289,7 +1173,6 @@ async function mobile(browser) {
   });
 
   await check("mobile: dashboard upcoming sessions paginate 5 per page, invoices show latest 3", async () => {
-    // Seed the trainer and course the dashboard data needs (member "Mobile User" already exists).
     await navMobile(page, "Trainers");
     await page.getByRole("button", { name: "Add trainer" }).click();
     await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");
@@ -1335,13 +1218,9 @@ async function mobile(browser) {
       await page.getByRole("heading", { name: "Local timezone" }).waitFor();
       await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
       await noOverflow(page, "mobile settings timezone", 390);
-      // Restore the device zone so later mobile checks see the usual dates.
       await pickLongListOption(page, "Local timezone", zoneLabel(deviceZone));
       await noOverflow(page, "mobile settings timezone restored", 390);
     } finally {
-      // Close any open menu first: while a Radix menu is open it hides the
-      // rest of the page from the accessibility tree, so a stuck menu would
-      // make every later check time out on getByRole lookups.
       await page.keyboard.press("Escape").catch(() => {});
       await page.waitForTimeout(300);
     }
@@ -1355,7 +1234,6 @@ async function mobile(browser) {
       await pickLongListOption(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
       await selectedOptionInView(page, "Local timezone", "Asia/Jakarta (UTC+07:00)");
       await noOverflow(page, "mobile settings timezone picker", 390);
-      // Restore the device zone so later mobile checks see the usual dates.
       await pickLongListOption(page, "Local timezone", zoneLabel(deviceZone));
       await noOverflow(page, "mobile settings timezone picker restored", 390);
     } finally {
@@ -1473,7 +1351,6 @@ async function mobileTourSheet(browser) {
     await page.getByRole("button", { name: "Get to know the features" }).click();
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 5000 });
     await page.waitForTimeout(500);
-    // Tap the dimmed screen above the sheet: the backdrop ends the tour.
     await page.mouse.click(195, 100);
     await page.getByText("Get to know Olaseena").waitFor({ state: "detached", timeout: 5000 });
   });
@@ -1498,8 +1375,6 @@ async function mobileTourShortPhone(browser) {
     for (let i = 0; i < 12; i++) {
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"]');
-        // Scroll the sheet to its end first: on a short phone the longest
-        // step text can push the buttons below the 45dvh fold until scrolled.
         if (dlg) dlg.scrollTop = dlg.scrollHeight;
         const dr = dlg?.getBoundingClientRect();
         const nav = document.querySelector("nav.fixed");
@@ -1592,15 +1467,9 @@ async function mobileScreensWithData(browser) {
     await page.locator("tr", { hasText: "Piano Basics" }).click();
     await page.getByText("Enrollments").first().waitFor();
     await page.getByText("Mon, Wed").waitFor();
-    // This course meets Mon/Wed: the enroll start date must be a course day,
-    // not the form's default (today).
     await enrollMember(page, "Ayu Lestari", upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3));
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
-    // Today is not always a Piano Basics day (Mon/Wed), so pick the next
-    // one instead of relying on the form's default date.
     await createSession(page, "Scales", upcomingSlotDates(3).find((d) => d.getDay() === 1 || d.getDay() === 3), true);
-    // A fresh session hands nothing to marking until members are
-    // assigned, so assign Ayu in the Sessions section first.
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     await nav(page, "Courses");
     await pending.getByText("Scales").waitFor();
@@ -1640,8 +1509,6 @@ async function mobileScreensWithData(browser) {
   });
 
   await check("mobile data: adjust marks and unmark a marked session from attendance", async () => {
-    // A second session on another Mon/Wed day, so Scales (used by the mobile
-    // dashboard check) stays untouched.
     const sessionDay = upcomingSlotDates(5).filter((d) => d.getDay() === 1 || d.getDay() === 3)[1];
     try {
       await createSession(page, "Arpeggios", sessionDay, true);
@@ -1655,7 +1522,6 @@ async function mobileScreensWithData(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await moreNav("Attendance");
       await pickSessionCourse(page, "Piano Basics");
-      // Attendance is marking only: no session-management buttons exist here.
       if (await page.getByRole("button", { name: "New session" }).count()) throw new Error("Attendance still shows a New session button");
       if (await page.getByRole("button", { name: "Edit session" }).count()) throw new Error("Attendance still shows an Edit session button");
       if (await page.getByRole("button", { name: "Delete session" }).count()) throw new Error("Attendance still shows a Delete session button");
@@ -1664,18 +1530,15 @@ async function mobileScreensWithData(browser) {
       await page.getByRole("radiogroup", { name: "Ayu Lestari" }).getByRole("radio", { name: "Present" }).click();
       await page.getByRole("button", { name: "Mark attendance" }).click();
       await toast(page, "Attendance saved");
-      // The marked session stays in the list with its Marked indicator; re-opening shows the saved marks.
       const list = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
       const row = list.getByRole("button", { name: /Arpeggios/ });
       if (!(await row.getByText("Marked").count())) throw new Error("marked session has no Marked indicator in the list");
       await pickAttendanceSession(page, "Arpeggios");
       const ayu = page.getByRole("radiogroup", { name: "Ayu Lestari" });
       if (!(await ayu.getByRole("radio", { name: "Present" }).isChecked())) throw new Error("saved marks not pre-filled on re-open");
-      // Adjust one mark and save: the session stays marked.
       await ayu.getByRole("radio", { name: "Absent" }).click();
       await page.getByRole("button", { name: "Mark attendance" }).click();
       await toast(page, "Attendance saved");
-      // Unmark it: Cancel keeps the marks, confirming clears them.
       await page.getByRole("button", { name: "Unmark session" }).click();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       if (!(await ayu.getByRole("radio", { name: "Absent" }).isChecked())) throw new Error("canceling unmark changed the marks");
@@ -1684,9 +1547,6 @@ async function mobileScreensWithData(browser) {
       await unmarkDlg.getByRole("button", { name: "Unmark session" }).click();
       await toast(page, "Attendance cleared");
       if (await row.getByText("Marked").count()) throw new Error("unmarked session still shows the Marked indicator");
-      // The session is back in the Sessions section on the Courses screen.
-      // Delete it there: the assignment check that follows creates Arpeggios
-      // on the same course date and would hit the one-session-per-date rule.
       await nav(page, "Courses");
       await pending.getByText("Arpeggios").waitFor();
       const sessionRow = pending.locator("li", { hasText: "Arpeggios" });
@@ -1740,10 +1600,6 @@ async function mobileScreensWithData(browser) {
   await check("mobile data: session attendee assignment at 390px", async () => {
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     try {
-      // A fresh unmarked session on a course day (Piano Basics meets
-      // Mondays and Wednesdays): Scales was already marked during the seed.
-      // One course cannot have two sessions on the same date, and the seed's
-      // Scales sits on the first Mon/Wed slot, so take the second one.
       const nextCourseDay = upcomingSlotDates(5).filter((d) => d.getDay() === 1 || d.getDay() === 3)[1];
       await createSession(page, "Arpeggios", nextCourseDay, true);
       await nav(page, "Courses");
@@ -1757,21 +1613,17 @@ async function mobileScreensWithData(browser) {
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
       await noOverflow(page, "mobile data assign", 390);
       await fixedTargetsAtLeast44(page, "assign picker");
-      // Uncheck again: the session goes back to unassigned.
       await pending.getByRole("button", { name: "Assign members" }).click();
       await pending.getByRole("checkbox", { name: "Ayu Lestari" }).uncheck();
       await pending.getByRole("button", { name: "Save changes" }).click();
       await toast(page, "Saved");
       await pending.getByText("No members assigned yet").waitFor();
-      // Select all assigns the enrolled member at 390px too.
       await pending.getByRole("button", { name: "Assign members" }).click();
       await pending.getByRole("button", { name: "Select all" }).click();
       if (!(await pending.getByRole("checkbox", { name: "Ayu Lestari" }).isChecked())) throw new Error("Select all did not check Ayu Lestari");
       await pending.getByRole("button", { name: "Save changes" }).click();
       await toast(page, "Saved");
       await pending.getByText("Assigned: Ayu Lestari").waitFor();
-      // Clean up: delete the check session from the Sessions section so
-      // later mobile checks see only the sessions they create themselves.
       await pending.getByText("Arpeggios").waitFor();
       const row = pending.locator("li", { hasText: "Arpeggios" });
       await row.getByRole("button", { name: "Delete session" }).click();
@@ -1791,7 +1643,6 @@ async function mobileScreensWithData(browser) {
       await page.locator("tr", { hasText: "Piano Basics" }).click();
       await page.getByText("Enrollments").first().waitFor();
       await page.getByText("Ayu Lestari", { exact: true }).waitFor();
-      // The detail is enrollments only now: no sessions section or session controls.
       const detail = page.getByRole("dialog");
       if (await detail.getByText("Sessions", { exact: true }).count()) throw new Error("course detail still shows a sessions section");
       if (await detail.getByRole("button", { name: "New session" }).count()) throw new Error("course detail still offers a new session");
@@ -1800,8 +1651,6 @@ async function mobileScreensWithData(browser) {
       await page.screenshot({ path: `${process.env.HOME}/workspace/olaseena-check-shots/mobile-data-course-detail-390.png` });
       await page.getByRole("button", { name: "Close", exact: true }).last().click();
     } finally {
-      // Close the detail sheet even when an assertion above failed, so a
-      // stuck sheet cannot hide the nav from every later mobile check.
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
     }
@@ -1810,7 +1659,6 @@ async function mobileScreensWithData(browser) {
   await check("mobile data: attendance with a session, radio targets are 44px", async () => {
     await moreNav("Attendance");
     await pickSessionCourse(page, "Piano Basics");
-    // The session list row is labeled with its date and topic, so match the topic part.
     await pickAttendanceSession(page, "Scales");
     await page.getByRole("radiogroup", { name: "Ayu Lestari" }).waitFor();
     await noOverflow(page, "mobile data attendance", 390);
@@ -2024,7 +1872,6 @@ async function printChecks(browser) {
 
   await check("print: cash invoice preview shows no payment block", async () => {
     try {
-      // Distinct amount so its row is unambiguous regardless of list order.
       await createInvoice(null, null, 250000);
       await page.locator("tr", { hasText: "IDR 250,000" }).first().click();
       await page.getByRole("button", { name: "Print invoice", exact: true }).click();
@@ -2108,7 +1955,6 @@ async function darkDesktop(browser) {
   await context.close();
 }
 
-/** v0.2.0 currency: stubbed Frankfurter rates drive the switch, the 10/day limit blocks the 11th, and a failed fetch changes nothing. */
 /** v0.8.0 weekly slot: a session or enrollment outside the course's weekdays shows the error naming the allowed days; on a slot day both save. */
 async function weeklySlotChecks(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -2121,8 +1967,6 @@ async function weeklySlotChecks(browser) {
     if (m.type() === "error") consoleErrors.push(`console: ${m.text()}`);
   });
 
-  // The slot is chosen so today is outside it, whatever day the check runs:
-  // weekends when today is a weekday, Monday and Tuesday when today is a weekend day.
   const todayDow = new Date().getDay();
   const offDays = todayDow === 6 || todayDow === 0 ? [1, 2] : [6, 0];
   const short = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -2160,7 +2004,6 @@ async function weeklySlotChecks(browser) {
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
     await addRequiredSkill(page, "Piano");
-    // The form starts with Monday checked, so clear it first: the slot must be exactly the days asked for.
     await page.getByRole("checkbox", { name: "Mon" }).uncheck();
     for (const d of days) await page.getByRole("checkbox", { name: short[d] }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -2180,8 +2023,6 @@ async function weeklySlotChecks(browser) {
   });
 
   await check("weekly slot: session outside the slot shows the error naming the allowed days", async () => {
-    // The enrollment check leaves the course detail open. Sessions live
-    // outside the detail now, so close it and use the standalone form.
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
     await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
     await page.getByRole("button", { name: "New session" }).click();
@@ -2201,8 +2042,6 @@ async function weeklySlotChecks(browser) {
     await pickSelect(page, "Member", "Ayu Lestari");
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    // Sessions live outside the detail now: close it and use the standalone
-    // New session button on the Courses screen.
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
     await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
     await page.getByRole("button", { name: "New session" }).click();
@@ -2213,8 +2052,6 @@ async function weeklySlotChecks(browser) {
     await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    // The standalone modal closes on save, so the session is asserted in the
-    // Sessions section on the Courses screen, not inside a dialog.
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     await pending.getByText("On-slot scales").waitFor();
     await page.getByText("10:00–11:00").first().waitFor();
@@ -2224,7 +2061,6 @@ async function weeklySlotChecks(browser) {
   await check("weekly slot: no console errors or page errors", async () => {
     if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
     const alerts = await page.evaluate(() => window.__alerts ?? []);
-    // The two slot errors above are the expected outcome of those checks, not stray toasts.
     const unexpected = alerts.filter((a) => !a.includes("must be on a day this course meets"));
     if (unexpected.length) throw new Error(`error toasts shown: ${unexpected.slice(0, 3).join(" | ")}`);
   });
@@ -2237,7 +2073,6 @@ async function timePickerChecks(browser) {
   const todayShort = short[new Date().getDay()];
 
   async function seed(page, onMobile = false) {
-    // On a phone Trainers and Attendance live under the More menu, not the bottom nav.
     const go = async (name) => {
       if (onMobile && (name === "Trainers" || name === "Attendance")) {
         await page.getByRole("button", { name: "More", exact: true }).click();
@@ -2289,8 +2124,6 @@ async function timePickerChecks(browser) {
 
   await check("time picker: opens, picks a time, and the form keeps the value", async () => {
     await seed(page);
-    // The session form lives on the Courses screen now; the seed course meets
-    // today, so the default date is a valid slot day.
     await nav(page, "Courses");
     await page.getByRole("button", { name: "New session", exact: true }).first().click();
     await pickSelect(page, "Course", "Piano Basics");
@@ -2302,8 +2135,6 @@ async function timePickerChecks(browser) {
     await page.getByRole("radio", { name: "Budi Santoso" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    // The Sessions section row shows the range; the duration lives in the
-    // row's second line, so the range alone is the assertion here.
     await page.getByText("10:00–11:30").first().waitFor();
   });
 
@@ -2323,7 +2154,6 @@ async function timePickerChecks(browser) {
   await check("time picker: no console errors or page errors", async () => {
     if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 3).join(" | "));
     const alerts = await page.evaluate(() => window.__alerts ?? []);
-    // The end-before-start error above is the expected outcome of that check, not a stray toast.
     const unexpected = alerts.filter((a) => !a.includes("End time must be after the start time"));
     if (unexpected.length) throw new Error(`error toasts shown: ${unexpected.slice(0, 3).join(" | ")}`);
   });
@@ -2458,9 +2288,6 @@ async function currencyChecks(browser) {
   });
 
   await check("currency: a trashed payment restores in the new currency after a switch", async () => {
-    // Currency is EUR here (switch 1); the invoice below is built in EUR,
-    // one of its two payments is trashed, and the switch to IDR has to
-    // convert the trashed payment too, or the restore brings EUR money back.
     try {
       await nav(page, "Members");
     await page.getByRole("button", { name: "Add member" }).click();
@@ -2482,14 +2309,11 @@ async function currencyChecks(browser) {
       await page.getByLabel("Payment amount", { exact: true }).fill("25");
       await page.getByRole("button", { name: "Record payment", exact: true }).click();
       await toast(page, "Payment recorded");
-      // The toast can still be the previous one, so wait for the new row itself.
       await page.locator("li", { hasText: "€25.00" }).nth(i).waitFor({ timeout: 8000 });
     }
     await page.getByRole("button", { name: "Delete payment" }).first().click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await toast(page, "€25.00 moved to the trash bin");
-    // Close the detail first: while a modal is open it hides the rest of the
-    // page from the accessibility tree, so the Settings nav button is not found.
     await page.getByRole("button", { name: "Close", exact: true }).first().click();
     await switchTo(page, "IDR");
     await nav(page, "Trash");
@@ -2498,20 +2322,14 @@ async function currencyChecks(browser) {
     await nav(page, "Invoices");
     const row = page.locator("tr", { hasText: "Sari Wulandari" }).first();
     const rowText = (await row.textContent()) ?? "";
-    // Intl separates the IDR code from the number with a non-breaking space,
-    // so the match allows any whitespace there.
     const fullAmounts = (rowText.match(/IDR\s1,000,000/g) ?? []).length;
     if (fullAmounts < 2) throw new Error(`restored invoice row does not show IDR 1,000,000 for total and paid: ${rowText}`);
     if (!/Paid/.test(rowText)) throw new Error(`restored invoice row does not show Paid: ${rowText}`);
     await row.click();
     await page.getByText("Trash switch check").first().waitFor();
-    // The payment rows land with the detail data, which can lag the charge
-    // line on a slow run, so wait for the second payment before counting.
     await page.getByText(/IDR\s500,000/).nth(1).waitFor({ timeout: 8000 });
     if ((await page.getByText(/IDR\s500,000/).count()) < 2) throw new Error("restored invoice does not show two IDR 500,000 payments");
     } finally {
-      // The check ends with the invoice detail open; close it so the next
-      // check can reach the nav again.
       await page.keyboard.press("Escape").catch(() => {});
       const close = page.getByRole("button", { name: "Close" });
       if (await close.count()) await close.first().click().catch(() => {});
@@ -2520,8 +2338,6 @@ async function currencyChecks(browser) {
   });
 
   await check("currency: 10 switches allowed, 11th shows the limit and changes nothing", async () => {
-    // Switches 1 and 2 are done (IDR to EUR, then EUR to IDR in the trash
-    // check); 8 more alternating switches reach 10.
     const sequence = ["USD", "EUR", "USD", "EUR", "USD", "EUR", "USD", "EUR"];
     for (const code of sequence) await switchTo(page, code);
     await nav(page, "Settings");
@@ -2531,7 +2347,6 @@ async function currencyChecks(browser) {
       throw new Error("limit dialog still offers a Switch button");
     }
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
-    // Currency is still EUR after 10 switches (last one was to EUR).
     await nav(page, "Invoices");
     await page.getByText("€").first().waitFor({ timeout: 5000 });
   });
@@ -2566,8 +2381,6 @@ async function currencyChecks(browser) {
   });
 
   await check("currency failure: no console errors or page errors", async () => {
-    // The aborted rate fetch logs a resource error and errorCenter logs the
-    // reported error by design; both are the expected failure path, not bugs.
     const expected = (e) => e.includes("ERR_FAILED") || e.includes("CURRENCY_FETCH_FAILED");
     const unexpected = failErrors.filter((e) => !expected(e));
     if (unexpected.length) throw new Error(unexpected.slice(0, 3).join(" | "));
@@ -2588,8 +2401,6 @@ async function shortViewportTour(browser) {
     await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
     await page.getByText("Get to know Olaseena").waitFor({ timeout: 8000 });
     await page.waitForTimeout(500);
-    // The steps in tour order: the overlay falls back to a centered tooltip
-    // when its target is missing, so check each target is really on screen.
     const targets = ["dashboard", "members", "trainers", "courses", "course-sessions", "attendance", "invoices", "payroll", "trash", "settings", "drive", "profile"];
     for (let i = 0; i < 12; i++) {
       const hasTarget = await page.evaluate((t) => !!document.querySelector(`[data-tour="${t}"]`), targets[i]);
@@ -2636,8 +2447,6 @@ async function backupV2Checks(browser) {
     await page.getByRole("checkbox", { name: "Download a safety backup of my current data first" }).click();
     await page.getByRole("button", { name: "Apply changes", exact: true }).first().click();
     await page.getByRole("button", { name: "Apply changes", exact: true }).last().click();
-    // The done panel has a Done button; "Backup restored" alone is ambiguous
-    // because the toast and the panel title share the text.
     await page.getByRole("button", { name: "Done", exact: true }).waitFor({ timeout: 15000 });
     await page.getByRole("button", { name: "Close" }).click();
   }
@@ -2877,10 +2686,6 @@ async function attachmentChecks(browser) {
   });
 
   await check("attachments: oversized image is rejected after shrinking", async () => {
-    // No real photo stays over 4 MB after the 1920px JPEG shrink, so the
-    // shrink step is stubbed to return a 5 MB blob for this check only; the
-    // unit tests cover the real size math. Only the JPEG re-encode is
-    // stubbed: the test image itself is still generated as a real PNG.
     await page.evaluate(() => {
       window.__origToBlob = HTMLCanvasElement.prototype.toBlob;
       HTMLCanvasElement.prototype.toBlob = function (cb, type, quality) {
@@ -2902,9 +2707,6 @@ async function attachmentChecks(browser) {
     if ((await page.getByRole("button", { name: /View attachment/ }).count()) !== 1) {
       throw new Error("rejected file still produced a thumbnail");
     }
-    // The two rejections above raised expected error toasts and console
-    // lines; drop exactly those two expected entries so the final no-errors
-    // check only sees unexpected ones.
     await page.evaluate(() => {
       window.__alerts = [];
     });
@@ -2945,14 +2747,9 @@ async function attachmentChecks(browser) {
     if (statSync(ATT_DOWNLOAD).size <= 0) throw new Error("downloaded attachment is empty");
     await page.getByRole("button", { name: "Delete attachment" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    // The lightbox closes on delete; wait for it to leave the DOM before
-    // touching the detail modal behind it, whose Close button shares the
-    // same accessible name as the lightbox close button.
     await page.getByRole("dialog", { name: "receipt.png" }).waitFor({ state: "detached", timeout: 8000 });
     await page.getByText("No attachments yet").waitFor({ timeout: 8000 });
     await toast(page, "Deleted");
-    // The detail modal has two Close buttons (icon + footer text); the
-    // suite's established pattern picks the footer one.
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
   });
 
@@ -3000,11 +2797,6 @@ async function attachmentChecks(browser) {
     await page.getByRole("dialog", { name: "receipt-2.png" }).waitFor({ timeout: 8000 });
     if ((await lightboxScale(page)) !== 1) throw new Error("restored attachment did not open in the viewer");
     await page.keyboard.press("Escape");
-    // Close whatever dialogs are still open, topmost first. This is
-    // cleanup, not the assertion: the viewer already proved it opens, and
-    // the context closes at the end of this function anyway. On a slow run
-    // the accessible tree can lag behind the DOM, so count dialogs in the
-    // DOM and never let a missed close fail the check.
     for (let i = 0; i < 3; i++) {
       const open = await page.evaluate(() => document.querySelectorAll('[role="dialog"]').length);
       if (open === 0) break;
@@ -3069,9 +2861,6 @@ async function trashChecks(browser) {
   });
 
   await check("trash: detail shows the business profile names for an item created before the profile was set", async () => {
-    // The member was created (and stamped with the placeholder ids)
-    // before any profile existed. Set the profile now: the detail must
-    // show the profile's names, not the stamped placeholders.
     await nav(page, "Settings");
     await page.getByLabel("Business name", { exact: true }).fill("Trash Studio");
     await page.getByLabel("Owner's name", { exact: true }).fill("Trash Owner");
@@ -3084,8 +2873,6 @@ async function trashChecks(browser) {
     await dialog.getByText("Trash Studio").waitFor();
     await dialog.getByText("Trash Owner").waitFor();
     if (await dialog.getByText("Olaseena", { exact: true }).count()) throw new Error("trash detail still shows the placeholder org id");
-    // The placeholder owner id is the bare word "owner": match it exactly
-    // so the owner's name above cannot false-positive.
     if (await dialog.getByText("owner", { exact: true }).count()) throw new Error("trash detail still shows the placeholder owner id");
     await dialog.getByRole("button", { name: "Close" }).click();
     await page.getByText("Member: Trash Test Member").waitFor();
@@ -3139,8 +2926,6 @@ async function trashChecks(browser) {
 /** v0.9.0 skills: tag input suggestions and create-new, ranked trainer picker, none-qualified message, standalone session form. */
 async function skillsSessionChecks(browser) {
   const todayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date().getDay()];
-  // Same weekday next week: always on-slot for a course that meets today,
-  // and a different date from any session created for today.
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   async function addTrainer(page, name, subjects) {
@@ -3192,18 +2977,13 @@ async function skillsSessionChecks(browser) {
     await page.getByLabel("Title", { exact: true }).fill("Music Skills");
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    // Suggestion drawn from the trainers' subjects: typing "Pia" offers Piano.
     await page.getByLabel("Required skills", { exact: true }).fill("Pia");
     await page.getByRole("option", { name: "Piano", exact: true }).click();
     await page.getByRole("button", { name: "Remove Piano" }).waitFor();
-    // A skill nobody uses yet is offered as a create row instead.
     await page.getByLabel("Required skills", { exact: true }).fill("Cello");
     await page.getByRole("option", { name: "Add “Cello”", exact: true }).waitFor();
     await page.keyboard.press("Enter");
     await page.getByRole("button", { name: "Remove Cello" }).waitFor();
-    // The new skill is removable too: drop it again, then add the second
-    // skill the trainers teach via a suggestion, so the course requires
-    // Piano and Guitar.
     await page.getByRole("button", { name: "Remove Cello" }).click();
     await page.getByRole("button", { name: "Remove Cello" }).waitFor({ state: "detached" });
     await page.getByLabel("Required skills", { exact: true }).fill("Gui");
@@ -3244,7 +3024,6 @@ async function skillsSessionChecks(browser) {
   });
 
   await check("skills: none-qualified message shows and the session cannot be submitted", async () => {
-    // Close any modal a previous check left open, so this check starts on the list screen.
     const cancel = page.getByRole("button", { name: "Cancel", exact: true });
     if (await cancel.count()) await cancel.first().click().catch(() => {});
     await addCourse(page, "Harp Basics", ["Harp"]);
@@ -3260,12 +3039,8 @@ async function skillsSessionChecks(browser) {
   await check("skills: standalone session form picks a qualified trainer too", async () => {
     const cancel = page.getByRole("button", { name: "Cancel", exact: true });
     if (await cancel.count()) await cancel.first().click().catch(() => {});
-    // The course-detail session form is gone in v1.0.3, so the qualified
-    // trainer pick is exercised through the standalone form instead.
     await page.getByRole("button", { name: "New session", exact: true }).first().click();
     await pickSelect(page, "Course", "Music Skills");
-    // Today already has the standalone session for this course (one session
-    // per course per date), so use the same weekday next week instead.
     await pickDate(page, nextWeek);
     await page.getByLabel("Topic", { exact: true }).fill("Skills session");
     await pickTime(page, "Start time", "10:00");
@@ -3273,8 +3048,6 @@ async function skillsSessionChecks(browser) {
     await page.getByRole("radio", { name: "Siti Rahma" }).click();
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
-    // The standalone modal closes on save, so the session is asserted in the
-    // Sessions section on the Courses screen.
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     await pending.getByText("Skills session").waitFor();
   });
@@ -3378,8 +3151,6 @@ async function capacityChecks(browser) {
     await page.getByLabel("Title", { exact: true }).fill("Small Group");
     await page.getByLabel("Level", { exact: true }).fill("Beginner");
     await page.getByLabel("Price (IDR)", { exact: true }).fill("500000");
-    // No required skills: any trainer qualifies. The course form no longer
-    // has a capacity field, so the cap lives on the session instead.
     if (await page.getByLabel("Capacity", { exact: true }).count()) throw new Error("course form still has a capacity field");
     await page.getByRole("checkbox", { name: todayShort }).check();
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -3395,7 +3166,6 @@ async function capacityChecks(browser) {
     }
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
 
-    // The session form's capacity field starts blank (no limit); set it to 1.
     await nav(page, "Courses");
     await page.getByRole("button", { name: "New session", exact: true }).first().click();
     await pickSelect(page, "Course", "Small Group");
@@ -3403,7 +3173,6 @@ async function capacityChecks(browser) {
     const capInput = page.getByLabel("Capacity", { exact: true });
     await capInput.waitFor();
     if ((await capInput.inputValue()) !== "") throw new Error("session capacity field is not blank by default");
-    // The hint lives behind the field's "?" toggletip, like every other hint.
     await page.getByRole("button", { name: "More about Capacity" }).click();
     await page.getByText("Leave blank for no limit.").waitFor();
     await capInput.fill("1");
@@ -3413,8 +3182,6 @@ async function capacityChecks(browser) {
     await page.getByRole("button", { name: "Add", exact: true }).last().click();
     await toast(page, "Saved");
 
-    // A fresh session hands nothing to attendance marking until members
-    // are assigned: the attendance view says so instead of listing anyone.
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Small Group");
     await pickAttendanceSession(page, "Trio");
@@ -3423,8 +3190,6 @@ async function capacityChecks(browser) {
       throw new Error("unassigned session lists Ana in the attendance marking");
     }
 
-    // The cap bites in the Sessions section, not here: assigning Ana
-    // disables Budi, names the cap, and Select all stops at one member.
     await nav(page, "Courses");
     const pending = page.locator("section").filter({ has: page.getByRole("heading", { name: "Sessions" }) });
     await pending.getByText("Trio").waitFor();
@@ -3440,8 +3205,6 @@ async function capacityChecks(browser) {
     await toast(page, "Saved");
     await pending.getByText("Assigned: Ana").waitFor();
 
-    // Marking now lists only Ana, with no cap text and Present/Late
-    // enabled: the attendance menu just marks who it is given.
     await nav(page, "Attendance");
     await pickSessionCourse(page, "Small Group");
     await pickAttendanceSession(page, "Trio");

@@ -25,7 +25,6 @@ import { Icon } from "../ui/Icon";
 import { GuideDialog } from "../GuideDialog";
 import type { NavId } from "../nav";
 
-/** Placeholder value for selects with nothing chosen yet. */
 const NONE = "__none__";
 
 interface CourseForm {
@@ -65,9 +64,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [selected, setSelected] = useState<Course | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
 
-  /** Sessions whose attendance has not been checked yet, across all courses, soonest first. */
   const [pendingSessions, setPendingSessions] = useState<Session[]>([]);
-  /** Active enrollments per course, for the assign picker of each pending session. */
   const [pendingEnrollments, setPendingEnrollments] = useState<Map<string, Enrollment[]>>(new Map());
 
   const [showEnrollForm, setShowEnrollForm] = useState(false);
@@ -75,14 +72,12 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [enrollStart, setEnrollStart] = useState<string | null>(today());
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [pendingEnrollment, setPendingEnrollment] = useState<Enrollment | null>(null);
-  /** The session awaiting delete confirmation from the Sessions section. */
   const [pendingSession, setPendingSession] = useState<Session | null>(null);
 
   const [assignSessionId, setAssignSessionId] = useState<string | null>(null);
   const [assignChecked, setAssignChecked] = useState<string[]>([]);
 
   const [standaloneOpen, setStandaloneOpen] = useState(false);
-  /** The session being edited in the standalone form, or null when creating one. */
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [standaloneCourseId, setStandaloneCourseId] = useState(NONE);
   const [standaloneDate, setStandaloneDate] = useState<string | null>(today());
@@ -95,7 +90,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
 
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // The price label follows the current currency setting.
   const [currency, setCurrencyState] = useState<CurrencyCode>(() => getCurrency());
   useEffect(() => subscribeCurrency(() => setCurrencyState(getCurrency())), []);
 
@@ -154,7 +148,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   }, [query, load]);
 
   const standaloneCourse = useMemo(() => courses.find((c) => c.id === standaloneCourseId) ?? null, [courses, standaloneCourseId]);
-  /** Trainers qualified for a standalone session, ranked by matching required skills. */
   const rankedStandaloneTrainers = useMemo(
     () => (standaloneCourse ? rankTrainersForCourse(trainers, courseRequiredSkills(standaloneCourse)) : []),
     [standaloneCourse, trainers],
@@ -358,7 +351,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     return members.filter((m) => !activeIds.has(m.id));
   }, [enrollments, members]);
 
-  /** Members actively enrolled in one course, for that course's session assign picker. */
   const enrolledForCourse = useCallback(
     (courseId: string) => {
       const byId = new Map(members.map((m) => [m.id, m]));
@@ -544,9 +536,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                 const enrolled = enrolledForCourse(s.courseId);
                 const assignOpen = assignSessionId === s.id;
                 const cap = sessionCapacity(s);
-                // Once the selection reaches the session's cap, members not
-                // yet selected cannot be added; checked members can still be
-                // removed, and the service re-checks the cap on save.
                 const atCap = cap !== null && assignChecked.length >= cap;
                 return (
                   <li key={s.id} className="flex flex-col gap-2 px-4 py-3">

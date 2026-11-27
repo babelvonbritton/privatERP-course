@@ -11,15 +11,12 @@ import type { Course, PayrollRun, Session } from "@/lib/domain/types";
 import type { BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { Providers } from "./support";
 
-// jsdom has no scrollIntoView or pointer capture; the Radix Select calls both when opening.
 function stubRadix() {
   window.HTMLElement.prototype.scrollIntoView = function () {};
   window.HTMLElement.prototype.hasPointerCapture = function () { return false; };
   window.HTMLElement.prototype.releasePointerCapture = function () {};
 }
 
-// This repo has no global testing-library cleanup: unmount each render
-// so a later test starts with a clean document.
 afterEach(() => cleanup());
 
 async function freshServices() {

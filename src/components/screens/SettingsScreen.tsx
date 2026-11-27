@@ -47,7 +47,6 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [guideOpen, setGuideOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
 
-  // Settings holds no loaded data, so a restore needs no reload here.
   const reload = useCallback(async () => {}, []);
 
   return (

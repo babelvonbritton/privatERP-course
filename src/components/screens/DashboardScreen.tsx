@@ -16,7 +16,6 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
 
-/** Upcoming sessions per dashboard page. */
 const PAGE_SIZE = 5;
 
 /** One figure on the dashboard: a small muted label above a large value. */
@@ -38,14 +37,10 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
   const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
 
-  // The attendance dashboard pagination, reused: clamp the page to what
-  // exists and slice the rows for it.
   const pageCount = Math.max(1, Math.ceil((data?.upcomingSessions.length ?? 0) / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageSessions = (data?.upcomingSessions ?? []).slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  // Back to page 1 whenever the upcoming list itself changes, so the view
-  // never sits on a page that no longer exists.
   const upcomingCount = data?.upcomingSessions.length ?? 0;
   useEffect(() => {
     setPage(1);
@@ -63,8 +58,6 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
     void load();
   }, [load]);
 
-  // The business profile decides the reminder: it shows while no business
-  // name is set, and saving one in the quick-setup dialog clears it.
   useEffect(() => {
     let cancelled = false;
     void getStorage()

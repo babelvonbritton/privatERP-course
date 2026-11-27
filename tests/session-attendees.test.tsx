@@ -88,7 +88,6 @@ describe("session attendee assignment", () => {
     expect(session.attendeeMemberIds ?? null).toBeNull();
     expect(sessionAttendees(session)).toBeNull();
     expect(sessionEffectiveAttendees(session, members.map((m) => m.id))).toEqual([]);
-    // Marking anyone is refused: the session has no attendee list yet.
     await expectValidationKind(
       s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId()),
       "notAssigned",
@@ -144,9 +143,6 @@ describe("session attendee assignment", () => {
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Assigned"));
     await s.attendance.assignSessionAttendees(session.id, [members[0].id], createId());
     await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "present" }], createId());
-    // Clearing the assignment hands nothing new to marking, but the member
-    // who already has a row keeps theirs: the old mark stays visible and
-    // can still be changed.
     await s.attendance.assignSessionAttendees(session.id, [], createId());
     const rows = await s.attendance.mark(session.id, [{ memberId: members[0].id, status: "late" }], createId());
     expect(rows).toHaveLength(1);
@@ -185,8 +181,6 @@ describe("session attendee assignment", () => {
   it("assigning past the capacity is rejected, and marking the assigned members works", async () => {
     const { s, t, course, members } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Capped", 1));
-    // The cap bites at assignment: two members into a one-place session is
-    // refused and the session stays unassigned.
     await expectValidationKind(
       s.attendance.assignSessionAttendees(session.id, [members[0].id, members[1].id], createId()),
       "overCapacity",
@@ -199,7 +193,6 @@ describe("session attendee assignment", () => {
 
   it("a legacy session row without the field loads as unassigned, with no Dexie migration", async () => {
     const { s, t, course, members } = await seed();
-    // A row written before attendee assignment existed carries no field at all.
     const legacy = {
       id: createId(),
       orgId: "Olaseena",
@@ -221,7 +214,6 @@ describe("session attendee assignment", () => {
     expect(loaded).toBeDefined();
     expect(sessionAttendees(loaded!)).toBeNull();
     expect(sessionEffectiveAttendees(loaded!, members.map((m) => m.id))).toEqual([]);
-    // A legacy unassigned session hands nothing to marking either.
     await expectValidationKind(
       s.attendance.mark(legacy.id, [{ memberId: members[0].id, status: "present" }], createId()),
       "notAssigned",
@@ -233,7 +225,6 @@ describe("session attendee assignment", () => {
     expect(sessionAttendees({})).toBeNull();
     expect(sessionAttendees({ attendeeMemberIds: null })).toBeNull();
     expect(sessionAttendees({ attendeeMemberIds: ["a", "b", "a", "", "c"] })).toEqual(["a", "b", "c"]);
-    // A malformed row (not a list at all) is tolerated at runtime, like the capacity helper does.
     expect(sessionAttendees({ attendeeMemberIds: "not-a-list" } as never)).toBeNull();
     expect(sessionEffectiveAttendees({}, ["a", "b"])).toEqual([]);
     expect(sessionEffectiveAttendees({ attendeeMemberIds: ["b", "gone"] }, ["a", "b"])).toEqual(["b"]);
@@ -308,11 +299,8 @@ describe("unmarked sessions", () => {
     const past = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-10-26", "Past"));
     const later = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-16", "Later"));
     const soon = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Soon"));
-    // A past session that was never marked still waits to be marked.
     let pending = await s.attendance.listUnmarkedSessions();
     expect(pending.map((x) => x.topic)).toEqual(["Past", "Soon", "Later"]);
-    // One mark is enough: the service accepts partial marks, so done means
-    // at least one attendance row, not a full batch.
     await s.attendance.assignSessionAttendees(soon.id, [members[0].id], createId());
     await s.attendance.mark(soon.id, [{ memberId: members[0].id, status: "present" }], createId());
     pending = await s.attendance.listUnmarkedSessions();
@@ -340,7 +328,6 @@ describe("course menu session list", () => {
     const scope = within(container);
     await scope.findByRole("region", { name: "Courses" }, { timeout: 3000 });
     const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
-    // The row names the course it belongs to, and a fresh session has nobody assigned.
     await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
     expect(within(pending).getByText("Piano")).toBeTruthy();
     expect(within(pending).getByText("No members assigned yet")).toBeTruthy();
@@ -351,7 +338,6 @@ describe("course menu session list", () => {
     fireEvent.click(within(pending).getByRole("checkbox", { name: "Ana" }));
     fireEvent.click(within(pending).getByRole("button", { name: "Save changes" }));
     await within(pending).findByText("Assigned: Ana", {}, { timeout: 3000 });
-    // Unchecking the only assigned member returns the session to unassigned.
     fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
     expect((within(pending).getByRole("checkbox", { name: "Ana" }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(within(pending).getByRole("checkbox", { name: "Ana" }));
@@ -370,8 +356,6 @@ describe("course menu session list", () => {
     const scope = within(container);
     const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     await within(pending).findByText(/Capped/, {}, { timeout: 3000 });
-    // The Assign button only renders once the enrollments have loaded,
-    // after the session row appears, so wait for the button itself.
     fireEvent.click(await within(pending).findByRole("button", { name: "Assign members" }, { timeout: 3000 }));
     const ana = within(pending).getByRole("checkbox", { name: "Ana" }) as HTMLInputElement;
     const budi = within(pending).getByRole("checkbox", { name: "Budi" }) as HTMLInputElement;
@@ -379,7 +363,6 @@ describe("course menu session list", () => {
     fireEvent.click(ana);
     expect(budi.disabled).toBe(true);
     expect(within(pending).getByText("This session allows at most 1 member.")).toBeTruthy();
-    // Unchecking frees the place again.
     fireEvent.click(ana);
     expect(budi.disabled).toBe(false);
   });
@@ -469,10 +452,7 @@ describe("course menu session list", () => {
     const scope = within(container);
     const table = await scope.findByRole("region", { name: "Courses" }, { timeout: 3000 });
     fireEvent.click(within(table).getByText("Piano"));
-    // The detail is a Radix dialog, portaled to the body outside the render container.
     const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
-    // Enrollments are still there; the session lives only in the Sessions
-    // section below the course table now.
     await within(dialog).findByText("Enrollments", {}, { timeout: 3000 });
     expect(within(dialog).getByText("Ana")).toBeTruthy();
     expect(within(dialog).queryByText(/Scales/)).toBeNull();
@@ -494,19 +474,15 @@ describe("course menu session list", () => {
     const scope = within(container);
     const pending = await scope.findByRole("region", { name: "Sessions" }, { timeout: 3000 });
     await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
-    // The course tag proves the course list (and with it the trainer list)
-    // has loaded, so the edit form's trainer picker is populated.
     await within(pending).findByText("Piano", {}, { timeout: 3000 });
     fireEvent.click(within(pending).getByRole("button", { name: "Edit session" }));
     const dialog = await screen.findByRole("dialog", {}, { timeout: 3000 });
-    // Pre-filled from the session; the course is shown, not picked.
     expect((within(dialog).getByLabelText("Topic", { exact: true }) as HTMLInputElement).value).toBe("Scales");
     expect((within(dialog).getByRole("radio", { name: /Budi/ }) as HTMLInputElement).checked).toBe(true);
     expect(within(dialog).queryByRole("combobox", { name: "Course" })).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("Topic", { exact: true }), { target: { value: "Scales 2" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await within(pending).findByText(/Scales 2/, {}, { timeout: 3000 });
-    // The assignment survives the edit.
     expect(within(pending).getByText("Assigned: Ana")).toBeTruthy();
     expect((await s.attendance.getSession(session.id))?.topic).toBe("Scales 2");
   });
@@ -525,7 +501,6 @@ describe("course menu session list", () => {
     fireEvent.click(within(pending).getByRole("button", { name: "Delete session" }));
     const confirm = await screen.findByRole("alertdialog", {}, { timeout: 3000 });
     expect(within(confirm).getByText("Delete this session? It will move to the trash bin. You can restore it from there. Its attendance records are removed too.")).toBeTruthy();
-    // Cancel keeps the session.
     fireEvent.click(within(confirm).getByRole("button", { name: "Cancel" }));
     await within(pending).findByText(/Scales/, {}, { timeout: 3000 });
     fireEvent.click(within(pending).getByRole("button", { name: "Delete session" }));
@@ -562,7 +537,6 @@ describe("updateSession", () => {
   it("rejects a date outside the course's weekly slot", async () => {
     const { s, t, course } = await seed();
     const session = await s.attendance.createSession(sessionOn(course.id, t.id, "2026-11-09", "Scales"));
-    // The seed course meets Mondays only; 2026-11-10 is a Tuesday.
     await expectValidationKind(
       s.attendance.updateSession(session.id, { date: "2026-11-10", idempotencyKey: createId() }),
       "notScheduledDay",

@@ -6,7 +6,6 @@ import { Button } from "./ui/Button";
 import { Icon } from "./ui/Icon";
 import { Modal } from "./ui/Modal";
 
-/** The "How to use this section" items for each screen, in order. */
 const GUIDE_ITEMS: Record<string, string[]> = {
   dashboard: ["money", "next", "profile"],
   members: ["add", "find", "detail"],

@@ -24,7 +24,6 @@ export interface IntegrityReport {
   issues: IntegrityIssue[];
 }
 
-/** Read-only verification of references and money totals across stores. Never modifies data. */
 export class IntegrityChecker {
   constructor(private readonly db: OlaseenaDatabase, private readonly clock: Clock) {}
 

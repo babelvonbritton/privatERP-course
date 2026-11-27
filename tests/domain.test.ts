@@ -177,7 +177,6 @@ describe("services", () => {
     const m = await s.members.create(member("Ana"));
     const c = await s.courses.create({ title: "Piano", description: "", level: "Beginner", price: 100000, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     await s.courses.enroll({ memberId: m.id, courseId: c.id, startDate: "2026-11-02", endDate: null, status: "active", idempotencyKey: createId() });
-    // The trainer taught a session of the course, so the trainer delete is blocked too.
     await s.attendance.createSession({ courseId: c.id, date: "2026-11-09", topic: "Scales", trainerId: t.id, trainerPresent: true, startTime: "09:00", endTime: "10:30", idempotencyKey: createId() });
     await expect(s.members.remove(m.id)).rejects.toThrow();
     await expect(s.trainers.remove(t.id)).rejects.toThrow();
@@ -261,7 +260,6 @@ describe("services", () => {
     const inv = await s.invoices.create({ memberId: m.id, enrollmentId: null, lineItems: [{ description: "Fee", amount: 100000 }], dueDate: "2026-12-01", status: "sent", idempotencyKey: createId() });
     expect((await s.invoices.search("ana")).map((i) => i.id)).toEqual([inv.id]);
     expect((await s.invoices.search(inv.number.slice(0, 8))).map((i) => i.id)).toEqual([inv.id]);
-    // A course owns no trainer any more, so a trainer name finds no course.
     expect((await s.courses.search("budi")).map((x) => x.id)).toEqual([]);
     expect((await s.courses.search("pia")).map((x) => x.id)).toEqual([c.id]);
   });
@@ -472,7 +470,6 @@ describe("session times, weekdays, and attended hours", () => {
 });
 
 describe("weekly slot: sessions and enrollments stay on scheduled weekdays", () => {
-  // 2026-11-28 is a Saturday, 2026-11-29 a Sunday, 2026-11-30 a Monday.
   const SAT = "2026-11-28";
   const SUN = "2026-11-29";
   const MON = "2026-11-30";
@@ -524,7 +521,6 @@ describe("weekly slot: sessions and enrollments stay on scheduled weekdays", () 
 
   it("moving an enrollment to a non-slot weekday is rejected, but an untouched out-of-slot enrollment can still be updated", async () => {
     const { s, t, m, c } = await weekendCourse();
-    // Enroll on Monday while the course still meets on Mondays, then narrow the slot to weekends.
     const weekdayCourse = await s.courses.create({ title: "Weekday Piano", description: "", level: "Beginner", price: 100000, requiredSkills: ["Piano"], scheduleWeekdays: [1], status: "active", idempotencyKey: createId() });
     const enrollment = await s.courses.enroll({ memberId: m.id, courseId: weekdayCourse.id, startDate: MON, endDate: null, status: "active", idempotencyKey: createId() });
     await s.courses.update(weekdayCourse.id, { scheduleWeekdays: [6, 0], idempotencyKey: createId() });

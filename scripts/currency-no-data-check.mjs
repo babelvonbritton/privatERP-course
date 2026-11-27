@@ -1,17 +1,3 @@
-/**
- * Browser verification for the currency no-data switch rule.
- * Serves the static export separately (python3 -m http.server 8901 --directory out)
- * and drives the real UI in Chromium.
- * Run: BASE_URL=http://localhost:8901 node scripts/currency-no-data-check.mjs
- * The bundled Chromium is used through its cached executable when the
- * playwright package revision does not match the cache.
- *
- * Check 1, empty database: switching currency makes no request to the rate
- * sources, shows no warning dialog, and still changes the currency.
- * Check 2, seeded database: switching currency shows the warning dialog,
- * fetches a rate (fulfilled here with a fixed rate, so the run needs no
- * internet), and the converted amount lands in the UI.
- */
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:8901";
@@ -48,7 +34,6 @@ async function skipTourIfShown(page) {
   if (await tour.count()) {
     await page.getByRole("button", { name: "Skip tour" }).click();
     await tour.waitFor({ state: "detached", timeout: 5000 });
-    // Let the tour backdrop finish its exit before touching the page.
     await page.waitForTimeout(600);
   }
 }
@@ -58,8 +43,6 @@ async function nav(page, name) {
   try {
     await button.click({ timeout: 5000 });
   } catch {
-    // The tour overlay sometimes outlives the tour text: dismiss it if it
-    // is still there, then try the navigation once more.
     await skipTourIfShown(page);
     await button.click({ timeout: 5000 });
   }
@@ -82,8 +65,6 @@ async function emptyDatabase(browser) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   const rateRequests = [];
-  // Any rate request is a failure here: record it and stop it. The matcher
-  // is a function, so the host match is exact and not a glob guess.
   await page.route((url) => url.hostname.includes("frankfurter.dev"), async (route) => {
     rateRequests.push(route.request().url());
     await route.abort();
@@ -98,8 +79,6 @@ async function emptyDatabase(browser) {
     await skipTourIfShown(page);
     await nav(page, "Settings");
     await page.getByRole("button", { name: "EUR", exact: true }).click();
-    // The switch must land at once: give the dialog a moment to appear, then
-    // require that it never did.
     await page.waitForTimeout(1000);
     if (await page.getByText("Switch currency?").count()) {
       throw new Error("warning dialog appeared on an empty database");
@@ -124,9 +103,6 @@ async function seededDatabase(browser) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   const rateRequests = [];
-  // Fulfill the rate with a fixed value so the run needs no internet and the
-  // converted amount is predictable: 150000 IDR at 0.00005 is 7.50 EUR.
-  // The matcher is a function, so the host match is exact and not a glob guess.
   await page.route((url) => url.hostname.includes("frankfurter.dev"), async (route) => {
     rateRequests.push(route.request().url());
     await route.fulfill({
@@ -144,8 +120,6 @@ async function seededDatabase(browser) {
     await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
     await skipTourIfShown(page);
     await nav(page, "Trainers");
-    // Let the screen finish loading its data before touching its buttons:
-    // the first render is replaced once storage is ready.
     await page.waitForTimeout(500);
     await page.getByRole("button", { name: "Add trainer" }).click();
     await page.getByLabel("Name", { exact: true }).fill("Budi Santoso");

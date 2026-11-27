@@ -11,7 +11,6 @@ import { Button } from "../ui/Button";
 
 interface Props {
   entityType: AttachmentEntityType;
-  /** Null while the record does not exist yet: files are prepared and handed back as pending instead of stored. */
   entityId: string | null;
   onStored?: (attachment: Attachment) => void;
   onPending?: (prepared: PreparedAttachment) => void;

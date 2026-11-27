@@ -9,9 +9,6 @@ import { createId } from "@/lib/storage/utils";
 import { DashboardScreen } from "@/components/screens/DashboardScreen";
 import { Providers } from "./support";
 
-// This repo has no global testing-library cleanup: unmount each render
-// between tests, or a stale dashboard from the previous test stays in the
-// document and the queries below match two trees.
 afterEach(() => cleanup());
 
 async function freshServices() {
@@ -93,7 +90,6 @@ async function seed() {
         idempotencyKey: createId(),
       }),
     );
-    // Distinct createdAt values, so "latest" is unambiguous.
     await new Promise((r) => setTimeout(r, 2));
   }
   return { s, t, course, m, dates, invoices };
@@ -165,7 +161,6 @@ describe("dashboard pagination and latest-three invoices", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Page 2 of 2")).toBeTruthy();
     unmount();
-    // The list changes while the dashboard is away: one more upcoming session.
     const dates = upcomingSlotDates(8);
     await s.attendance.createSession({
       courseId: course.id,

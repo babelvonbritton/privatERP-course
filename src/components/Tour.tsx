@@ -15,29 +15,22 @@ export interface TourStep {
   step: string;
 }
 
-/** One step per screen, in the order a new user meets them. */
 export const TOUR_STEPS: TourStep[] = [
   { nav: "dashboard", target: "dashboard", step: "dashboard" },
   { nav: "members", target: "members", step: "members" },
   { nav: "trainers", target: "trainers", step: "trainers" },
   { nav: "courses", target: "courses", step: "courses" },
-  // Same screen as the courses step, so the tour does not navigate again
-  // here: the section sits below the course table on the same screen.
   { nav: "courses", target: "course-sessions", step: "courseSessions" },
   { nav: "attendance", target: "attendance", step: "attendance" },
   { nav: "invoices", target: "invoices", step: "invoices" },
   { nav: "payroll", target: "payroll", step: "payroll" },
   { nav: "trash", target: "trash", step: "trash" },
   { nav: "settings", target: "settings", step: "settings" },
-  // The business profile sits at the top of Settings, so it comes right
-  // after the intro and before the Drive section below it: the tour walks
-  // the screen top to bottom instead of scrolling down and back up.
   { nav: "settings", target: "profile", step: "profile" },
   { nav: "settings", target: "drive", step: "drive" },
 ];
 
 interface TourContextValue {
-  /** Opens the tour from the first step (used by Settings to replay it). */
   startTour: () => void;
 }
 
@@ -62,7 +55,6 @@ export function TourProvider({ navigate, children }: Props) {
 
   const startTour = useCallback(() => setIndex(0), []);
 
-  // First run: show the tour once, shortly after the app loads. Focus stays where it is.
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
@@ -81,10 +73,6 @@ export function TourProvider({ navigate, children }: Props) {
 
   const step = index === null ? null : TOUR_STEPS[index];
 
-  // The tour moves between screens by navigating. When two steps share one
-  // screen (settings, then its Drive section), navigating again would scroll
-  // back to the top after the overlay scrolled the section into view, so
-  // only navigate when the screen actually changes.
   const lastNav = useRef<NavId | null>(null);
   useEffect(() => {
     if (step && step.nav !== lastNav.current) {
@@ -136,9 +124,6 @@ function TourOverlay({ step, isFirst, isLast, onBack, onNext, onSkip }: OverlayP
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [tip, setTip] = useState<{ width: number; height: number } | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  // Height of the fixed mobile bottom bar, so the narrow sheet docks directly
-  // above it with no floating gap. Measured for real because the bar grows
-  // with the safe-area inset on phones with a home indicator.
   const [navH, setNavH] = useState(56);
 
   useEffect(() => {
@@ -160,7 +145,6 @@ function TourOverlay({ step, isFirst, isLast, onBack, onNext, onSkip }: OverlayP
     };
   }, [step]);
 
-  // Measure the tooltip itself so placement uses its real size, not a guess.
   useLayoutEffect(() => {
     const el = tooltipRef.current;
     if (!el) return;
@@ -173,7 +157,6 @@ function TourOverlay({ step, isFirst, isLast, onBack, onNext, onSkip }: OverlayP
     return () => window.removeEventListener("resize", measureTip);
   }, [rect, step]);
 
-  // Escape ends the whole tour, the same as Skip.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onSkip();
@@ -186,14 +169,11 @@ function TourOverlay({ step, isFirst, isLast, onBack, onNext, onSkip }: OverlayP
   const body = t(`tour.step.${step.step}.body` as MessageKey);
   const isNarrow = typeof window !== "undefined" && window.innerWidth < 640;
 
-  // On a phone, measure the bottom bar so the sheet sits flush on top of it.
   useEffect(() => {
     if (!isNarrow) return;
     const measureNav = () => {
       const nav = document.querySelector("nav.fixed");
       if (!nav) return;
-      // Keep the fractional height: rounding it would leave a sub-pixel seam
-      // between the sheet and the bar (the bar's own top is fractional too).
       const h = nav.getBoundingClientRect().height;
       setNavH((prev) => (h > 0 && Math.abs(h - prev) > 0.25 ? h : prev));
     };
@@ -202,8 +182,6 @@ function TourOverlay({ step, isFirst, isLast, onBack, onNext, onSkip }: OverlayP
     return () => window.removeEventListener("resize", measureNav);
   }, [isNarrow]);
 
-  // Desktop placement, clamped inside the viewport. Until the tooltip is measured, use a rough size.
-  // On a phone the sheet below ignores this and docks above the bottom bar instead.
   const tooltipStyle: CSSProperties = (() => {
     if (!rect || isNarrow) return {};
     const tipH = tip?.height ?? 280;
@@ -222,11 +200,6 @@ function TourOverlay({ step, isFirst, isLast, onBack, onNext, onSkip }: OverlayP
     return { left, top };
   })();
 
-  // Narrow screens get a bottom sheet instead of a floating card: full width,
-  // rounded top corners, docked flush above the bottom bar, capped at 45dvh
-  // so the screen above stays visible, with its own scroll when the text runs
-  // long. The sheet style below is the only narrow-only branch; the desktop
-  // classes and placement above are unchanged.
   const sheetClass = isNarrow
     ? "fixed inset-x-0 z-10 max-h-[45dvh] w-full overflow-y-auto overscroll-contain rounded-t-[22px] bg-surface px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 shadow-xl"
     : `fixed z-10 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-sm overflow-y-auto rounded-card bg-surface p-4 shadow-xl sm:w-80 ${!rect ? "bottom-24 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2" : ""}`;

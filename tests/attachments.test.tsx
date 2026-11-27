@@ -120,7 +120,6 @@ describe("schema upgrade", () => {
   it("upgrades an existing version 1 database and keeps its data", async () => {
     await resetStorage();
     resetServices();
-    // A database written by the previous version: only the version 1 stores exist.
     const legacy = new Dexie("olaseena-db");
     legacy.version(1).stores({
       members: "id, name, email, phone, status, updatedAt",
@@ -141,7 +140,6 @@ describe("schema upgrade", () => {
       rev: 1,
     });
     await legacy.close();
-    // Opening the real database runs the version 6 upgrade: new stores appear, old rows survive.
     const s = getServices();
     await getStorage().init();
     expect(getStorage().schemaVersion).toBe(6);

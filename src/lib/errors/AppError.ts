@@ -1,6 +1,5 @@
 import { ValidationError } from "@/lib/storage/Guard";
 
-/** Every failure the app can show. Each code has a title and hint in the message files (`err.<CODE>.title|hint`). */
 export const ERROR_CODES = [
   "UNEXPECTED",
   "STORAGE_UNAVAILABLE",
@@ -59,12 +58,10 @@ interface Options {
   context?: Record<string, string | number>;
 }
 
-/** Names raised by IndexedDB and Dexie, grouped by what the user can do about them. */
 const STORAGE_UNAVAILABLE = new Set(["OpenFailedError", "InvalidStateError", "SecurityError", "MissingAPIError", "UnknownError"]);
 const STORAGE_CLOSED = new Set(["DatabaseClosedError", "VersionError"]);
 const STORAGE_FAILED = new Set(["AbortError", "ConstraintError", "DataError", "TransactionInactiveError", "ReadOnlyError", "BulkError", "DataCloneError", "NoSuchDatabaseError", "SchemaError", "NotFoundError"]);
 
-/** The one error type used across the app: a stable code, a severity, and technical details for diagnostics. */
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly severity: Severity;

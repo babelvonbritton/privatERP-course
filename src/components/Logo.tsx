@@ -1,4 +1,3 @@
-/** Olaseena brand mark: the lambda (λ), drawn as inline SVG. */
 const LAMBDA_PATH =
   "M25 18c7-1.6 13-1.7 18-.5 6 1.4 10 5 13 12l17 37c1 3 2 5 4 5l2-.3v13c-8 2-14 1-19-2-5-3-7-7-9-13l-6-14-14 32H17l22-49-4-9c-2-4-5-4-10-2l-5 2z";
 

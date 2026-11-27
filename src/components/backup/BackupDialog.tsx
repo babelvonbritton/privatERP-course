@@ -65,9 +65,7 @@ const formatSize = (bytes: number) => (bytes < 1024 ? `${bytes} B` : bytes < 102
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Reloads workspace state after a restore replaced the data. */
   onRestored: () => Promise<void>;
-  /** Opens the section guide for this dialog. */
   onHelp: () => void;
 }
 
@@ -112,15 +110,13 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
   }
 
   function handleOpenChange(next: boolean) {
-    if (!next && busy) return; // the notice "Keep this window open" is shown while a process runs
+    if (!next && busy) return;
     onOpenChange(next);
     if (!next) setTimeout(resetAll, 250);
   }
 
   function chooseFile(file: File | undefined) {
     if (!file) return;
-    // Letters and digits only, like every passphrase entry: a backup made
-    // before the rule with symbols in its passphrase cannot be opened here.
     if (restorePassphrase !== "" && !isAlphanumericPassphrase(restorePassphrase)) {
       setRestorePassphraseError(true);
       return;
@@ -165,7 +161,6 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
         setBackupPassphraseError("mismatch");
         return;
       }
-      // Letters and digits only when a passphrase is set, like every passphrase entry in the app.
       if (!isAlphanumericPassphrase(backupPassphrase)) {
         setBackupPassphraseError("alphanumeric");
         return;

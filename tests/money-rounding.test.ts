@@ -117,10 +117,6 @@ describe("money rounding: EUR invoices", () => {
     const cent = await pay(s, invoice.id, 1.01);
     await s.invoices.removePayment(cent.id);
     const entry = (await s.trash.list()).find((e) => e.kind === "payment" && e.originalId === cent.id)!;
-    // No service call lowers an invoice total: shrink it through storage
-    // directly, as if an edit had lowered the invoice after the payment
-    // was trashed. The trashed payment (1.01) now leaves the sum (100.01)
-    // one cent over the total (100.00).
     const current = (await s.invoices.get(invoice.id))!;
     await getStorage().invoices.put({ ...current, total: 100 });
     await s.trash.restore(entry.id);
@@ -221,7 +217,6 @@ describe("money rounding: backup validation", () => {
           paymentDetails: "",
         },
       ],
-      // File order sums to 6.6000000000000005 in plain addition.
       payments: [1.1, 2.2, 3.3].map((amount) => ({ ...base, id: createId(), invoiceId, amount, at: now, method: "cash" })),
       payrollRuns: [],
       auditLog: [],
@@ -261,7 +256,6 @@ describe("money rounding: backup validation", () => {
           paymentDetails: "",
         },
       ],
-      // One cent over the stored paid amount: the same dust the restore clamp tolerates.
       payments: [99, 1.01].map((amount) => ({ ...base, id: createId(), invoiceId, amount, at: now, method: "cash" })),
       payrollRuns: [],
       auditLog: [],
