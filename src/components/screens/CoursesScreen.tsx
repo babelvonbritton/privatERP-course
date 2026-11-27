@@ -559,7 +559,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {course && (
-                          <span className="inline-block rounded-full bg-plum-100 px-2.5 py-1 text-xs font-medium text-plum-900">{course.title}</span>
+                          <span className="inline-block rounded-full bg-plum-600 px-2.5 py-1 text-xs font-medium text-white">{course.title}</span>
                         )}
                         {enrolled.length > 0 && (
                           <Button

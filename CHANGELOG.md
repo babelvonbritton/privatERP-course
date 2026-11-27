@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.8
+
+The course tag inside session cards is now solid brand plum with white text, so it reads as a label instead of blending with the light soft buttons next to it.
+
 ## 1.0.7
 
 Money rounding fixes, currency-switch status re-derivation, a Local timezone
