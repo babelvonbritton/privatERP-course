@@ -7,6 +7,7 @@ import { LOCALE_NAMES, type Locale } from "@/i18n/routing";
 import { setCurrency, subscribeCurrency } from "@/lib/currency";
 import { setTimezone, subscribeTimezone } from "@/lib/timezone";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { installErrorLog, purgeErrorLog } from "@/lib/errors/errorLog";
 import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { getServices, applyBusinessProfile } from "@/lib/domain/services";
 import { startDriveSync } from "@/lib/driveSync";
@@ -40,10 +41,12 @@ export function AppShell() {
     const stopSync = startDriveSync();
     const stopCurrency = subscribeCurrency(() => setCurrencyTick((n) => n + 1));
     const stopTimezone = subscribeTimezone(() => setTimezoneTick((n) => n + 1));
+    const stopErrorLog = installErrorLog();
     return () => {
       stopSync();
       stopCurrency();
       stopTimezone();
+      stopErrorLog();
     };
   }, []);
 
@@ -63,6 +66,10 @@ export function AppShell() {
   useLoadOnce(async () => {
     await getServices().trash.purgeExpired();
   }, "trash.purge");
+
+  useLoadOnce(async () => {
+    await purgeErrorLog();
+  }, "errorLog.purge");
 
   const navigate = useCallback((id: NavId) => {
     setNav(id);

@@ -7,6 +7,7 @@ import {
   DexieAuditStore,
   DexieCourseStore,
   DexieEnrollmentStore,
+  DexieErrorLogStore,
   DexieInvoiceStore,
   DexieMemberStore,
   DexiePaymentStore,
@@ -40,6 +41,7 @@ export class StorageService {
   readonly writeKeys: DexieWriteKeyStore;
   readonly settings: DexieSettingsStore;
   readonly trash: DexieTrashStore;
+  readonly errorLog: DexieErrorLogStore;
   readonly preferences: PreferenceService;
   readonly profile: BusinessProfileService;
   readonly snapshots: SnapshotService;
@@ -63,6 +65,7 @@ export class StorageService {
     this.writeKeys = new DexieWriteKeyStore(db.writeKeys, clock, this.notifyWrite);
     this.settings = new DexieSettingsStore(db.settings, clock);
     this.trash = new DexieTrashStore(db.trash, clock, this.notifyWrite);
+    this.errorLog = new DexieErrorLogStore(db.errorLog, clock);
     this.preferences = new PreferenceService(this.settings);
     this.profile = new BusinessProfileService(this.settings);
     this.snapshots = new SnapshotService(db);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+Durable error log in Settings: every reported error is stored on the device
+for the last 7 days (capped at 500 entries), uncaught errors and rejected
+promises are caught too, and the log exports as an NDJSON file inside a ZIP.
+A Clear button empties the log after confirmation.
+
 ## 1.0.9
 
 Ponytail tidy-up: dead code and duplicated helpers removed, shared print

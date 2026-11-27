@@ -302,6 +302,16 @@ export interface AuditLogEntry {
   at: number;
 }
 
+/** One durable error-log entry: what happened, where, and when. Codes and record paths only, never item or note text. */
+export interface ErrorLogRecord {
+  id: string;
+  time: string;
+  code: string;
+  action: string;
+  message: string;
+  details: string;
+}
+
 export interface WriteKey {
   key: string;
   entity: string;

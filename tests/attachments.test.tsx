@@ -142,7 +142,7 @@ describe("schema upgrade", () => {
     await legacy.close();
     const s = getServices();
     await getStorage().init();
-    expect(getStorage().schemaVersion).toBe(6);
+    expect(getStorage().schemaVersion).toBe(7);
     expect((await s.members.list()).map((m) => m.name)).toEqual(["Legacy Ana"]);
     expect(await s.attachments.list("invoice", "nothing")).toHaveLength(0);
     const report = await getStorage().snapshots.readAll();

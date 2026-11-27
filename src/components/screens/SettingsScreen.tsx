@@ -11,6 +11,7 @@ import { GuideButton } from "../GuideButton";
 import { BusinessProfileSection } from "../settings/BusinessProfileSection";
 import { CurrencySection } from "../settings/CurrencySection";
 import { DriveSection } from "../settings/DriveSection";
+import { ErrorLogSection } from "../settings/ErrorLogSection";
 import { RetentionSection } from "../settings/RetentionSection";
 import { ThemeSection } from "../settings/ThemeSection";
 import { TimezoneSection } from "../settings/TimezoneSection";
@@ -99,6 +100,8 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       </SectionCard>
 
       <DriveSection onRestored={reload} />
+
+      <ErrorLogSection />
 
       <SectionCard label={t("settings.tour")} hint={t("settings.tourHint")}>
         <Button variant="soft" className="max-sm:h-11" onClick={() => startTour()}>

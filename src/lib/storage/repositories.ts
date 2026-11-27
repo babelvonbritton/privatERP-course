@@ -1,5 +1,6 @@
 import type { Table } from "dexie";
 import { BaseRepository } from "./BaseRepository";
+import { createId } from "./utils";
 import type { TrashEntry } from "@/lib/domain/trash";
 import type {
   Attendance,
@@ -8,6 +9,7 @@ import type {
   CourseStatus,
   Enrollment,
   EnrollmentStatus,
+  ErrorLogRecord,
   Invoice,
   InvoiceStatus,
   Member,
@@ -274,3 +276,46 @@ export class DexieSettingsStore extends BaseRepository<SettingRecord, string> im
 }
 
 export class DexieTrashStore extends BaseRepository<TrashEntry, string> implements TrashStore {}
+
+interface ErrorLogStore {
+  add(record: Omit<ErrorLogRecord, "id">): Promise<string>;
+  listRecent(limit: number): Promise<ErrorLogRecord[]>;
+  listAll(): Promise<ErrorLogRecord[]>;
+  deleteOlderThan(cutoffIso: string): Promise<number>;
+  deleteOldest(count: number): Promise<number>;
+  clear(): Promise<void>;
+}
+
+/** Durable error log: plain data access, no retention policy. The caller enforces the 7-day window and the entry cap. */
+export class DexieErrorLogStore extends BaseRepository<ErrorLogRecord, string> implements ErrorLogStore {
+  async add(record: Omit<ErrorLogRecord, "id">): Promise<string> {
+    const entry = { ...record, id: createId() };
+    await this.table.add(entry);
+    return entry.id;
+  }
+
+  listRecent(limit: number): Promise<ErrorLogRecord[]> {
+    return this.table.orderBy("time").reverse().limit(limit).toArray();
+  }
+
+  listAll(): Promise<ErrorLogRecord[]> {
+    return this.table.orderBy("time").toArray();
+  }
+
+  async deleteOlderThan(cutoffIso: string): Promise<number> {
+    const keys = await this.table.where("time").below(cutoffIso).primaryKeys();
+    await this.table.bulkDelete(keys);
+    return keys.length;
+  }
+
+  async deleteOldest(count: number): Promise<number> {
+    if (count <= 0) return 0;
+    const keys = await this.table.orderBy("time").limit(count).primaryKeys();
+    await this.table.bulkDelete(keys);
+    return keys.length;
+  }
+
+  async clear(): Promise<void> {
+    await this.table.clear();
+  }
+}

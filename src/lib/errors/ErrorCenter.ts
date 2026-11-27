@@ -1,4 +1,5 @@
 import { APP_NAME, APP_VERSION } from "@/lib/appInfo";
+import type { ErrorLogRecord } from "@/lib/domain/types";
 import type { Msg } from "@/i18n/types";
 import { AppError } from "./AppError";
 
@@ -6,13 +7,7 @@ export type ToastEvent =
   | { id: number; kind: "error"; error: AppError }
   | { id: number; kind: "success"; msg: Msg };
 
-interface LogRecord {
-  time: string;
-  code: string;
-  action: string;
-  message: string;
-  details: string;
-}
+type LogRecord = Omit<ErrorLogRecord, "id">;
 
 interface ReportOptions {
   action?: string;
@@ -22,14 +17,35 @@ interface ReportOptions {
 export class ErrorCenter {
   private readonly log: LogRecord[] = [];
   private readonly listeners = new Set<(event: ToastEvent) => void>();
+  private readonly reported = new WeakSet<object>();
+  private sink: ((record: LogRecord) => void) | null = null;
   private lastToast = { key: "", at: 0 };
   private seq = 0;
+
+  /** Registers the durable-log sink. A sink that throws never breaks reporting: the failure is swallowed here. */
+  setSink(sink: (record: LogRecord) => void): void {
+    this.sink = sink;
+  }
+
+  /** True when this exact error object already went through report(). */
+  wasReported(error: unknown): boolean {
+    return typeof error === "object" && error !== null && this.reported.has(error);
+  }
 
   report(error: unknown, options: ReportOptions = {}): AppError {
     const appError = AppError.from(error);
     const action = options.action ?? "app";
-    this.log.push({ time: new Date().toISOString(), code: appError.code, action, message: appError.message, details: appError.details ?? "" });
+    const record: LogRecord = { time: new Date().toISOString(), code: appError.code, action, message: appError.message, details: appError.details ?? "" };
+    this.log.push(record);
     if (this.log.length > 50) this.log.shift();
+    if (typeof error === "object" && error !== null) this.reported.add(error);
+    if (this.sink) {
+      try {
+        this.sink(record);
+      } catch {
+        // Persistence must never break reporting.
+      }
+    }
     console.error(`[Olaseena] ${appError.code} during ${action}`, appError.details ?? "", appError.cause ?? "");
 
     if (options.surface !== "inline") {

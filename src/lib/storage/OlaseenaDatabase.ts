@@ -6,6 +6,7 @@ import type {
   AuditLogEntry,
   Course,
   Enrollment,
+  ErrorLogRecord,
   Invoice,
   Member,
   Payment,
@@ -32,6 +33,7 @@ export class OlaseenaDatabase extends Dexie {
   attachments!: Table<Attachment, string>;
   trash!: Table<TrashEntry, string>;
   attachmentBlobs!: Table<{ id: string; bytes: Uint8Array }, string>;
+  errorLog!: Table<ErrorLogRecord, string>;
 
   constructor(name = "olaseena-db") {
     super(name);
@@ -175,5 +177,23 @@ export class OlaseenaDatabase extends Dexie {
             if (!Array.isArray(row.requiredSkills)) row.requiredSkills = [];
           });
       });
+    this.version(7).stores({
+      members: "id, name, email, phone, status, updatedAt",
+      trainers: "id, name, email, phone, status, updatedAt",
+      courses: "id, title, status, updatedAt",
+      enrollments: "id, memberId, courseId, status, [memberId+courseId], [memberId+courseId+status], updatedAt",
+      sessions: "id, courseId, date, [courseId+date], updatedAt",
+      attendance: "id, sessionId, memberId, [sessionId+memberId], updatedAt",
+      invoices: "id, number, memberId, status, dueDate, updatedAt",
+      payments: "id, invoiceId, at, updatedAt",
+      payrollRuns: "id, trainerId, periodStart, status, [trainerId+periodStart], updatedAt",
+      auditLog: "id, at, entity, [entity+at]",
+      writeKeys: "key, entity, createdAt",
+      settings: "key",
+      attachments: "id, [entityType+entityId], createdAt",
+      attachmentBlobs: "id",
+      trash: "id, kind, originalId, deletedAt",
+      errorLog: "id, time, code, action",
+    });
   }
 }
