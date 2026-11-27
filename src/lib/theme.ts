@@ -2,7 +2,7 @@ import { LocalPrefs } from "./storage/LocalPrefs";
 
 export type ThemeChoice = "system" | "light" | "dark";
 
-export type ResolvedTheme = "light" | "dark";
+type ResolvedTheme = "light" | "dark";
 
 const KEY = "theme";
 const STORAGE_KEY = "olaseena.theme";

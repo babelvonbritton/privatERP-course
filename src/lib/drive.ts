@@ -3,11 +3,11 @@ import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
 import type { BackupData, SettingRecord } from "@/lib/domain/types";
 import type { SettingsStore } from "@/lib/storage/repositories";
 
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 export const DRIVE_BACKUP_FILENAME = "olaseena-backup.olaseena";
 export const DRIVE_PASSPHRASE_FILENAME = "olaseena-drive-passphrase.json";
 
-export type SetupPassphraseError = "required" | "alphanumeric" | "mismatch";
+type SetupPassphraseError = "required" | "alphanumeric" | "mismatch";
 
 export function setupPassphraseError(passphrase: string, confirm: string): SetupPassphraseError | null {
   if (passphrase === "" || confirm === "") return "required";
@@ -114,12 +114,12 @@ function resolveGis(
   else reject(new AppError("DRIVE_GIS_FAILED"));
 }
 
-export interface DriveToken {
+interface DriveToken {
   accessToken: string;
   expiresAt: number;
 }
 
-export interface DriveBackupInfo {
+interface DriveBackupInfo {
   id: string;
   name: string;
   modifiedTime: string;
@@ -258,7 +258,7 @@ export class DriveService {
 }
 
 
-export const DRIVE_SETTING_KEYS = {
+const DRIVE_SETTING_KEYS = {
   clientId: "drive.clientId",
   accessToken: "drive.accessToken",
   tokenExpiresAt: "drive.tokenExpiresAt",
@@ -288,17 +288,6 @@ export interface DriveState {
   passphrase: string | null;
   dirty: boolean;
 }
-
-export const DEFAULT_DRIVE_STATE: DriveState = {
-  clientId: null,
-  accessToken: null,
-  tokenExpiresAt: null,
-  lastBackupAt: null,
-  syncEnabled: false,
-  lastSyncedAt: null,
-  passphrase: null,
-  dirty: false,
-};
 
 /** Reads the Drive state from the settings store. Missing keys fall back to their defaults. */
 export async function readDriveState(settings: SettingsStore): Promise<DriveState> {

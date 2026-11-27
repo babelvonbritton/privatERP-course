@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n";
 import { AttachmentRejection, prepareImageFile, type PreparedAttachment } from "@/lib/attachments/compress";
 import { applyBusinessProfile, getServices } from "@/lib/domain/services";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { DEFAULT_BUSINESS_PROFILE, MAX_CONTACTS, PROFILE_ENTITY_ID, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { getStorage } from "@/lib/storage";
 import { LIMITS } from "@/lib/domain/types";
@@ -39,38 +40,32 @@ export function BusinessProfileForm({ onSaved }: { onSaved?: (profile: BusinessP
   const nameRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  useLoadOnce(async (alive) => {
     const urls: string[] = [];
-    void (async () => {
-      try {
-        const { profile: stored } = await getStorage().profile.load();
-        if (cancelled) return;
-        setProfile(stored);
-        setBusinessName(stored.businessName);
-        setOwnerName(stored.ownerName);
-        setAddress(stored.address);
-        setContacts(stored.contacts);
-        setTagline(stored.tagline);
-        if (stored.logoAttachmentId) {
-          const blob = await getServices().attachments.getBlob(stored.logoAttachmentId);
-          if (!cancelled && blob) {
-            const url = URL.createObjectURL(blob);
-            urls.push(url);
-            setStoredLogoUrl(url);
-          }
+    try {
+      const { profile: stored } = await getStorage().profile.load();
+      if (!alive()) return;
+      setProfile(stored);
+      setBusinessName(stored.businessName);
+      setOwnerName(stored.ownerName);
+      setAddress(stored.address);
+      setContacts(stored.contacts);
+      setTagline(stored.tagline);
+      if (stored.logoAttachmentId) {
+        const blob = await getServices().attachments.getBlob(stored.logoAttachmentId);
+        if (alive() && blob) {
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          setStoredLogoUrl(url);
         }
-      } catch (e) {
-        errorCenter.report(e, { action: "profile.load" });
-      } finally {
-        if (!cancelled) setLoaded(true);
       }
-    })();
+    } finally {
+      if (alive()) setLoaded(true);
+    }
     return () => {
-      cancelled = true;
       for (const url of urls) URL.revokeObjectURL(url);
     };
-  }, []);
+  }, "profile.load");
 
   useEffect(() => {
     if (!pendingLogo) return;

@@ -13,6 +13,7 @@ import { fractionDigits, getCurrency, subscribeCurrency } from "@/lib/currency";
 import type { CurrencyCode } from "@/lib/domain/types";
 import { formatDate } from "@/lib/dates";
 import { Button } from "../ui/Button";
+import { TableShell, Td, Th } from "../ui/Table";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Field, inputClass } from "../ui/Field";
 import { Icon } from "../ui/Icon";
@@ -20,7 +21,7 @@ import { Modal } from "../ui/Modal";
 import { SearchField } from "../ui/SearchField";
 import { Select } from "../ui/Select";
 import { TagInput } from "../ui/TagInput";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import type { NavId } from "../nav";
 
 /** Trainers screen: searchable table, add and edit form, detail view, delete with confirmation. */
@@ -30,7 +31,6 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
 
   const [items, setItems] = useState<Trainer[]>([]);
   const [query, setQuery] = useState("");
-  const [guideOpen, setGuideOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>(() => getCurrency());
   const [allTrainers, setAllTrainers] = useState<Trainer[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
@@ -196,14 +196,7 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <h1 className="text-2xl font-semibold text-plum-900">{t("trainer.title")}</h1>
-          <button
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            aria-label={t("guide.open")}
-            className="grid size-8 max-sm:size-11 place-items-center rounded-full text-muted transition-colors duration-200 hover:bg-plum-50 hover:text-ink"
-          >
-            <Icon name="help" size={16} />
-          </button>
+          <GuideButton section="trainers" />
         </div>
         <Button className="max-sm:min-h-11" icon="plus" onClick={openAdd}>
           {t("trainer.add")}
@@ -219,19 +212,18 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
           <p className="mt-1 text-sm text-muted">{t("trainer.emptyHint")}</p>
         </div>
       ) : (
-        <div role="region" tabIndex={0} aria-label={t("trainer.title")} className="relative overflow-x-auto rounded-card border border-line bg-surface">
-          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+        <TableShell label={t("trainer.title")} minWidth="640px">
             <thead>
               <tr className="border-b border-line text-muted">
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.name")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.email")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.phone")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.subjects")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.ratePerSession", { currency })}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.status")}</th>
-                <th scope="col" className="px-4 py-3">
+                <Th>{t("field.name")}</Th>
+                <Th>{t("field.email")}</Th>
+                <Th>{t("field.phone")}</Th>
+                <Th>{t("field.subjects")}</Th>
+                <Th>{t("field.ratePerSession", { currency })}</Th>
+                <Th>{t("field.status")}</Th>
+                <Th>
                   <span className="sr-only">{t("action.edit")}</span>
-                </th>
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -241,17 +233,17 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                   onClick={() => void openDetail(trainer)}
                   className="cursor-pointer border-b border-line transition-colors duration-200 last:border-b-0 hover:bg-plum-50"
                 >
-                  <td className="px-4 py-3 font-medium text-ink">{trainer.name}</td>
-                  <td className="max-w-0 truncate px-4 py-3 text-muted">{trainer.email}</td>
-                  <td className="px-4 py-3 text-muted">{trainer.phone}</td>
-                  <td className="max-w-[12rem] truncate px-4 py-3 text-muted">{trainer.subjects.join(", ")}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-muted">{formatMoney(trainer.ratePerSession, locale)}</td>
-                  <td className="px-4 py-3">
+                  <Td className="font-medium text-ink">{trainer.name}</Td>
+                  <Td className="max-w-0 truncate text-muted">{trainer.email}</Td>
+                  <Td className="text-muted">{trainer.phone}</Td>
+                  <Td className="max-w-[12rem] truncate text-muted">{trainer.subjects.join(", ")}</Td>
+                  <Td className="whitespace-nowrap text-muted">{formatMoney(trainer.ratePerSession, locale)}</Td>
+                  <Td>
                     <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${trainer.status === "active" ? "bg-plum-100 text-plum-900" : "bg-plum-50 text-muted"}`}>
                       {statusLabel(trainer.status)}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>
                     <div className="flex justify-end gap-1">
                       <button
                         type="button"
@@ -276,12 +268,11 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                         <Icon name="trash" size={16} />
                       </button>
                     </div>
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </TableShell>
       )}
 
       <Modal
@@ -442,7 +433,6 @@ export function TrainersScreen({ navigate: _navigate }: { navigate: (id: NavId) 
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <GuideDialog open={guideOpen} section="trainers" onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

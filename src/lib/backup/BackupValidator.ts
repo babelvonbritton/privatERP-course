@@ -194,7 +194,7 @@ class FieldReader {
   }
 }
 
-export interface ValidationResult {
+interface ValidationResult {
   data: BackupData;
   warnings: Msg[];
   total: number;

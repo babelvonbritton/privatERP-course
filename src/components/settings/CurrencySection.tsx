@@ -6,6 +6,7 @@ import { getCurrency, subscribeCurrency } from "@/lib/currency";
 import { CURRENCIES, type CurrencyCode } from "@/lib/domain/types";
 import { getServices } from "@/lib/domain/services";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { getStorage } from "@/lib/storage";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -20,16 +21,12 @@ export function CurrencySection() {
   const [dialog, setDialog] = useState<"confirm" | "limit" | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getStorage()
-      .preferences.load()
-      .then(({ preferences }) => {
-        if (!cancelled) setCurrent(preferences.currency);
-      })
-      .catch((e) => errorCenter.report(e, { action: "currency.load" }));
-    return subscribeCurrency(() => setCurrent(getCurrency()));
-  }, []);
+  useLoadOnce(async (alive) => {
+    const { preferences } = await getStorage().preferences.load();
+    if (alive()) setCurrent(preferences.currency);
+  }, "currency.load");
+
+  useEffect(() => subscribeCurrency(() => setCurrent(getCurrency())), []);
 
   async function applySwitch(to: CurrencyCode) {
     setBusy(true);

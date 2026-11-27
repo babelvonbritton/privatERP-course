@@ -16,7 +16,7 @@ export const DEFAULT_BUSINESS_PROFILE: BusinessProfile = { businessName: "", own
 export const PROFILE_ENTITY_ID = "profile";
 
 export const MAX_CONTACTS = 10;
-export const MAX_ADDRESS_LENGTH = 500;
+const MAX_ADDRESS_LENGTH = 500;
 
 const KEYS: Record<keyof BusinessProfile, string> = {
   businessName: "profile.businessName",

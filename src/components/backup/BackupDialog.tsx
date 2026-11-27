@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react
 import { useI18n } from "@/i18n";
 import { BackupService } from "@/lib/backup/BackupService";
 import { isAlphanumericPassphrase } from "@/lib/backup/BackupCrypto";
-import type { Decision, MergeResult } from "@/lib/backup/MergePlanner";
+import type { MergeResult } from "@/lib/backup/MergePlanner";
 import { FileSaver } from "@/lib/backup/FileSaver";
 import type { BackupResult, Outcome, RestorePlan, StepState } from "@/lib/backup/types";
 import type { CurrencyCode } from "@/lib/domain/types";
@@ -19,6 +19,7 @@ import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
 import { RestoreReview } from "./RestoreReview";
 import { Stepper } from "./Stepper";
+import { useRestoreDecisions } from "./useRestoreDecisions";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -77,7 +78,6 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
   const backup = useFlow<BackupResult>();
   const inspect = useFlow<RestorePlan>();
   const apply = useFlow<MergeResult>();
-  const [decisions, setDecisions] = useState<Map<string, Decision>>(new Map());
   const [safety, setSafety] = useState(true);
   const [encryptBackup, setEncryptBackup] = useState(false);
   const [backupPassphrase, setBackupPassphrase] = useState("");
@@ -92,6 +92,7 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
   const [downloadError, setDownloadError] = useState<AppError | null>(null);
   const busy = backup.phase === "running" || inspect.phase === "running" || apply.phase === "running";
   const plan = inspect.result;
+  const { decisions, onDecide, onDecideAll, setDecisions } = useRestoreDecisions(plan);
 
   function resetAll() {
     backup.reset();
@@ -287,8 +288,8 @@ export function BackupDialog({ open, onOpenChange, onRestored, onHelp }: Props) 
                   <RestoreReview
                     plan={plan}
                     decisions={decisions}
-                    onDecide={(key, d) => setDecisions((m) => new Map(m).set(key, d))}
-                    onDecideAll={(d) => setDecisions(new Map(plan.merge.entries.filter((e) => e.status === "differs").map((e) => [e.key, d] as const)))}
+                    onDecide={onDecide}
+                    onDecideAll={onDecideAll}
                     safety={safety}
                     onSafety={setSafety}
                     onApply={() => setConfirm(true)}

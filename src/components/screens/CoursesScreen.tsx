@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/dates";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 import { Button } from "../ui/Button";
+import { TableShell, Td, Th } from "../ui/Table";
 import { Modal } from "../ui/Modal";
 import { Field, inputClass } from "../ui/Field";
 import { Select } from "../ui/Select";
@@ -22,7 +23,7 @@ import { TagInput } from "../ui/TagInput";
 import { TrainerPicker } from "../ui/TrainerPicker";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import type { NavId } from "../nav";
 
 const NONE = "__none__";
@@ -54,7 +55,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [query, setQuery] = useState("");
-  const [guideOpen, setGuideOpen] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Course | null>(null);
@@ -452,14 +452,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-1">
           <h1 className="text-2xl font-semibold text-plum-900">{t("course.title")}</h1>
-          <button
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            aria-label={t("guide.open")}
-            className="grid size-8 max-sm:size-11 shrink-0 place-items-center rounded-full text-muted transition-colors duration-200 hover:bg-plum-100 hover:text-ink"
-          >
-            <Icon name="help" size={18} />
-          </button>
+          <GuideButton section="courses" variant="large" />
         </div>
         <div className="flex gap-2">
           <Button className="max-sm:min-h-11" variant="soft" icon="plus" onClick={openStandalone}>
@@ -479,8 +472,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           <p className="mt-1 text-sm text-muted">{t("course.emptyHint")}</p>
         </div>
       ) : (
-        <div role="region" tabIndex={0} aria-label={t("course.title")} className="relative overflow-x-auto rounded-card border border-line bg-surface">
-          <table className="w-full min-w-[40rem] border-collapse text-sm">
+        <TableShell label={t("course.title")} minWidth="40rem">
             <thead>
               <tr className="border-b border-line text-left text-muted">
                 <th scope="col" className="px-4 py-3 font-medium">{t("field.title")}</th>
@@ -516,8 +508,7 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </TableShell>
       )}
 
       {/* Always rendered, even with no courses yet: the tour points at this
@@ -641,7 +632,6 @@ export function CoursesScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           )}
         </section>
 
-      <GuideDialog open={guideOpen} section="courses" onClose={() => setGuideOpen(false)} />
 
       <Modal
         open={formOpen}

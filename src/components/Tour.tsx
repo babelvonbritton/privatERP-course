@@ -5,11 +5,12 @@ import type { CSSProperties, ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { getStorage } from "@/lib/storage";
 import type { NavId } from "./nav";
 import { Button } from "./ui/Button";
 
-export interface TourStep {
+interface TourStep {
   nav: NavId;
   target: string;
   step: string;
@@ -55,21 +56,11 @@ export function TourProvider({ navigate, children }: Props) {
 
   const startTour = useCallback(() => setIndex(0), []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      void getStorage()
-        .preferences.load()
-        .then(({ preferences }) => {
-          if (!cancelled && !preferences.tourSeen) setIndex(0);
-        })
-        .catch((e) => errorCenter.report(e, { action: "tour.load" }));
-    }, 600);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, []);
+  useLoadOnce(async (alive) => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const { preferences } = await getStorage().preferences.load();
+    if (alive() && !preferences.tourSeen) setIndex(0);
+  }, "tour.load");
 
   const step = index === null ? null : TOUR_STEPS[index];
 

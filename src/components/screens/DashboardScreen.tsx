@@ -6,13 +6,15 @@ import type { MessageKey } from "@/i18n/types";
 import { formatDate } from "@/lib/dates";
 import { getServices, today, type DashboardData } from "@/lib/domain/services";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { formatMoney } from "@/lib/money";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { getStorage } from "@/lib/storage";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import type { NavId } from "../nav";
 import { BusinessProfileForm } from "../profile/BusinessProfileForm";
 import { Button } from "../ui/Button";
+import { TableShell } from "../ui/Table";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
 
@@ -32,7 +34,6 @@ function StatCard({ label, value }: { label: string; value: string }) {
 export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void }) {
   const { t, locale } = useI18n();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
   const [quickSetupOpen, setQuickSetupOpen] = useState(false);
@@ -58,33 +59,17 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
     void load();
   }, [load]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getStorage()
-      .profile.load()
-      .then(({ profile: stored }) => {
-        if (!cancelled) setProfile(stored);
-      })
-      .catch((e) => errorCenter.report(e, { action: "profile.load" }));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useLoadOnce(async (alive) => {
+    const { profile: stored } = await getStorage().profile.load();
+    if (alive()) setProfile(stored);
+  }, "profile.load");
 
   return (
     <div data-tour="dashboard" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-plum-900">{t("dashboard.title")}</h1>
-        <button
-          type="button"
-          aria-label={t("guide.open")}
-          onClick={() => setGuideOpen(true)}
-          className="grid size-10 max-sm:size-11 shrink-0 place-items-center rounded-full border border-line bg-surface text-plum-600 transition-colors duration-200 hover:bg-plum-50"
-        >
-          <Icon name="help" size={18} />
-        </button>
+        <GuideButton section="dashboard" variant="bordered" />
       </div>
-      <GuideDialog open={guideOpen} section="dashboard" onClose={() => setGuideOpen(false)} />
 
       {profile.businessName.trim() === "" && (
         <div data-tour="profile-reminder" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface p-4">
@@ -168,8 +153,7 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
             {data.recentInvoices.length === 0 ? (
               <p className="mt-3 text-sm text-muted">{t("dashboard.noInvoices")}</p>
             ) : (
-              <div role="region" tabIndex={0} aria-label={t("dashboard.recentInvoices")} className="relative mt-3 overflow-x-auto">
-                <table className="w-full min-w-96 border-collapse text-sm">
+              <TableShell label={t("dashboard.recentInvoices")} minWidth="24rem" wrapperClassName="relative mt-3 overflow-x-auto">
                   <thead>
                     <tr className="border-b border-line text-left text-muted">
                       <th scope="col" className="py-2 pr-3 font-medium">{t("diff.number")}</th>
@@ -190,8 +174,7 @@ export function DashboardScreen({ navigate }: { navigate: (id: NavId) => void })
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                </TableShell>
             )}
             <div className="mt-4">
               <Button className="max-sm:min-h-11" variant="soft" onClick={() => navigate("invoices")}>

@@ -2,7 +2,7 @@ import type { OlaseenaDatabase } from "./OlaseenaDatabase";
 import type { Clock } from "./types";
 import { paidMatches } from "@/lib/money";
 
-export type IntegrityCode =
+type IntegrityCode =
   | "ORPHAN_ENROLLMENT"
   | "ORPHAN_SESSION"
   | "ORPHAN_ATTENDANCE"

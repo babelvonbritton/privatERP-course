@@ -48,6 +48,9 @@ import {
 import { requireCan } from "./permissions";
 import { MONEY_TRASH_KINDS, convertTrashEntry, createTrashEntry } from "./trash";
 import { TrashService } from "./trashService";
+import { ServiceBase } from "./serviceBase";
+
+export { ServiceBase } from "./serviceBase";
 import { AttachmentService } from "@/lib/attachments/service";
 import type {
   Actor,
@@ -69,8 +72,6 @@ import type {
 import { ORG_ID, OWNER_ACTOR, courseRequiredSkills, courseWeekdays, dateWeekday, dedupeSkills, sessionAttendees, sessionCapacity, sessionDurationHours, sessionEffectiveAttendees, timeToMinutes, trainerSkillMatchCount } from "./types";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 
-type Db = StorageService["db"];
-
 function baseFields(actor: Actor, now: number, id = createId()): BaseRecord {
   return { id, orgId: actor.orgId, ownerId: actor.id, createdAt: now, updatedAt: now, rev: 1 };
 }
@@ -91,52 +92,6 @@ function assertDateOnSchedule(field: string, date: string, course: Course): void
   if (weekday === null) throw new ValidationError(field, `${field} is not a valid date`, "invalid");
   if (!days.includes(weekday)) {
     throw new ValidationError(field, `${field} is not one of the course's scheduled weekdays`, "notScheduledDay", undefined, { days: days.join(",") });
-  }
-}
-
-abstract class ServiceBase {
-  constructor(
-    protected readonly storage: StorageService,
-    protected actor: Actor,
-    protected readonly clock: Clock = Date.now,
-  ) {}
-
-  /** Re-stamps this service with a new actor. New records and audit entries from here on use it; records already written keep theirs. */
-  setActor(actor: Actor): void {
-    this.actor = actor;
-  }
-
-  protected get db(): Db {
-    return this.storage.db;
-  }
-
-  protected now(): number {
-    return this.clock();
-  }
-
-  protected async audit(action: string, entity: string, entityId: string, detail: string): Promise<void> {
-    const entry: AuditLogEntry = {
-      id: createId(),
-      orgId: this.actor.orgId,
-      actorId: this.actor.id,
-      actorName: "Owner",
-      action,
-      entity,
-      entityId,
-      detail,
-      at: this.now(),
-    };
-    await this.storage.audit.add(entry);
-  }
-
-  /** Returns the entity id a write key already produced, or null when the key is new. */
-  protected async seenKey(key: string, entity: string): Promise<string | null> {
-    const seen = await this.storage.writeKeys.get(key);
-    return seen && seen.entity === entity ? seen.entityId : null;
-  }
-
-  protected async recordKey(key: string, entity: string, entityId: string): Promise<void> {
-    await this.storage.writeKeys.put({ key, entity, entityId, createdAt: this.now() });
   }
 }
 
@@ -460,7 +415,7 @@ export class CourseService extends ServiceBase {
 }
 
 
-export interface AttendanceDashboardRow {
+interface AttendanceDashboardRow {
   memberId: string;
   memberName: string;
   courseId: string;
@@ -475,7 +430,7 @@ export interface AttendanceDashboardRow {
   attendedHours: number;
 }
 
-export interface AttendanceDashboardFilter {
+interface AttendanceDashboardFilter {
   trainerId?: string;
   memberId?: string;
   courseId?: string;
@@ -500,7 +455,7 @@ export interface TrainerDashboardRow {
   hoursTaught: number;
 }
 
-export interface TrainerDashboardFilter {
+interface TrainerDashboardFilter {
   trainerId?: string;
   courseId?: string;
 }
@@ -1195,7 +1150,7 @@ export class PayrollService extends ServiceBase {
 }
 
 
-export interface CurrencySwitchResult {
+interface CurrencySwitchResult {
   from: CurrencyCode;
   to: CurrencyCode;
   rate: number;
@@ -1290,7 +1245,7 @@ export class CurrencyService extends ServiceBase {
 }
 
 
-export interface DashboardUpcomingSession {
+interface DashboardUpcomingSession {
   id: string;
   date: string;
   topic: string;
@@ -1298,7 +1253,7 @@ export interface DashboardUpcomingSession {
   trainerName: string;
 }
 
-export interface DashboardRecentInvoice {
+interface DashboardRecentInvoice {
   id: string;
   number: string;
   memberName: string;
@@ -1420,17 +1375,7 @@ export class Services {
     this.currency = new CurrencyService(storage, actor, clock);
     this.trash = new TrashService(storage, actor, clock);
     this.attachments = new AttachmentService(storage.db, async (action, entity, entityId, detail) => {
-      await storage.audit.add({
-        id: createId(),
-        orgId: this.actor.orgId,
-        actorId: this.actor.id,
-        actorName: "Owner",
-        action,
-        entity,
-        entityId,
-        detail,
-        at: clock(),
-      });
+      await storage.audit.add(ServiceBase.buildAuditEntry(this.actor, clock(), action, entity, entityId, detail));
     });
   }
 

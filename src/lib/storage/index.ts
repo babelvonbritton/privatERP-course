@@ -20,7 +20,7 @@ import {
 import { SnapshotService } from "./SnapshotService";
 import type { Clock } from "./types";
 
-export interface StorageReport {
+interface StorageReport {
   repairedPreferences: string[];
   counts: { members: number; trainers: number; courses: number; enrollments: number; sessions: number; attendance: number; invoices: number; payments: number; payrollRuns: number; trash: number };
   integrity: IntegrityReport;

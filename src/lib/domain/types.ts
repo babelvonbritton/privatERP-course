@@ -183,7 +183,7 @@ export function isDateOnSchedule(date: string, weekdays: number[]): boolean {
 }
 
 /** One skill, trimmed. Empty strings stay empty so callers can drop them. */
-export function normalizeSkill(skill: string): string {
+function normalizeSkill(skill: string): string {
   return skill.trim();
 }
 

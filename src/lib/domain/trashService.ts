@@ -1,14 +1,10 @@
 import { AppError } from "@/lib/errors/AppError";
 import { clampPaidAmount, roundMoney, statusAfterPayment } from "@/lib/money";
-import { createId } from "@/lib/storage/utils";
-import type { StorageService } from "@/lib/storage";
-import type { Clock } from "@/lib/storage/types";
 import { requireCan } from "./permissions";
+import { ServiceBase } from "./serviceBase";
 import { trashExpiresAt, type TrashEntry, type TrashKind, type TrashRetentionDays } from "./trash";
 import type {
-  Actor,
   Attendance,
-  AuditLogEntry,
   Course,
   Enrollment,
   Invoice,
@@ -21,40 +17,7 @@ import type {
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-export class TrashService {
-  constructor(
-    private readonly storage: StorageService,
-    private actor: Actor,
-    private readonly clock: Clock = Date.now,
-  ) {}
-
-  /** Re-stamps this service with a new actor. Trash audit entries from here on use it. */
-  setActor(actor: Actor): void {
-    this.actor = actor;
-  }
-
-  private get db() {
-    return this.storage.db;
-  }
-
-  private now(): number {
-    return this.clock();
-  }
-
-  private async audit(action: string, entity: string, entityId: string, detail: string): Promise<void> {
-    const entry: AuditLogEntry = {
-      id: createId(),
-      orgId: this.actor.orgId,
-      actorId: this.actor.id,
-      actorName: "Owner",
-      action,
-      entity,
-      entityId,
-      detail,
-      at: this.now(),
-    };
-    await this.storage.audit.add(entry);
-  }
+export class TrashService extends ServiceBase {
 
   /** Newest deleted first. */
   async list(): Promise<TrashEntry[]> {

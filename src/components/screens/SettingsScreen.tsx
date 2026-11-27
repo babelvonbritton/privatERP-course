@@ -7,7 +7,7 @@ import { LOCALES, LOCALE_NAMES } from "@/i18n/routing";
 import { APP_VERSION } from "@/lib/appInfo";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DB_SCHEMA_VERSION } from "@/lib/backup/constants";
 import { BackupDialog } from "../backup/BackupDialog";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import { BusinessProfileSection } from "../settings/BusinessProfileSection";
 import { CurrencySection } from "../settings/CurrencySection";
 import { DriveSection } from "../settings/DriveSection";
@@ -53,16 +53,8 @@ export function SettingsScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     <div data-tour="settings" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-plum-900">{t("settings.title")}</h1>
-        <button
-          type="button"
-          aria-label={t("guide.open")}
-          onClick={() => setGuideOpen(true)}
-          className="grid size-10 max-sm:size-11 shrink-0 place-items-center rounded-full border border-line bg-surface text-plum-600 transition-colors duration-200 hover:bg-plum-50"
-        >
-          <Icon name="help" size={18} />
-        </button>
+        <GuideButton section="settings" variant="bordered" open={guideOpen} onOpenChange={setGuideOpen} />
       </div>
-      <GuideDialog open={guideOpen} section="settings" onClose={() => setGuideOpen(false)} />
 
       <BusinessProfileSection />
 

@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 import { formatDate, dateOf } from "@/lib/dates";
 import { paymentDetailsOf, paymentMethodOf } from "@/lib/invoicePayment";
 import type { Invoice } from "@/lib/domain/types";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
-import { LambdaMark } from "@/components/Logo";
+import { blobAsDataUrl } from "@/lib/blob";
+import { DOCUMENT_PALETTE, DocumentHeader } from "@/components/documents/DocumentHeader";
+import { useBusinessLogo } from "@/components/documents/useBusinessLogo";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 
 interface InvoiceDocumentAttachment {
@@ -17,18 +20,6 @@ interface InvoiceDocumentAttachment {
 }
 
 const EMPTY_ATTACHMENTS: InvoiceDocumentAttachment[] = [];
-
-function blobAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") resolve(reader.result);
-      else reject(new Error("attachment could not be converted to a data URL"));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("attachment could not be read"));
-    reader.readAsDataURL(blob);
-  });
-}
 
 /**
  * Printable invoice. All colors are fixed light values written inline, never
@@ -59,76 +50,40 @@ export function InvoiceDocument({
     dataUrls: Map<string, string>;
     failedIds: Set<string>;
   } | null>(null);
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [logoFailed, setLogoFailed] = useState(false);
+  const { logoDataUrl, logoFailed, logoReady } = useBusinessLogo(logoBlob, "invoice.logo.read");
 
-  useEffect(() => {
-    let cancelled = false;
-    setLogoDataUrl(null);
-    setLogoFailed(false);
-    if (!logoBlob) return;
-    void blobAsDataUrl(logoBlob)
-      .then((url) => {
-        if (!cancelled) setLogoDataUrl(url);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          errorCenter.report(e, { action: "invoice.logo.read" });
-          setLogoFailed(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [logoBlob]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.all(
+  useLoadOnce(async (alive) => {
+    const results = await Promise.all(
       attachments.map(async (attachment) => {
         if (!attachment.blob) return { id: attachment.id, dataUrl: null, failed: false };
         try {
-          return { id: attachment.id, dataUrl: await blobAsDataUrl(attachment.blob), failed: false };
+          return { id: attachment.id, dataUrl: await blobAsDataUrl(attachment.blob, "attachment"), failed: false };
         } catch (e) {
-          if (!cancelled) errorCenter.report(e, { action: "invoice.attachment.read" });
+          if (alive()) errorCenter.report(e, { action: "invoice.attachment.read" });
           return { id: attachment.id, dataUrl: null, failed: true };
         }
       }),
-    ).then((results) => {
-      if (cancelled) return;
-      const dataUrls = new Map<string, string>();
-      const failedIds = new Set<string>();
-      for (const result of results) {
-        if (result.dataUrl) dataUrls.set(result.id, result.dataUrl);
-        if (result.failed) failedIds.add(result.id);
-      }
-      setLoadedAttachments({ attachments, dataUrls, failedIds });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [attachments]);
+    );
+    if (!alive()) return;
+    const dataUrls = new Map<string, string>();
+    const failedIds = new Set<string>();
+    for (const result of results) {
+      if (result.dataUrl) dataUrls.set(result.id, result.dataUrl);
+      if (result.failed) failedIds.add(result.id);
+    }
+    setLoadedAttachments({ attachments, dataUrls, failedIds });
+  }, "invoice.attachment.read", [attachments]);
 
   const currentAttachments = loadedAttachments?.attachments === attachments ? loadedAttachments : null;
   const hasAttachmentBlobs = attachments.some((attachment) => attachment.blob !== null);
   const attachmentsReady = !hasAttachmentBlobs || currentAttachments !== null;
-  const logoReady = !logoBlob || logoDataUrl !== null || logoFailed;
   const attachmentStatus = !attachmentsReady || !logoReady
     ? "false"
     : currentAttachments && currentAttachments.failedIds.size > 0
       ? "error"
       : "true";
 
-  const businessName = profile.businessName.trim() || "Olaseena";
-  const tagline = profile.tagline.trim();
-  const address = profile.address.trim();
-  const contacts = profile.contacts.map((c) => c.trim()).filter((c) => c.length > 0);
-
-  const ink = "#2B1E2B";
-  const muted = "#5C4A5C";
-  const accent = "#5B2A52";
-  const line = "#E5DDDE";
-  const soft = "#F8F5F0";
+  const { ink, muted, line, soft } = DOCUMENT_PALETTE;
 
   return (
     <div
@@ -136,34 +91,18 @@ export function InvoiceDocument({
       data-attachments-ready={attachmentStatus}
       style={{ width: "min(640px, 100%)", maxWidth: 640, minWidth: 0, backgroundColor: "#FFFFFF", color: ink, fontFamily: "system-ui, -apple-system, sans-serif", padding: "clamp(16px, 5vw, 32px)", boxSizing: "border-box" }}
     >
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, color: accent }}>
-          {logoDataUrl ? (
-            <img src={logoDataUrl} alt="" style={{ display: "block", height: 40, maxWidth: 120, objectFit: "contain" }} />
-          ) : (
-            <LambdaMark size={28} />
-          )}
-          <div>
-            <span style={{ fontSize: 26, fontWeight: 700, color: ink }}>{businessName}</span>
-            {tagline && <div style={{ fontSize: 13, fontWeight: 400, color: muted }}>{tagline}</div>}
-          </div>
-        </div>
-        <div style={{ maxWidth: "100%", textAlign: "right" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, overflowWrap: "anywhere" }}>{invoice.number}</div>
-          <div style={{ fontSize: 13, color: muted }}>
-            {t("invoice.issueDate")}: {formatDate(issueDate, locale)}
-          </div>
-        </div>
-      </div>
-
-      {(address || contacts.length > 0) && (
-        <div style={{ marginTop: 12, fontSize: 13, color: muted }}>
-          {address && <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{address}</div>}
-          {contacts.map((contact) => (
-            <div key={contact} style={{ overflowWrap: "anywhere" }}>{contact}</div>
-          ))}
-        </div>
-      )}
+      <DocumentHeader
+        profile={profile}
+        logoDataUrl={logoDataUrl}
+        right={
+          <>
+            <div style={{ fontSize: 20, fontWeight: 700, overflowWrap: "anywhere" }}>{invoice.number}</div>
+            <div style={{ fontSize: 13, color: muted }}>
+              {t("invoice.issueDate")}: {formatDate(issueDate, locale)}
+            </div>
+          </>
+        }
+      />
 
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28, fontSize: 14 }}>
         <div>

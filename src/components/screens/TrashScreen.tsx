@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { MessageKey } from "@/i18n/types";
 import { getServices } from "@/lib/domain/services";
@@ -9,6 +9,7 @@ import { getStorage } from "@/lib/storage";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { trashDaysRemaining, type TrashEntry } from "@/lib/domain/trash";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { isRealDate } from "@/lib/storage/utils";
@@ -16,7 +17,7 @@ import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import type { NavId } from "../nav";
 
 type DetailTranslate = (key: MessageKey, vars?: Record<string, string | number>) => string;
@@ -124,7 +125,6 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
   const [retentionDays, setRetentionDays] = useState(7);
   const [loaded, setLoaded] = useState(false);
   const [profile, setProfile] = useState<BusinessProfile>(DEFAULT_BUSINESS_PROFILE);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<TrashEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TrashEntry | null>(null);
   const [emptyOpen, setEmptyOpen] = useState(false);
@@ -144,22 +144,16 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await getServices().trash.purgeExpired();
-      } catch (e) {
-        errorCenter.report(e, { action: "trash.purge" });
-      }
-      if (cancelled) return;
-      await load();
-      if (!cancelled) setLoaded(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [load]);
+  useLoadOnce(async (alive) => {
+    try {
+      await getServices().trash.purgeExpired();
+    } catch (e) {
+      errorCenter.report(e, { action: "trash.purge" });
+    }
+    if (!alive()) return;
+    await load();
+    if (alive()) setLoaded(true);
+  }, "trash.purge", [load]);
 
   async function restoreEntry(entry: TrashEntry): Promise<void> {
     try {
@@ -200,14 +194,7 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <h1 className="text-2xl font-semibold text-plum-900">{t("trash.title")}</h1>
-          <button
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            aria-label={t("guide.open")}
-            className="grid size-8 max-sm:size-11 place-items-center rounded-full text-muted transition-colors duration-200 hover:bg-plum-50 hover:text-ink"
-          >
-            <Icon name="help" size={16} />
-          </button>
+          <GuideButton section="trash" />
         </div>
         {loaded && entries.length > 0 && (
           <Button className="max-sm:min-h-11" variant="dangerSoft" icon="trash" onClick={() => setEmptyOpen(true)}>
@@ -303,7 +290,6 @@ export function TrashScreen({ navigate: _navigate }: { navigate: (id: NavId) => 
         onCancel={() => setEmptyOpen(false)}
       />
 
-      <GuideDialog open={guideOpen} section="trash" onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

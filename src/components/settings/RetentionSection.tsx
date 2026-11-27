@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { getServices } from "@/lib/domain/services";
+import { TRASH_RETENTION_OPTIONS } from "@/lib/domain/trash";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 
 /** Trash retention setting: how long deleted records stay in the trash bin before they are removed for good. */
 export function RetentionSection() {
@@ -11,18 +13,10 @@ export function RetentionSection() {
   const [days, setDays] = useState<7 | 30>(7);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getServices()
-      .trash.getRetentionDays()
-      .then((value) => {
-        if (!cancelled) setDays(value);
-      })
-      .catch((e) => errorCenter.report(e, { action: "trash.retention.load" }));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useLoadOnce(async (alive) => {
+    const value = await getServices().trash.getRetentionDays();
+    if (alive()) setDays(value);
+  }, "trash.retention.load");
 
   async function choose(next: 7 | 30): Promise<void> {
     if (next === days || busy) return;
@@ -42,7 +36,7 @@ export function RetentionSection() {
       <h2 className="text-base font-semibold text-plum-900">{t("trash.retention")}</h2>
       <p className="mt-1 text-sm text-muted">{t("trash.retentionHint")}</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {([7, 30] as const).map((option) => {
+        {TRASH_RETENTION_OPTIONS.map((option) => {
           const isCurrent = option === days;
           return (
             <button

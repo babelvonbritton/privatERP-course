@@ -7,6 +7,7 @@ import { LOCALE_NAMES, type Locale } from "@/i18n/routing";
 import { setCurrency, subscribeCurrency } from "@/lib/currency";
 import { setTimezone, subscribeTimezone } from "@/lib/timezone";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { getServices, applyBusinessProfile } from "@/lib/domain/services";
 import { startDriveSync } from "@/lib/driveSync";
 import { getStorage } from "@/lib/storage";
@@ -37,25 +38,6 @@ export function AppShell() {
 
   useEffect(() => {
     const stopSync = startDriveSync();
-    let cancelled = false;
-    void getStorage()
-      .preferences.load()
-      .then(({ preferences }) => {
-        if (!cancelled) {
-          setCurrency(preferences.currency);
-          setTimezone(preferences.timezone);
-        }
-      })
-      .catch((e) => errorCenter.report(e, { action: "currency.load" }));
-    void getStorage()
-      .profile.load()
-      .then(({ profile }) => {
-        if (!cancelled) applyBusinessProfile(profile);
-      })
-      .catch((e) => errorCenter.report(e, { action: "profile.load" }));
-    void getServices()
-      .trash.purgeExpired()
-      .catch((e) => errorCenter.report(e, { action: "trash.purge" }));
     const stopCurrency = subscribeCurrency(() => setCurrencyTick((n) => n + 1));
     const stopTimezone = subscribeTimezone(() => setTimezoneTick((n) => n + 1));
     return () => {
@@ -64,6 +46,23 @@ export function AppShell() {
       stopTimezone();
     };
   }, []);
+
+  useLoadOnce(async (alive) => {
+    const { preferences } = await getStorage().preferences.load();
+    if (alive()) {
+      setCurrency(preferences.currency);
+      setTimezone(preferences.timezone);
+    }
+  }, "currency.load");
+
+  useLoadOnce(async (alive) => {
+    const { profile } = await getStorage().profile.load();
+    if (alive()) applyBusinessProfile(profile);
+  }, "profile.load");
+
+  useLoadOnce(async () => {
+    await getServices().trash.purgeExpired();
+  }, "trash.purge");
 
   const navigate = useCallback((id: NavId) => {
     setNav(id);

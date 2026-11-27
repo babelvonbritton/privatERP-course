@@ -9,9 +9,11 @@ import { createId } from "@/lib/storage/utils";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
 import { getStorage } from "@/lib/storage";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { formatMoney } from "@/lib/money";
 import { formatDate, dateOf, parseDate } from "@/lib/dates";
 import { Button } from "../ui/Button";
+import { TableShell, Td, Th } from "../ui/Table";
 import { Modal } from "../ui/Modal";
 import { Field, inputClass } from "../ui/Field";
 import { Select } from "../ui/Select";
@@ -19,7 +21,7 @@ import { SearchField } from "../ui/SearchField";
 import { DatePicker } from "../ui/DatePicker";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import { InvoiceDocument } from "../invoices/InvoiceDocument";
 import { paymentDetailsOf, paymentMethodOf, paymentMethodValue } from "@/lib/invoicePayment";
 import { downloadInvoicePdf, downloadInvoicePng } from "@/lib/invoiceExport";
@@ -39,7 +41,6 @@ interface LineDraft {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** Adds days to a YYYY-MM-DD date and returns a YYYY-MM-DD date. */
 function addDays(iso: string, days: number): string {
   const d = parseDate(iso);
   d.setDate(d.getDate() + days);
@@ -74,7 +75,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [guideOpen, setGuideOpen] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [formMemberId, setFormMemberId] = useState("");
@@ -118,53 +118,32 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
   const courseById = useMemo(() => new Map(courses.map((c) => [c.id, c])), [courses]);
   const now = today();
 
-  /** Reloads the invoice list for the current search text. */
   async function reloadInvoices(q: string) {
     const rows = q.trim() ? await s.invoices.search(q.trim()) : await s.invoices.list();
     setInvoices(rows);
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [ms, cs] = await Promise.all([s.members.list(), s.courses.list()]);
-        if (cancelled) return;
-        setMembers(ms);
-        setCourses(cs);
-        await reloadInvoices("");
-      } catch (e) {
-        errorCenter.report(e, { action: "invoice.list" });
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useLoadOnce(async (alive) => {
+    try {
+      const [ms, cs] = await Promise.all([s.members.list(), s.courses.list()]);
+      if (!alive()) return;
+      setMembers(ms);
+      setCourses(cs);
+      await reloadInvoices("");
+    } finally {
+      if (alive()) setLoaded(true);
+    }
+  }, "invoice.list");
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { profile: stored } = await getStorage().profile.load();
-        if (cancelled) return;
-        setProfile(stored);
-        if (stored.logoAttachmentId) {
-          const blob = await s.attachments.getBlob(stored.logoAttachmentId);
-          if (!cancelled && blob) setLogoBlob(blob);
-        }
-      } catch (e) {
-        errorCenter.report(e, { action: "profile.load" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useLoadOnce(async (alive) => {
+    const { profile: stored } = await getStorage().profile.load();
+    if (!alive()) return;
+    setProfile(stored);
+    if (stored.logoAttachmentId) {
+      const blob = await s.attachments.getBlob(stored.logoAttachmentId);
+      if (alive() && blob) setLogoBlob(blob);
+    }
+  }, "profile.load");
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedQuery(query), 180);
@@ -179,7 +158,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
 
-  /** Reloads one invoice and its payments for the open detail view. */
   async function refreshDetail(id: string) {
     const [inv, payments] = await Promise.all([s.invoices.get(id), s.invoices.listPayments(id)]);
     if (inv) setDetail(inv);
@@ -187,7 +165,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     await loadAttachmentRows(id);
   }
 
-  /** Loads the attachment rows and file bytes of one invoice for the detail or edit view. */
   async function loadAttachmentRows(invoiceId: string) {
     try {
       const rows = await s.attachments.list("invoice", invoiceId);
@@ -232,7 +209,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     [pendingAttachments],
   );
 
-  /** Removes one attachment after confirmation, from the detail view, the edit view, or the lightbox. */
   async function removeAttachment(att: Attachment) {
     const invoiceId = detail?.id ?? edit?.id;
     try {
@@ -255,7 +231,6 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
     refreshDetail(inv.id).catch((e) => errorCenter.report(e, { action: "invoice.get" }));
   }
 
-  /** Exports the open invoice; the download itself is the success feedback. */
   async function runExport(kind: "pdf" | "png") {
     if (!detail || !docRef.current || exporting) return;
     setExporting(true);
@@ -530,14 +505,7 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <h1 className="text-2xl font-semibold text-plum-900">{t("invoice.title")}</h1>
-          <button
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            aria-label={t("guide.open")}
-            className="grid size-8 max-sm:size-11 place-items-center rounded-full text-muted transition-colors duration-200 hover:bg-plum-50 hover:text-ink"
-          >
-            <Icon name="help" size={16} />
-          </button>
+          <GuideButton section="invoices" />
         </div>
         <Button className="max-sm:min-h-11" icon="plus" onClick={openCreate}>{t("invoice.add")}</Button>
       </div>
@@ -567,8 +535,7 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
           {!debouncedQuery.trim() && <p className="mt-1 text-sm text-muted">{t("invoice.emptyHint")}</p>}
         </div>
       ) : (
-        <div role="region" tabIndex={0} aria-label={t("invoice.title")} className="relative overflow-x-auto rounded-card border border-line bg-surface">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <TableShell label={t("invoice.title")} minWidth="640px">
             <thead>
               <tr className="border-b border-line text-left text-muted">
                 <th scope="col" className="px-4 py-3 font-medium">{t("invoice.number")}</th>
@@ -600,11 +567,9 @@ export function InvoicesScreen({ navigate: _navigate }: { navigate: (id: NavId) 
                 );
               })}
             </tbody>
-          </table>
-        </div>
+          </TableShell>
       )}
 
-      <GuideDialog open={guideOpen} section="invoices" onClose={() => setGuideOpen(false)} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title={t("invoice.create")} width="md:max-w-2xl">
         <div className="flex flex-col gap-4">

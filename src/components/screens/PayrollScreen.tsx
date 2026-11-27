@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useI18n, type MessageKey } from "@/i18n";
 import { getServices, today } from "@/lib/domain/services";
 import { getStorage } from "@/lib/storage";
@@ -9,20 +9,21 @@ import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/Bu
 import { downloadPaycheckPdf, downloadPaycheckPng } from "@/lib/invoiceExport";
 import { createId } from "@/lib/storage/utils";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { formatMoney } from "@/lib/money";
 import { formatDate, dateOf, monthRange } from "@/lib/dates";
 import { Button } from "../ui/Button";
+import { TableShell, Td, Th } from "../ui/Table";
 import { Modal } from "../ui/Modal";
 import { Field } from "../ui/Field";
 import { Select } from "../ui/Select";
 import { DatePicker } from "../ui/DatePicker";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Icon } from "../ui/Icon";
-import { GuideDialog } from "../GuideDialog";
+import { GuideButton } from "../GuideButton";
 import { PaycheckDocument } from "../payroll/PaycheckDocument";
 import type { NavId } from "../nav";
 
-/** Formats a pay period as a start to end range. */
 function periodLabel(run: Pick<PayrollRun, "periodStart" | "periodEnd">, locale: string): string {
   return `${formatDate(run.periodStart, locale)} – ${formatDate(run.periodEnd, locale)}`;
 }
@@ -32,7 +33,6 @@ const RUN_STATUS_STYLES: Record<PayrollRun["status"], string> = {
   paid: "bg-plum-600 text-white",
 };
 
-/** Small status pill for a pay run. */
 function RunStatusPill({ status }: { status: PayrollRun["status"] }) {
   const { t } = useI18n();
   return (
@@ -49,7 +49,6 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
   const [courses, setCourses] = useState<Course[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
 
   const [trainerId, setTrainerId] = useState("");
   const [periodStart, setPeriodStart] = useState(() => monthRange(today()).start);
@@ -77,71 +76,40 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
     [detail, detailSessions],
   );
 
-  /** Reloads the pay run list. */
   async function reloadRuns() {
     setRuns(await s.payroll.list());
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [ts, cs, rs] = await Promise.all([s.trainers.list(), s.courses.list(), s.payroll.list()]);
-        if (cancelled) return;
-        setTrainers(ts);
-        setCourses(cs);
-        setRuns(rs);
-      } catch (e) {
-        errorCenter.report(e, { action: "payroll.list" });
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useLoadOnce(async (alive) => {
+    try {
+      const [ts, cs, rs] = await Promise.all([s.trainers.list(), s.courses.list(), s.payroll.list()]);
+      if (!alive()) return;
+      setTrainers(ts);
+      setCourses(cs);
+      setRuns(rs);
+    } finally {
+      if (alive()) setLoaded(true);
+    }
+  }, "payroll.list");
 
-  useEffect(() => {
+  useLoadOnce(async (alive) => {
     if (!detail) {
       setDetailSessions([]);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await getServices().attendance.listSessionsInRange(detail.periodStart, detail.periodEnd);
-        if (!cancelled) setDetailSessions(rows.filter((s) => s.trainerId === detail.trainerId));
-      } catch (e) {
-        errorCenter.report(e, { action: "payroll.detail" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [detail]);
+    const rows = await getServices().attendance.listSessionsInRange(detail.periodStart, detail.periodEnd);
+    if (alive()) setDetailSessions(rows.filter((s) => s.trainerId === detail.trainerId));
+  }, "payroll.detail", [detail]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { profile: stored } = await getStorage().profile.load();
-        if (cancelled) return;
-        setProfile(stored);
-        if (stored.logoAttachmentId) {
-          const blob = await s.attachments.getBlob(stored.logoAttachmentId);
-          if (!cancelled && blob) setLogoBlob(blob);
-        }
-      } catch (e) {
-        errorCenter.report(e, { action: "profile.load" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useLoadOnce(async (alive) => {
+    const { profile: stored } = await getStorage().profile.load();
+    if (!alive()) return;
+    setProfile(stored);
+    if (stored.logoAttachmentId) {
+      const blob = await s.attachments.getBlob(stored.logoAttachmentId);
+      if (alive() && blob) setLogoBlob(blob);
+    }
+  }, "profile.load");
 
   const sortedRuns = useMemo(
     () =>
@@ -238,14 +206,7 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <h1 className="text-2xl font-semibold text-plum-900">{t("payroll.title")}</h1>
-          <button
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            aria-label={t("guide.open")}
-            className="grid size-8 max-sm:size-11 place-items-center rounded-full text-muted transition-colors duration-200 hover:bg-plum-50 hover:text-ink"
-          >
-            <Icon name="help" size={16} />
-          </button>
+          <GuideButton section="payroll" />
         </div>
       </div>
 
@@ -286,17 +247,16 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
           <p className="mt-1 text-sm text-muted">{t("payroll.emptyHint")}</p>
         </div>
       ) : (
-        <div role="region" tabIndex={0} aria-label={t("payroll.title")} className="relative overflow-x-auto rounded-card border border-line bg-surface">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <TableShell label={t("payroll.title")} minWidth="640px">
             <thead>
               <tr className="border-b border-line text-left text-muted">
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.trainer")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("payroll.period")}</th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">{t("payroll.sessionCount")}</th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">{t("payroll.rate")}</th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">{t("payroll.total")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("field.status")}</th>
-                <th scope="col" className="px-4 py-3 font-medium">{t("payroll.paidAt")}</th>
+                <Th>{t("field.trainer")}</Th>
+                <Th>{t("payroll.period")}</Th>
+                <Th className="text-right">{t("payroll.sessionCount")}</Th>
+                <Th className="text-right">{t("payroll.rate")}</Th>
+                <Th className="text-right">{t("payroll.total")}</Th>
+                <Th>{t("field.status")}</Th>
+                <Th>{t("payroll.paidAt")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -306,23 +266,21 @@ export function PayrollScreen({ navigate: _navigate }: { navigate: (id: NavId) =
                   onClick={() => setDetail(run)}
                   className="cursor-pointer border-b border-line last:border-b-0 transition-colors duration-200 hover:bg-plum-50"
                 >
-                  <td className="px-4 py-3 font-medium text-ink">{trainerById.get(run.trainerId)?.name ?? ""}</td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap">{periodLabel(run, locale)}</td>
-                  <td className="px-4 py-3 text-right text-ink whitespace-nowrap">{run.sessionCount}</td>
-                  <td className="px-4 py-3 text-right text-ink whitespace-nowrap">{formatMoney(run.ratePerSession, locale)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-ink whitespace-nowrap">{formatMoney(run.total, locale)}</td>
-                  <td className="px-4 py-3"><RunStatusPill status={run.status} /></td>
-                  <td className="px-4 py-3 text-muted whitespace-nowrap">
+                  <Td className="font-medium text-ink">{trainerById.get(run.trainerId)?.name ?? ""}</Td>
+                  <Td className="text-muted whitespace-nowrap">{periodLabel(run, locale)}</Td>
+                  <Td className="text-right text-ink whitespace-nowrap">{run.sessionCount}</Td>
+                  <Td className="text-right text-ink whitespace-nowrap">{formatMoney(run.ratePerSession, locale)}</Td>
+                  <Td className="text-right font-medium text-ink whitespace-nowrap">{formatMoney(run.total, locale)}</Td>
+                  <Td><RunStatusPill status={run.status} /></Td>
+                  <Td className="text-muted whitespace-nowrap">
                     {run.paidAt ? formatDate(dateOf(run.paidAt), locale) : ""}
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </TableShell>
       )}
 
-      <GuideDialog open={guideOpen} section="payroll" onClose={() => setGuideOpen(false)} />
 
       <Modal
         open={detail !== null}

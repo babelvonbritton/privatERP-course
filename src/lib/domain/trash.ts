@@ -12,7 +12,7 @@ export type TrashRetentionDays = 7 | 30;
 export const TRASH_RETENTION_OPTIONS: readonly TrashRetentionDays[] = [7, 30];
 export const DEFAULT_TRASH_RETENTION_DAYS: TrashRetentionDays = 7;
 
-export const DAY_MS = 86_400_000;
+const DAY_MS = 86_400_000;
 
 export interface TrashEntry {
   id: string;

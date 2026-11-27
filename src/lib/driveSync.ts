@@ -6,7 +6,7 @@ import { getStorage, type StorageService } from "@/lib/storage";
 
 export const SYNC_DEBOUNCE_MS = 8000;
 
-export type SyncStatus = "idle" | "syncing" | "error";
+type SyncStatus = "idle" | "syncing" | "error";
 
 export interface SyncState {
   status: SyncStatus;
@@ -15,7 +15,7 @@ export interface SyncState {
   dirty: boolean;
 }
 
-export interface DriveSyncDeps {
+interface DriveSyncDeps {
   storage: StorageService;
   drive: DriveService;
   buildArchive: (passphrase: string) => Promise<{ zip: Uint8Array }>;

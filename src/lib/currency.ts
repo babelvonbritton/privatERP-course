@@ -3,7 +3,7 @@ import { CURRENCIES, isCurrencyCode, type CurrencyCode, type SettingRecord } fro
 import { dateOf } from "@/lib/timezone";
 
 export const DAILY_SWITCH_LIMIT = 10;
-export const RATE_TIMEOUT_MS = 10_000;
+const RATE_TIMEOUT_MS = 10_000;
 
 const FRANKFURTER = "https://api.frankfurter.dev/v1/latest";
 const FALLBACK = "https://api.exchangerate-api.com/v4/latest";

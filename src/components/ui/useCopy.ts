@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppError } from "@/lib/errors/AppError";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
 
-export type CopyState = "idle" | "ok" | "fail";
+type CopyState = "idle" | "ok" | "fail";
 
 /**
  * Copies arbitrary text and reports the result for inline feedback.

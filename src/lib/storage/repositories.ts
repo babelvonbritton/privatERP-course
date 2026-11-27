@@ -22,7 +22,7 @@ import type {
   WriteKey,
 } from "@/lib/domain/types";
 
-export interface MemberStore {
+interface MemberStore {
   get(id: string): Promise<Member | undefined>;
   all(): Promise<Member[]>;
   search(query: string): Promise<Member[]>;
@@ -31,7 +31,7 @@ export interface MemberStore {
   remove(id: string): Promise<void>;
 }
 
-export interface TrainerStore {
+interface TrainerStore {
   get(id: string): Promise<Trainer | undefined>;
   all(): Promise<Trainer[]>;
   search(query: string): Promise<Trainer[]>;
@@ -40,7 +40,7 @@ export interface TrainerStore {
   remove(id: string): Promise<void>;
 }
 
-export interface CourseStore {
+interface CourseStore {
   get(id: string): Promise<Course | undefined>;
   all(): Promise<Course[]>;
   search(query: string): Promise<Course[]>;
@@ -49,7 +49,7 @@ export interface CourseStore {
   remove(id: string): Promise<void>;
 }
 
-export interface EnrollmentStore {
+interface EnrollmentStore {
   get(id: string): Promise<Enrollment | undefined>;
   all(): Promise<Enrollment[]>;
   listByMember(memberId: string): Promise<Enrollment[]>;
@@ -60,7 +60,7 @@ export interface EnrollmentStore {
   remove(id: string): Promise<void>;
 }
 
-export interface SessionStore {
+interface SessionStore {
   get(id: string): Promise<Session | undefined>;
   all(): Promise<Session[]>;
   listByCourse(courseId: string): Promise<Session[]>;
@@ -70,7 +70,7 @@ export interface SessionStore {
   remove(id: string): Promise<void>;
 }
 
-export interface AttendanceStore {
+interface AttendanceStore {
   get(id: string): Promise<Attendance | undefined>;
   all(): Promise<Attendance[]>;
   listBySession(sessionId: string): Promise<Attendance[]>;
@@ -79,7 +79,7 @@ export interface AttendanceStore {
   remove(id: string): Promise<void>;
 }
 
-export interface InvoiceStore {
+interface InvoiceStore {
   get(id: string): Promise<Invoice | undefined>;
   all(): Promise<Invoice[]>;
   search(query: string): Promise<Invoice[]>;
@@ -90,7 +90,7 @@ export interface InvoiceStore {
   remove(id: string): Promise<void>;
 }
 
-export interface PaymentStore {
+interface PaymentStore {
   get(id: string): Promise<Payment | undefined>;
   all(): Promise<Payment[]>;
   listByInvoice(invoiceId: string): Promise<Payment[]>;
@@ -99,7 +99,7 @@ export interface PaymentStore {
   remove(id: string): Promise<void>;
 }
 
-export interface PayrollStore {
+interface PayrollStore {
   get(id: string): Promise<PayrollRun | undefined>;
   all(): Promise<PayrollRun[]>;
   listByTrainer(trainerId: string): Promise<PayrollRun[]>;
@@ -108,13 +108,13 @@ export interface PayrollStore {
   remove(id: string): Promise<void>;
 }
 
-export interface AuditStore {
+interface AuditStore {
   add(entry: AuditLogEntry): Promise<string>;
   listRecent(limit: number): Promise<AuditLogEntry[]>;
   all(): Promise<AuditLogEntry[]>;
 }
 
-export interface WriteKeyStore {
+interface WriteKeyStore {
   get(key: string): Promise<WriteKey | undefined>;
   put(record: WriteKey): Promise<string>;
   all(): Promise<WriteKey[]>;
@@ -126,7 +126,7 @@ export interface SettingsStore {
   all(): Promise<SettingRecord[]>;
 }
 
-export interface TrashStore {
+interface TrashStore {
   get(id: string): Promise<TrashEntry | undefined>;
   all(): Promise<TrashEntry[]>;
   put(record: TrashEntry): Promise<string>;

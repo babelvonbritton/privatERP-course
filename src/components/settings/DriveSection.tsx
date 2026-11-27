@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
 import { BackupService, type FileLike } from "@/lib/backup/BackupService";
-import type { Decision, MergeResult } from "@/lib/backup/MergePlanner";
+import type { MergeResult } from "@/lib/backup/MergePlanner";
 import type { RestorePlan, StepState } from "@/lib/backup/types";
 import {
   DEFAULT_DRIVE_CLIENT_ID,
@@ -30,6 +30,7 @@ import { Modal } from "../ui/Modal";
 import { Switch } from "../ui/Switch";
 import { RestoreReview } from "../backup/RestoreReview";
 import { Stepper } from "../backup/Stepper";
+import { useRestoreDecisions } from "../backup/useRestoreDecisions";
 
 interface Props {
   onRestored: () => Promise<void>;
@@ -63,7 +64,7 @@ export function DriveSection({ onRestored }: Props) {
   const [error, setError] = useState<AppError | null>(null);
   const [heldBytes, setHeldBytes] = useState<Uint8Array | null>(null);
   const [plan, setPlan] = useState<RestorePlan | null>(null);
-  const [decisions, setDecisions] = useState<Map<string, Decision>>(new Map());
+  const { decisions, onDecide, onDecideAll, setDecisions } = useRestoreDecisions(plan);
   const [safety, setSafety] = useState(true);
   const [confirm, setConfirm] = useState(false);
   const [applySteps, setApplySteps] = useState<StepState[]>([]);
@@ -500,8 +501,8 @@ export function DriveSection({ onRestored }: Props) {
               <RestoreReview
                 plan={plan}
                 decisions={decisions}
-                onDecide={(key, d) => setDecisions((m) => new Map(m).set(key, d))}
-                onDecideAll={(d) => setDecisions(new Map(plan.merge.entries.filter((e) => e.status === "differs").map((e) => [e.key, d] as const)))}
+                onDecide={onDecide}
+                onDecideAll={onDecideAll}
                 safety={safety}
                 onSafety={setSafety}
                 onApply={() => setConfirm(true)}

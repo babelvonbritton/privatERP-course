@@ -129,7 +129,7 @@ export const attendanceInput = z.object({
 });
 export type AttendanceInput = z.infer<typeof attendanceInput>;
 
-export const invoiceLineItem = z.object({
+const invoiceLineItem = z.object({
   description: z.string().trim().min(1).max(LIMITS.lineDescription),
   amount: money(0, 1_000_000_000),
 });

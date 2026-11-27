@@ -20,8 +20,8 @@ export type EntityKind =
   | "setting"
   | "trash";
 
-export type EntryStatus = "new" | "same" | "differs";
-export type DiffField =
+type EntryStatus = "new" | "same" | "differs";
+type DiffField =
   | "name"
   | "email"
   | "phone"
@@ -61,7 +61,7 @@ export type DiffValue =
   | { kind: "money"; value: number }
   | { kind: "status"; value: string }
   | { kind: "long"; value: string };
-export interface FieldDiff {
+interface FieldDiff {
   field: DiffField;
   current: DiffValue;
   incoming: DiffValue;
@@ -75,13 +75,13 @@ export interface MergeEntry {
   diffs: FieldDiff[];
 }
 
-export interface KindCounts { new: number; same: number; differs: number }
+interface KindCounts { new: number; same: number; differs: number }
 export interface MergePlan {
   entries: MergeEntry[];
   totals: KindCounts;
   byKind: Record<EntityKind, KindCounts>;
 }
-export type Decisions = ReadonlyMap<string, Decision>;
+type Decisions = ReadonlyMap<string, Decision>;
 export interface MergeResult {
   data: BackupData;
   total: number;

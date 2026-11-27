@@ -48,8 +48,8 @@ export const ERROR_CODES = [
   "CURRENCY_LIMIT_REACHED",
 ] as const;
 
-export type ErrorCode = (typeof ERROR_CODES)[number];
-export type Severity = "error" | "warning";
+type ErrorCode = (typeof ERROR_CODES)[number];
+type Severity = "error" | "warning";
 
 interface Options {
   details?: string;

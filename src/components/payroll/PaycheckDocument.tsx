@@ -1,25 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useI18n, type MessageKey } from "@/i18n";
+import { useI18n } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 import { formatDate, dateOf } from "@/lib/dates";
 import { sessionDurationHours, type Course, type PayrollRun, type Session } from "@/lib/domain/types";
 import { DEFAULT_BUSINESS_PROFILE, type BusinessProfile } from "@/lib/storage/BusinessProfileService";
-import { LambdaMark } from "@/components/Logo";
-import { errorCenter } from "@/lib/errors/ErrorCenter";
-
-function blobAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") resolve(reader.result);
-      else reject(new Error("logo could not be converted to a data URL"));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("logo could not be read"));
-    reader.readAsDataURL(blob);
-  });
-}
+import { DOCUMENT_PALETTE, DocumentHeader } from "@/components/documents/DocumentHeader";
+import { useBusinessLogo } from "@/components/documents/useBusinessLogo";
 
 /** Sorts sessions soonest first: date, then start time, then topic. */
 function sortSessions(sessions: Session[]): Session[] {
@@ -58,46 +45,16 @@ export function PaycheckDocument({
   logoBlob?: Blob | null;
 }) {
   const { t, locale } = useI18n();
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [logoFailed, setLogoFailed] = useState(false);
+  const { logoDataUrl, logoReady } = useBusinessLogo(logoBlob, "paycheck.logo.read");
 
-  useEffect(() => {
-    let cancelled = false;
-    setLogoDataUrl(null);
-    setLogoFailed(false);
-    if (!logoBlob) return;
-    void blobAsDataUrl(logoBlob)
-      .then((url) => {
-        if (!cancelled) setLogoDataUrl(url);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          errorCenter.report(e, { action: "paycheck.logo.read" });
-          setLogoFailed(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [logoBlob]);
-
-  const logoReady = !logoBlob || logoDataUrl !== null || logoFailed;
   const attachmentStatus = logoReady ? "true" : "false";
 
-  const businessName = profile.businessName.trim() || "Olaseena";
-  const tagline = profile.tagline.trim();
-  const address = profile.address.trim();
-  const contacts = profile.contacts.map((c) => c.trim()).filter((c) => c.length > 0);
   const paidAt = run.paidAt ? dateOf(run.paidAt) : null;
   const sortedPaid = sortSessions(paidSessions);
   const sortedUnpaid = sortSessions(unpaidSessions);
   const isPaid = run.status === "paid";
 
-  const ink = "#2B1E2B";
-  const muted = "#5C4A5C";
-  const accent = "#5B2A52";
-  const line = "#E5DDDE";
-  const soft = "#F8F5F0";
+  const { ink, muted, accent, line } = DOCUMENT_PALETTE;
 
   return (
     <div
@@ -105,47 +62,31 @@ export function PaycheckDocument({
       data-attachments-ready={attachmentStatus}
       style={{ width: "min(640px, 100%)", maxWidth: 640, minWidth: 0, backgroundColor: "#FFFFFF", color: ink, fontFamily: "system-ui, -apple-system, sans-serif", padding: "clamp(8px, 3vw, 32px)", boxSizing: "border-box" }}
     >
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, color: accent }}>
-          {logoDataUrl ? (
-            <img src={logoDataUrl} alt="" style={{ display: "block", height: 40, maxWidth: 120, objectFit: "contain" }} />
-          ) : (
-            <LambdaMark size={28} />
-          )}
-          <div>
-            <span style={{ fontSize: 26, fontWeight: 700, color: ink }}>{businessName}</span>
-            {tagline && <div style={{ fontSize: 13, fontWeight: 400, color: muted }}>{tagline}</div>}
-          </div>
-        </div>
-        <div style={{ maxWidth: "100%", textAlign: "right" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, overflowWrap: "anywhere" }}>{t("paycheck.title")}</div>
-          <div style={{ marginTop: 6 }}>
-            <span
-              style={{
-                display: "inline-block",
-                padding: "3px 12px",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 700,
-                border: `2px solid ${accent}`,
-                backgroundColor: isPaid ? accent : "#FFFFFF",
-                color: isPaid ? "#FFFFFF" : accent,
-              }}
-            >
-              {t(isPaid ? "status.paid" : "status.draft")}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {(address || contacts.length > 0) && (
-        <div style={{ marginTop: 12, fontSize: 13, color: muted }}>
-          {address && <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{address}</div>}
-          {contacts.map((contact) => (
-            <div key={contact} style={{ overflowWrap: "anywhere" }}>{contact}</div>
-          ))}
-        </div>
-      )}
+      <DocumentHeader
+        profile={profile}
+        logoDataUrl={logoDataUrl}
+        right={
+          <>
+            <div style={{ fontSize: 20, fontWeight: 700, overflowWrap: "anywhere" }}>{t("paycheck.title")}</div>
+            <div style={{ marginTop: 6 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "3px 12px",
+                  borderRadius: 999,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  border: `2px solid ${accent}`,
+                  backgroundColor: isPaid ? accent : "#FFFFFF",
+                  color: isPaid ? "#FFFFFF" : accent,
+                }}
+              >
+                {t(isPaid ? "status.paid" : "status.draft")}
+              </span>
+            </div>
+          </>
+        }
+      />
 
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginTop: 28, fontSize: 14 }}>
         <div>

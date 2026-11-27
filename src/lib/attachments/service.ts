@@ -5,9 +5,9 @@ import type { OlaseenaDatabase } from "@/lib/storage/OlaseenaDatabase";
 import { createId } from "@/lib/storage/utils";
 import { extensionForMime, type PreparedAttachment } from "./compress";
 
-export type AuditFn = (action: string, entity: string, entityId: string, detail: string) => Promise<void>;
+type AuditFn = (action: string, entity: string, entityId: string, detail: string) => Promise<void>;
 
-export interface AddAttachmentInput {
+interface AddAttachmentInput {
   entityType: AttachmentEntityType;
   entityId: string;
   prepared: PreparedAttachment;

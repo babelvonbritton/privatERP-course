@@ -10,7 +10,7 @@ export function encodeNdjson(records: readonly unknown[]): Uint8Array {
   return strToU8(`${records.map((r) => JSON.stringify(r)).join("\n")}\n`);
 }
 
-export interface NdjsonDecodeResult {
+interface NdjsonDecodeResult {
   records: unknown[];
   badLines: number;
 }

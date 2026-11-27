@@ -13,7 +13,7 @@ export interface Preferences {
   timezone: string;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { tourSeen: false, currency: "IDR", currencySwitchDate: "", currencySwitchCount: 0, trashRetentionDays: DEFAULT_TRASH_RETENTION_DAYS, timezone: deviceTimezone() };
+const DEFAULT_PREFERENCES: Preferences = { tourSeen: false, currency: "IDR", currencySwitchDate: "", currencySwitchCount: 0, trashRetentionDays: DEFAULT_TRASH_RETENTION_DAYS, timezone: deviceTimezone() };
 
 const KEYS: Record<keyof Preferences, string> = {
   tourSeen: "pref.tourSeen",

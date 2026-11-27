@@ -5,11 +5,6 @@ export function countChars(text: string): number {
 
 export const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
-/** Removes every control character from a value. */
-export function stripControlChars(value: string): string {
-  return value.replace(new RegExp(CONTROL_RE.source, "g"), "");
-}
-
 /** True when an ISO date string (YYYY-MM-DD) is a real calendar date, not just well-formed. */
 export function isRealDate(value: string): boolean {
   const [y, m, d] = value.split("-").map(Number);

@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n";
 import { getTimezone, setTimezone, subscribeTimezone, timezones, zoneLabel } from "@/lib/timezone";
 import { getStorage } from "@/lib/storage";
 import { errorCenter } from "@/lib/errors/ErrorCenter";
+import { useLoadOnce } from "@/lib/hooks/useLoadOnce";
 import { Select } from "../ui/Select";
 
 /**
@@ -22,16 +23,12 @@ export function TimezoneSection() {
     return zones.map((value) => ({ value, label: zoneLabel(value) }));
   }, [zone]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getStorage()
-      .preferences.load()
-      .then(({ preferences }) => {
-        if (!cancelled) setZone(preferences.timezone);
-      })
-      .catch((e) => errorCenter.report(e, { action: "timezone.load" }));
-    return subscribeTimezone(() => setZone(getTimezone()));
-  }, []);
+  useLoadOnce(async (alive) => {
+    const { preferences } = await getStorage().preferences.load();
+    if (alive()) setZone(preferences.timezone);
+  }, "timezone.load");
+
+  useEffect(() => subscribeTimezone(() => setZone(getTimezone())), []);
 
   async function choose(next: string): Promise<void> {
     if (next === zone || busy) return;

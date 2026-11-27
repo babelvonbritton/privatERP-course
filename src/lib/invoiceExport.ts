@@ -2,8 +2,8 @@ import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
 import { AppError } from "@/lib/errors/AppError";
 
-export const A4_WIDTH_MM = 210;
-export const A4_HEIGHT_MM = 297;
+const A4_WIDTH_MM = 210;
+const A4_HEIGHT_MM = 297;
 
 /**
  * Pure layout math for fitting a rendered document image onto A4 pages: the

@@ -1,4 +1,4 @@
-export type ValidationKind = "required" | "tooLong" | "invalid" | "notScheduledDay" | "unqualifiedTrainer" | "overCapacity" | "notEnrolled" | "notAssigned";
+type ValidationKind = "required" | "tooLong" | "invalid" | "notScheduledDay" | "unqualifiedTrainer" | "overCapacity" | "notEnrolled" | "notAssigned";
 
 export class ValidationError extends Error {
   constructor(

@@ -2,10 +2,10 @@ import { AppError } from "@/lib/errors/AppError";
 import type { MessageKey } from "@/i18n/types";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/domain/attachments";
 
-export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
-export const MAX_EDGE_PX = 1920;
-export const JPEG_QUALITY = 0.82;
+const MAX_EDGE_PX = 1920;
+const JPEG_QUALITY = 0.82;
 
 export interface PreparedAttachment {
   blob: Blob;
@@ -43,7 +43,7 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 /** MIME type for a file extension, used when the picked file carries no type. */
-export function mimeForExtension(fileName: string): string {
+function mimeForExtension(fileName: string): string {
   return MIME_BY_EXT[extensionOf(fileName)] ?? "image/jpeg";
 }
 
@@ -61,7 +61,7 @@ export function scaledDimensions(width: number, height: number, maxEdge: number 
 }
 
 /** File name with its extension replaced by .jpg, for an image re-encoded as JPEG. */
-export function fileNameWithJpegExtension(fileName: string): string {
+function fileNameWithJpegExtension(fileName: string): string {
   const dot = fileName.lastIndexOf(".");
   const base = dot > 0 ? fileName.slice(0, dot) : fileName;
   return `${base || "image"}.jpg`;
@@ -73,7 +73,7 @@ function extensionOf(fileName: string): string {
 }
 
 /** True when the file is one of the accepted image types, by MIME type or, when the type is empty, by extension. */
-export function isAcceptedImage(file: Blob, fileName: string): boolean {
+function isAcceptedImage(file: Blob, fileName: string): boolean {
   if ((ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type)) return true;
   if (file.type === "") return ["jpg", "jpeg", "png", "webp", "gif"].includes(extensionOf(fileName));
   return false;

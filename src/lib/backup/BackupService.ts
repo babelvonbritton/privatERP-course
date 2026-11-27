@@ -34,7 +34,7 @@ export interface FileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
-export interface RestoreOptions {
+interface RestoreOptions {
   safetyBackup: boolean;
   safetyPassphrase?: string;
   decisions: ReadonlyMap<string, Decision>;

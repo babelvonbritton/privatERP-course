@@ -2,7 +2,7 @@ import type { IconName } from "./ui/Icon";
 
 export type NavId = "dashboard" | "members" | "trainers" | "courses" | "attendance" | "invoices" | "payroll" | "trash" | "settings";
 
-export interface NavItem {
+interface NavItem {
   id: NavId;
   icon: IconName;
   labelKey: `nav.${NavId}`;

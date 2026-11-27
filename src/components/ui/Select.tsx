@@ -4,7 +4,7 @@ import * as RSelect from "@radix-ui/react-select";
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 
-export interface Option<T extends string> {
+interface Option<T extends string> {
   value: T;
   label: string;
   swatch?: string;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.9
+
+Ponytail tidy-up: dead code and duplicated helpers removed, shared print
+header, guide button, legal page, restore decisions, table shell, and load
+hook extracted so each pattern lives once. No behavior change.
+
 ## 1.0.8
 
 The course tag inside session cards is now solid brand plum with white text, so it reads as a label instead of blending with the light soft buttons next to it.
